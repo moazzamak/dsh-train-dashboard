@@ -1,0 +1,62 @@
+{
+  "name": "dsh-train-dashboard",
+  "version": "0.1.0",
+  "description": "A right-pane training dashboard for the DeepSeek Harness: it runs a command of your own that writes a JSON snapshot of a training run, serves that snapshot over two HTTP routes, and charts it as a right-pane tab — one series at a time, with the age of the numbers always on screen.",
+  "author": "Moazzam Abdullah Khan (https://github.com/moazzamak)",
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "bundle",
+    "training",
+    "dashboard",
+    "metrics",
+    "charts",
+    "monitoring",
+    "svg"
+  ],
+  "type": "module",
+  "main": "index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./client": "./client.cjs",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.mjs",
+    "client.cjs",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moazzamak/dsh-train-dashboard.git"
+  },
+  "homepage": "https://github.com/moazzamak/dsh-train-dashboard#readme",
+  "bugs": {
+    "url": "https://github.com/moazzamak/dsh-train-dashboard/issues"
+  },
+  "scripts": {
+    "check": "node --check index.mjs && node --check client.cjs",
+    "test": "node --test test/host.test.mjs test/client.test.mjs",
+    "test:live": "node test/live-smoke.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-client-ui-layout"
+      ]
+    }
+  }
+}

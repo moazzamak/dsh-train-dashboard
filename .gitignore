@@ -1,0 +1,22 @@
+# Installed dependencies
+node_modules/
+.pnpm-store/
+
+# Scratch: a snapshot written into the checkout by a local run of the plugin,
+# and anything a test or a producer leaves behind
+train-dashboard.snapshot.json
+*.snapshot.json
+.tmp/
+tmp/
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Logs and package-manager noise
+*.log
+npm-debug.log*
+pnpm-debug.log*

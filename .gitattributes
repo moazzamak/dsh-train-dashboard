@@ -1,0 +1,11 @@
+# Keep the committed sources in LF: line endings are not content here, and a
+# CRLF checkout would show up as a diff on every clone. There is no build step
+# in this repository — the two halves are the shipped artifacts.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
