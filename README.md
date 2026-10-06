@@ -29,15 +29,38 @@ Package version **0.1.0** — snapshot contract version **1**.
 | header | the run's name, the snapshot's age with a fresh/stale badge, a Refresh button |
 | KPI row | latest step, headline series, step wall time, throughput, memory peak, evaluation accuracy |
 | chips | the series to chart, best-first; any other series the snapshot carries is appended |
-| chart | ONE series at a time on its own axis, with an optional break point marked |
+| chart | ONE series at a time on its own axis, with an optional break point marked, over a timeline you can select |
 | footer | the snapshot path being read |
 
 **One series at a time is deliberate.** Series carry different units — bits per
 byte, seconds, GiB, accuracy, counts — and drawing them on one axis would invite
 exactly the comparison the axis cannot support.
 
-There are two ways to open the tab: a chart glyph pinned to the top-right of the
-frame, and the pane's "+" guide menu.
+### Selecting the timeline
+
+The chart opens on the whole run, and the axis rescales to whatever window you
+select. That is the point of the interaction: on a long run one early spike can
+flatten the last few thousand steps — the part you are steering — into a
+straight line.
+
+| gesture | effect |
+| --- | --- |
+| drag across the chart | zoom to that window |
+| wheel | zoom about the pointer |
+| drag (or click) the strip under the chart | select on the whole run; a click moves the window there without changing its width |
+| `+` / `−` / `Reset` buttons | zoom in, zoom out, back to the whole run |
+| `+` `-` `0` `←` `→` with the chart focused | the same, from the keyboard; `Esc` also resets |
+| double-click | back to the whole run |
+
+The strip under the chart is always the entire run at a fixed scale, with the
+current window drawn on it, so you can see where you are and jump anywhere. The
+readout above the chart names the window in steps — `steps 120–480 · 360 of 1200
+shown` — and the chart's accessible name carries the same numbers, because a
+range that exists only as a dragged rectangle is a range a screen reader cannot
+report.
+
+There are two ways to open the tab: a chart glyph in the frame's overlay row
+(next to the application menus), and the pane's "+" guide menu.
 
 ## How it gets its data
 
@@ -322,6 +345,11 @@ hand-written SVG. This is not minimalism for its own sake:
   rows, and registered factories — anything else throws;
 - `d3` was not needed for one line chart, one axis and a break marker.
 
+Zooming is a change of DOMAIN, not an SVG `transform`. Scaling the viewBox would
+also scale the strokes and the tick labels with it, so a zoomed chart would be a
+blurrier chart; recomputing the projection keeps every stroke one pixel and lets
+the ticks be the standard nice ones for the window on screen.
+
 ## Design rules this follows, and the defects behind them
 
 Each of these is a mistake some plugin in this harness has already paid for once:
@@ -352,6 +380,25 @@ Each of these is a mistake some plugin in this harness has already paid for once
 - **The plugin never writes into your run directory.** The only file it causes
   to be written is the snapshot, by your command, and the tab keeps the last
   good numbers when a read catches a partial one.
+- **The axis is scaled to the samples IN the window, not to everything drawn.**
+  The line is drawn with one sample beyond each edge, so it meets the frame
+  instead of starting in mid-air; scaling the axis to those edge samples hands
+  the scale back to the sample just outside the window, so the spike you zoomed
+  in to get away from keeps flattening the window. The tests pin both halves:
+  `pointsToDraw` for the geometry, `pointsInRange` for the axis.
+- **A window is clamped, and has a floor.** Zooming is clamped to the run and
+  stops at `MIN_WINDOW_FRACTION` of it, because a window with one or two samples
+  in it is a chart that says nothing — and a drag past an edge slides back
+  inside instead of compressing the window.
+- **A zoom control is a button, not a gesture.** Dragging is the fast path, but
+  a range reachable only by dragging cannot be chosen by keyboard and cannot be
+  read by a screen reader, so the chart takes focus (with `+`, `-`, `0` and the
+  arrow keys) and every control carries a label.
+- **The plugin owns its stylesheet by `data-plugin`.** The client loader claims
+  every style tag that lacks that attribute for whichever plugin materialises
+  next, and deletes every tag whose `data-plugin` equals an id when that entry is
+  replaced or pruned — so a privately tagged sheet is deleted with another
+  plugin, which strips `fill: none` from the SVG paths and they fill black.
 
 ## Licence
 

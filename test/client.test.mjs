@@ -27,15 +27,41 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 
-/** Minimal React: nothing here renders, so only the shape has to exist. */
+/** Minimal React: nothing is mounted, but elements keep their shape so a test
+ * can walk the tree a component returns. `useMemo` runs its factory because a
+ * component's arithmetic depends on it; effects never run. */
 const reactStub = {
-  createElement: () => null,
+  createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
   useState: () => [null, () => {}],
   useEffect: () => {},
   useRef: () => ({ current: null }),
-  useMemo: () => null,
+  useMemo: (factory) => factory(),
   useCallback: (fn) => fn,
   Fragment: Symbol('Fragment'),
+}
+
+/**
+ * Collect every element in a rendered tree whose className contains `name`.
+ *
+ * Function components are CALLED, because a slot registration usually hands the
+ * seat a wrapper element — `() => React.createElement(TriggerButton, …)` — and
+ * the component's own tree only exists once it runs. Hooks are not modelled, so
+ * a component that calls one must not be walked this way.
+ */
+function elementsWithClass(node, name, found = []) {
+  if (node === null || typeof node !== 'object') return found
+  if (Array.isArray(node)) {
+    for (const child of node) elementsWithClass(child, name, found)
+    return found
+  }
+  if (typeof node.type === 'function') {
+    return elementsWithClass(node.type(node.props ?? {}), name, found)
+  }
+  const className = node.props?.className
+  if (typeof className === 'string'
+    && className.split(' ').includes(name)) found.push(node)
+  for (const child of node.children ?? []) elementsWithClass(child, name, found)
+  return found
 }
 
 /**
@@ -43,14 +69,56 @@ const reactStub = {
  * effect a browser performs and this environment has to provide. It is a stub
  * and not a fake of the whole document, so a test cannot accidentally depend
  * on DOM behaviour the plugin does not have.
+ *
+ * `querySelector`/`querySelectorAll` answer the two selectors that matter here:
+ * the bundle's own duplicate guard (`style[data-plugin-css="…"]`) and the
+ * harness client loader's ownership rule (`style:not([data-plugin])`), which
+ * decides which plugin owns a sheet and which plugin's teardown deletes it.
  */
 function installDocumentStub() {
-  const head = { children: [], append(child) { this.children.push(child) } }
+  const head = {
+    children: [],
+    append(child) { this.children.push(child) },
+  }
+
+  /** Read one element attribute, seeing `dataset` writes as the browser would. */
+  function attributeOf(element, name) {
+    if (name.startsWith('data-')) {
+      const key = name.slice(5).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
+      if (Object.prototype.hasOwnProperty.call(element.dataset, key)) return element.dataset[key]
+    }
+    return element.attributes?.[name] ?? null
+  }
+
+  /** Whether one element matches the single, attribute-only selectors used here. */
+  function matches(element, selector) {
+    if (element.tagName !== 'style') return false
+    const owned = selector.match(/^style:not\(\[([\w-]+)\]\)$/)
+    if (owned !== null) return attributeOf(element, owned[1]) === null
+    const exact = selector.match(/^style\[([\w-]+)="([^"]*)"\]$/)
+    if (exact !== null) return attributeOf(element, exact[1]) === exact[2]
+    throw new Error(`the DOM stub does not implement the selector ${selector}`)
+  }
+
   globalThis.document = {
     head,
-    createElement() {
-      return { dataset: {}, textContent: '', remove() { this.removed = true } }
+    createElement(tagName) {
+      return {
+        tagName,
+        dataset: {},
+        attributes: {},
+        textContent: '',
+        setAttribute(name, value) { this.attributes[name] = value },
+        getAttribute(name) { return attributeOf(this, name) },
+        remove() {
+          this.removed = true
+          const at = head.children.indexOf(this)
+          if (at >= 0) head.children.splice(at, 1)
+        },
+      }
     },
+    querySelector(selector) { return head.children.find((child) => matches(child, selector)) ?? null },
+    querySelectorAll(selector) { return head.children.filter((child) => matches(child, selector)) },
   }
   return head
 }
@@ -162,6 +230,55 @@ test('the trigger lives in the frame overlay and the services it uses are declar
     assert.ok(client.inject.includes(service),
       `${service} is used but not declared in inject; a slot name is never a service`)
   }
+})
+
+test('the stylesheet is tagged the way the harness loader owns plugin styles', () => {
+  const head = installDocumentStub()
+  client.apply(fakeContext())
+
+  const sheet = head.children.find((child) => child.dataset.dshTrainDashboard === 'true')
+  assert.ok(sheet, 'no stylesheet was installed')
+
+  // The loader claims every sheet WITHOUT data-plugin for whichever plugin
+  // materialises next, and `removeOwnedStyles(id)` deletes every sheet whose
+  // data-plugin equals an id when that entry is replaced or pruned. A sheet
+  // marked only with a private data-… attribute therefore looks unowned: another
+  // plugin takes it, and that plugin's first refresh deletes it — which strips
+  // `fill: none` from the chart's path (it fills black) and the trigger's
+  // styling. Both symptoms were reported from the running app.
+  assert.equal(sheet.dataset.plugin, 'dsh-train-dashboard',
+    'the sheet does not name its owner, so the loader will hand it to another plugin')
+  assert.equal(sheet.dataset.pluginCss, 'dsh-train-dashboard/styles',
+    'the sheet has no per-sheet identity for the loader to inventory')
+
+  const claimable = globalThis.document.querySelectorAll('style:not([data-plugin])')
+  assert.equal(claimable.length, 0,
+    'the sheet is still claimable by whichever plugin materialises next')
+})
+
+test('a second apply does not stack a second stylesheet', () => {
+  const head = installDocumentStub()
+  client.apply(fakeContext())
+  client.apply(fakeContext())
+
+  const sheets = head.children.filter((child) => child.dataset.dshTrainDashboard === 'true')
+  assert.equal(sheets.length, 1, `expected one sheet, found ${sheets.length}`)
+})
+
+test('the trigger renders the wrapper its positioning CSS targets', () => {
+  const ctx = fakeContext()
+  client.apply(ctx)
+
+  const trigger = ctx.__slots.find((entry) => entry.slotName === 'shell.overlay')
+  const tree = trigger.component({ sidebarRight: ctx.sidebarRight, layout: ctx.layout })
+
+  // `.dshtd-trigger` is the element the stylesheet styles; a component that
+  // returns only the button leaves that rule with nothing to apply to, and the
+  // button then lands in the frame's control row as a stray icon.
+  assert.equal(elementsWithClass(tree, 'dshtd-trigger').length, 1,
+    'the trigger does not render its wrapper, so its own CSS cannot position it')
+  assert.equal(elementsWithClass(tree, 'dshtd-trigger-button').length, 1,
+    'the trigger does not render its button')
 })
 
 test('the client and host halves agree on the route', () => {
@@ -339,4 +456,155 @@ test('emptyReason still offers to build one when the snapshot is merely missing'
 
 test('the poll interval is long enough not to hammer the host', () => {
   assert.ok(t.POLL_MS >= 2000, `the poll interval is ${t.POLL_MS} ms`)
+})
+
+// ---------------------------------------------------------------------------
+// The window: the timeline a reader selects, and the axis that follows it.
+//
+// The chart is a research instrument, so a wrong window is a wrong reading, not
+// a cosmetic defect. These pin the arithmetic behind the interaction: where the
+// frame edges fall, what a drag selects, what the axis covers afterwards, and
+// that the controls are reachable without a mouse.
+// ---------------------------------------------------------------------------
+
+/** One early spike, then a gentle rise: the shape a windowed axis exists for. */
+const SERIES = [
+  [0, 1.0], [100, 40.0], [200, 1.1], [300, 1.2], [400, 1.3], [500, 1.4],
+]
+
+test('fullRange spans the series and widens a single-point one', () => {
+  assert.deepEqual(t.fullRange([[3, 1], [9, 2]]), { lo: 3, hi: 9 })
+  assert.deepEqual(t.fullRange([[7, 1]]), { lo: 6, hi: 8 },
+    'a one-point series still needs a span to divide by')
+})
+
+test('the axis rescales to the window, so a spike outside it stops setting the scale', () => {
+  const whole = t.valueRange(SERIES)
+  assert.ok(whole.hi > 40, `the whole run must cover the spike, got ${whole.hi}`)
+
+  const window = { lo: 200, hi: 500 }
+  const zoomed = t.valueRange(t.pointsInRange(SERIES, window))
+
+  assert.ok(zoomed.hi < 3,
+    `the zoomed axis still covers the out-of-view spike: hi=${zoomed.hi}`)
+  assert.ok(zoomed.lo < 1.1 && zoomed.lo > 0.9,
+    `the axis must start just below the window minimum, got ${zoomed.lo}`)
+  assert.ok(zoomed.hi > 1.4, `the axis must contain the window maximum, got ${zoomed.hi}`)
+
+  // The bracketing sample is drawn so the line meets the frame, but it must not
+  // reach the axis: that is how the spike the reader zoomed away from would come
+  // back to flatten the window.
+  const bracketed = t.pointsToDraw(SERIES, window)
+  assert.ok(bracketed.some((point) => point[1] >= 40),
+    'the sample before the window is drawn, and its value is the spike')
+  assert.ok(zoomed.hi < t.valueRange(bracketed).hi,
+    'the axis must be scaled to the window, not to what is merely drawn')
+})
+
+test('a window draws the samples bracketing it, so the line reaches the frame edge', () => {
+  const drawn = t.pointsToDraw(SERIES, { lo: 150, hi: 350 })
+  const inside = t.pointsInRange(SERIES, { lo: 150, hi: 350 })
+
+  assert.deepEqual(drawn.map((point) => point[0]), [100, 200, 300, 400],
+    'the sample before the window and the first after it are both needed, or the '
+    + 'line starts in mid-air')
+  assert.deepEqual(inside.map((point) => point[0]), [200, 300],
+    'only the samples in the window may set the axis')
+})
+
+test('a window is clamped to the run and never narrower than the floor', () => {
+  const bounds = { lo: 0, hi: 1000 }
+
+  assert.deepEqual(t.clampRange({ lo: 200, hi: 400 }, bounds), { lo: 200, hi: 400 })
+  assert.deepEqual(t.clampRange({ lo: -500, hi: 100 }, bounds), { lo: 0, hi: 600 },
+    'a window dragged past an edge stops at the edge and keeps its width')
+  assert.deepEqual(t.clampRange({ lo: 950, hi: 1200 }, bounds), { lo: 750, hi: 1000 })
+
+  const floor = t.clampRange({ lo: 500, hi: 500.01 }, bounds)
+  assert.equal(floor.hi - floor.lo, bounds.hi * t.MIN_WINDOW_FRACTION,
+    'zoom stops at the registered floor rather than at the two points left by a '
+    + 'window narrower than it')
+  assert.equal(t.clampRange({ lo: 0, hi: 0 }, { lo: 5, hi: 5 }), null,
+    'a run with no extent has nothing to show')
+})
+
+test('zooming keeps the anchored value where it is on the frame', () => {
+  const range = { lo: 0, hi: 100 }
+  const zoomed = t.zoomRange(range, 0.5, 25)
+
+  assert.deepEqual(zoomed, { lo: 12.5, hi: 62.5 })
+  assert.equal((25 - zoomed.lo) / (zoomed.hi - zoomed.lo),
+    (25 - range.lo) / (range.hi - range.lo),
+    'the value under the pointer must not move while zooming, or the chart '
+    + 'appears to slide away from the cursor')
+})
+
+test('panning moves a window by a fraction of its own width', () => {
+  assert.deepEqual(t.panRange({ lo: 100, hi: 200 }, -0.25), { lo: 75, hi: 175 })
+  assert.deepEqual(t.panRange({ lo: 100, hi: 200 }, 0.5), { lo: 150, hi: 250 })
+  assert.deepEqual(t.clampRange(t.panRange({ lo: 900, hi: 1000 }, 0.5), { lo: 0, hi: 1000 }),
+    { lo: 900, hi: 1000 }, 'panning past the end of the run stops at the end')
+})
+
+test('a brush reads left to right whichever way it was dragged', () => {
+  const plot = t.plotGeometry({ lo: 0, hi: 1000 })
+
+  assert.deepEqual(t.brushRange(plot.left, plot.right, plot), { lo: 0, hi: 1000 },
+    'the plot columns span the window exactly')
+  assert.deepEqual(t.brushRange(plot.right, plot.left, plot),
+    t.brushRange(plot.left, plot.right, plot),
+    'dragging right to left selects the same window as dragging left to right')
+
+  const width = plot.right - plot.left
+  const middle = t.brushRange(plot.left + width / 4, plot.left + width / 2, plot)
+  assert.deepEqual(middle, { lo: 250, hi: 500 })
+})
+
+test('frame pixels map to window values and clamp to the plot', () => {
+  const plot = t.plotGeometry({ lo: 10, hi: 20 })
+
+  assert.equal(t.valueAt(plot.left, plot), 10)
+  assert.equal(t.valueAt(plot.right, plot), 20)
+  assert.equal(t.valueAt((plot.left + plot.right) / 2, plot), 15)
+  assert.equal(t.clampChartPixel(-500), t.CHART.padLeft)
+  assert.equal(t.clampChartPixel(10_000), t.CHART.width - t.CHART.padRight)
+})
+
+test('the readout names the window, not just the series', () => {
+  const bounds = { lo: 0, hi: 1200 }
+
+  assert.match(t.rangeLabel(bounds, bounds), /all 1200 shown/)
+  assert.match(t.rangeLabel({ lo: 120, hi: 480 }, bounds),
+    /steps 120–480 · 360 of 1200 shown/)
+})
+
+test('the window controls are labelled buttons and the chart takes focus', () => {
+  const tree = t.SeriesChart({
+    spec: { label: 'sealed bpb', digits: 3, unit: 'bpb', series: { tag: 'train/bpb_sealed', points: SERIES } },
+    breakLeg: null,
+  })
+
+  const buttons = elementsWithClass(tree, 'dshtd-window-button')
+  assert.equal(buttons.length, 3, 'zoom out, zoom in, and reset')
+  for (const button of buttons) {
+    assert.equal(typeof button.props['aria-label'], 'string',
+      'an icon-only control without a label is unreadable to a screen reader')
+  }
+
+  const chart = elementsWithClass(tree, 'dshtd-chart')[0]
+  assert.ok(chart, 'the frame must be drawn')
+  assert.equal(chart.props.tabIndex, 0,
+    'a range reachable only by dragging is a range a keyboard user cannot choose')
+  assert.match(chart.props['aria-label'], /points in view/,
+    'the label must carry the numbers the picture carries')
+  assert.equal(elementsWithClass(tree, 'dshtd-overview').length, 1,
+    'the reader needs the whole run to see where the window sits in it')
+})
+
+test('the numbers in the readout are the numbers on screen', () => {
+  const bounds = t.fullRange(SERIES)
+  const window = t.clampRange({ lo: 150, hi: 350 }, bounds)
+
+  assert.equal(t.rangeLabel(window, bounds), 'steps 150–350 · 200 of 500 shown',
+    'the readout must describe the window the axis was scaled to, not the series')
 })

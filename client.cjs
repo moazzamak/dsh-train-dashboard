@@ -90,6 +90,15 @@ window.__ModuleLoader__.load({
       breaklabel: 'dshtd-breaklabel',
       line: 'dshtd-line',
       dot: 'dshtd-dot',
+      windowRow: 'dshtd-window-row',
+      windowButton: 'dshtd-window-button',
+      windowReadout: 'dshtd-window-readout',
+      windowNote: 'dshtd-window-note',
+      brush: 'dshtd-brush',
+      brushEdge: 'dshtd-brush-edge',
+      overview: 'dshtd-overview',
+      overviewLine: 'dshtd-overview-line',
+      overviewWindow: 'dshtd-overview-window',
       empty: 'dshtd-empty',
       notice: 'dshtd-notice',
       noticeTitle: 'dshtd-notice-title',
@@ -101,7 +110,12 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
-.${CLASS.trigger} { position: fixed; top: 8px; right: 12px; z-index: 70; display: inline-flex; }
+/* The trigger lives in the frame's own overlay seat, in the window's control
+   row. It is NOT position:fixed at the top right: that row's right end belongs
+   to the window controls (minimise/maximise/close), so a fixed trigger is drawn
+   underneath them and cannot be clicked. Sit in the seat instead, as a normal
+   icon button of the row. */
+.${CLASS.trigger} { display: inline-flex; align-items: center; }
 .${CLASS.triggerButton} {
   display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; padding: 0; border-radius: 8px; cursor: pointer;
@@ -194,11 +208,72 @@ window.__ModuleLoader__.load({
 }
 .${CLASS.empty} { color: var(--dsw-alias-label-tertiary, #8a8a8a); padding: 18px 4px; text-align: center; }
 .${CLASS.footnote} { color: var(--dsw-alias-label-caption, #8a8a8a); font-size: 10px; }
+/* The window toolbar. Buttons are real buttons with labels, not hover-only
+   glyphs, so the range is reachable by keyboard and by touch. */
+.${CLASS.windowRow} {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin: 2px 0 4px;
+}
+.${CLASS.windowButton} {
+  min-width: 26px; padding: 3px 8px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--dsw-alias-border-l2, #3a3a3a);
+  background: var(--dsw-alias-bg-layer-1, #1d1d1d);
+  color: var(--dsw-alias-label-secondary, #b0b0b0);
+  font-size: 11px; line-height: 16px;
+}
+.${CLASS.windowButton}:hover:not([disabled]) {
+  background: var(--dsw-alias-bg-layer-2, #262626);
+  color: var(--dsw-alias-label-primary, #f0f0f0);
+}
+.${CLASS.windowButton}[disabled] { opacity: 0.4; cursor: default; }
+.${CLASS.windowReadout} {
+  color: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+/* The chart takes pointer drags for the window, so the browser must not claim
+   them for scrolling or text selection. */
+.${CLASS.chart} { touch-action: none; user-select: none; cursor: crosshair; }
+.${CLASS.chart}:focus-visible { outline: 1px solid var(--dsw-alias-brand-primary, #4d6bfe); }
+.${CLASS.brush} { fill: var(--dsw-alias-brand-primary, #4d6bfe); opacity: 0.16; }
+.${CLASS.brushEdge} { stroke: var(--dsw-alias-brand-primary, #4d6bfe); stroke-width: 1; }
+.${CLASS.overview} { touch-action: none; user-select: none; cursor: crosshair; }
+.${CLASS.overviewLine} { fill: none; stroke: var(--dsw-alias-label-tertiary, #8a8a8a); stroke-width: 1; }
+.${CLASS.overviewWindow} {
+  fill: var(--dsw-alias-brand-primary, #4d6bfe); opacity: 0.22;
+  stroke: var(--dsw-alias-brand-primary, #4d6bfe); stroke-width: 1;
+}
+.${CLASS.windowNote} {
+  fill: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 11px;
+}
+.${CLASS.overview} { margin-top: 2px; }
 `
 
-    /** Install this bundle's stylesheet once, and hand back its remover. */
+    /**
+     * Install this bundle's stylesheet once, and hand back its remover.
+     *
+     * Two attributes are not decoration — the harness client loader owns plugin
+     * styles by them. `data-plugin` is the ownership key: the loader claims every
+     * style tag WITHOUT it for whichever plugin materialises next, and
+     * `removeOwnedStyles(id)` deletes every tag whose `data-plugin` equals an id
+     * when that entry is replaced or pruned. A tag marked only with a private
+     * `data-…` attribute therefore looks untagged: another plugin claims it, and
+     * the first refresh or prune of that plugin deletes THIS plugin's sheet. The
+     * sheet is injected while `apply` runs, which is after the loader's claim
+     * pass, so the plugin's own claim never sees it either. The symptoms are
+     * exactly the ones a missing sheet produces — an SVG <path> with no
+     * `fill: none` fills black, and a button with no CSS becomes the browser's
+     * default grey one. `data-plugin-css` is the loader's per-sheet identity,
+     * used for its HMR bookkeeping and the duplicate guard below.
+     */
+    const STYLE_OWNER = 'dsh-train-dashboard'
+    const STYLE_KEY = `${STYLE_OWNER}/styles`
+
     function insertStyles() {
+      const existing = document.querySelector(`style[data-plugin-css="${STYLE_KEY}"]`)
+      if (existing !== null) return () => {}
       const tag = document.createElement('style')
+      tag.dataset.plugin = STYLE_OWNER
+      tag.dataset.pluginCss = STYLE_KEY
       tag.dataset.dshTrainDashboard = 'true'
       tag.textContent = CSS
       document.head.append(tag)
@@ -419,30 +494,284 @@ window.__ModuleLoader__.load({
     // ----------------------------------------------------------------------
 
     const CHART = { width: 720, height: 240, padLeft: 54, padRight: 14, padTop: 12, padBottom: 26 }
+    /** The strip under the chart: one overview of the whole run and the window on it. */
+    const OVERVIEW = { height: 30, padTop: 4, padBottom: 4 }
 
-    /** The chart for one series, with the registered break marked. */
+    /** What the x axis counts. Every series in a training snapshot is keyed by step. */
+    const X_AXIS_LABEL = 'step'
+    /** The narrowest window the reader can reach, as a fraction of the full span. */
+    const MIN_WINDOW_FRACTION = 0.002
+    /** Padding above and below the visible extremes, as a fraction of their span. */
+    const Y_PADDING_FRACTION = 0.08
+    /** One wheel notch or one button press. */
+    const ZOOM_FACTOR = 0.6
+    /** How far one arrow key pans, as a fraction of the window. */
+    const PAN_FRACTION = 0.25
+    /** Below this many pixels a drag is a click, not a selection. */
+    const MIN_BRUSH_PIXELS = 6
+    /**
+     * The clip path's id. One chart is on screen at a time — the panel draws one
+     * series — so a constant id is unambiguous; two charts would share the first
+     * clip rect, which is the same geometry either way.
+     */
+    const CLIP_ID = 'dshtd-clip'
+
+    /** The x extent of a series, with a one-step span for a single-point series. */
+    function fullRange(points) {
+      const xs = points.map((point) => point[0])
+      const lo = Math.min(...xs)
+      const hi = Math.max(...xs)
+      return lo === hi ? { lo: lo - 1, hi: hi + 1 } : { lo, hi }
+    }
+
+    /**
+     * Keep a window inside the run and no narrower than the floor.
+     *
+     * Zooming past the floor would leave one or two points in the frame, which
+     * is a chart that says nothing; the floor is a registered constant rather
+     * than an accident of the arithmetic. A window is centred on the request and
+     * then slid back inside the bounds, so dragging past an edge stops at the
+     * edge instead of compressing.
+     * @param range - the requested window.
+     * @param bounds - the whole run.
+     * @param minSpan - the floor in x units, defaulting to the registered fraction.
+     * @returns the clamped window, or null when the run has no extent.
+     */
+    function clampRange(range, bounds, minSpan = 0) {
+      const boundSpan = bounds.hi - bounds.lo
+      if (!(boundSpan > 0)) return null
+      const floor = Math.max(minSpan, boundSpan * MIN_WINDOW_FRACTION)
+      const span = Math.min(Math.max(range.hi - range.lo, floor), boundSpan)
+      const centre = (range.lo + range.hi) / 2
+      let lo = centre - span / 2
+      if (lo < bounds.lo) lo = bounds.lo
+      if (lo + span > bounds.hi) lo = bounds.hi - span
+      return { lo, hi: lo + span }
+    }
+
+    /** Zoom about one x value: a factor below 1 narrows the window. */
+    function zoomRange(range, factor, anchor) {
+      return {
+        lo: anchor + (range.lo - anchor) * factor,
+        hi: anchor + (range.hi - anchor) * factor,
+      }
+    }
+
+    /** Slide a window by a fraction of its own width. */
+    function panRange(range, fraction) {
+      const shift = (range.hi - range.lo) * fraction
+      return { lo: range.lo + shift, hi: range.hi + shift }
+    }
+
+    /** The samples inside a window, ascending in x. */
+    function pointsInRange(points, range) {
+      return points.filter((point) => point[0] >= range.lo && point[0] <= range.hi)
+    }
+
+    /**
+     * The samples to DRAW for a window: those inside it, plus the one bracketing
+     * each edge, so the line meets the frame instead of starting in mid-air.
+     *
+     * These are for the GEOMETRY only. Scaling the axis to them would hand the
+     * scale back to the sample just outside the window — the spike the reader
+     * zoomed in to get away from — so the axis is scaled to `pointsInRange`.
+     * @param points - the whole series, ascending in x.
+     * @param range - the window.
+     * @returns the samples to draw, ascending in x.
+     */
+    function pointsToDraw(points, range) {
+      const drawn = []
+      let before = null
+      let after = null
+      for (const point of points) {
+        if (point[0] < range.lo) before = point
+        else if (point[0] > range.hi) { after = point; break }
+        else drawn.push(point)
+      }
+      const ordered = before === null ? drawn : [before, ...drawn]
+      return after === null ? ordered : [...ordered, after]
+    }
+
+    /**
+     * The y extent to draw one set of points in, padded; null when there is none.
+     *
+     * This is what auto-scales a zoomed window: the caller passes the points IN
+     * VIEW, so a spike outside the window stops setting the axis.
+     * @param points - the points in view.
+     * @returns the padded extent, or null for no points.
+     */
+    function valueRange(points) {
+      if (points.length === 0) return null
+      const ys = points.map((point) => point[1])
+      let lo = Math.min(...ys)
+      let hi = Math.max(...ys)
+      if (lo === hi) { lo -= 1; hi += 1 }
+      const padding = (hi - lo) * Y_PADDING_FRACTION
+      return { lo: lo - padding, hi: hi + padding }
+    }
+
+    /** The frame's x mapping: which data values its left and right edges hold. */
+    function plotGeometry(range) {
+      return { left: CHART.padLeft, right: CHART.width - CHART.padRight, lo: range.lo, hi: range.hi }
+    }
+
+    /** Clamp a chart-space x to the frame's plot columns. */
+    function clampChartPixel(px) {
+      return Math.min(Math.max(px, CHART.padLeft), CHART.width - CHART.padRight)
+    }
+
+    /** The data value at one x pixel of the frame. */
+    function valueAt(px, plot) {
+      const fraction = (px - plot.left) / (plot.right - plot.left)
+      return plot.lo + fraction * (plot.hi - plot.lo)
+    }
+
+    /** The window two x pixels select, ordered. */
+    function brushRange(fromPx, toPx, plot) {
+      const a = valueAt(fromPx, plot)
+      const b = valueAt(toPx, plot)
+      return a <= b ? { lo: a, hi: b } : { lo: b, hi: a }
+    }
+
+    /**
+     * The chart-space x of a pointer event over an element that draws the frame.
+     * @param event - a pointer event.
+     * @param element - the element the frame is drawn in.
+     * @returns the clamped chart-space x.
+     */
+    function chartPixelFromEvent(event, element) {
+      const rect = element.getBoundingClientRect()
+      if (rect.width === 0) return CHART.padLeft
+      return clampChartPixel(((event.clientX - rect.left) / rect.width) * CHART.width)
+    }
+
+    /** "steps 120–480 · 360 of 1200 shown", for the visible readout. */
+    function rangeLabel(range, bounds) {
+      const lo = Math.round(range.lo)
+      const hi = Math.round(range.hi)
+      const total = Math.round(bounds.hi - bounds.lo)
+      const whole = range.lo <= bounds.lo && range.hi >= bounds.hi
+      return whole
+        ? `${X_AXIS_LABEL}s ${lo}–${hi} · all ${total} shown`
+        : `${X_AXIS_LABEL}s ${lo}–${hi} · ${Math.round(range.hi - range.lo)} of ${total} shown`
+    }
+
+    /**
+     * The chart for one series, over the timeline the reader selects.
+     *
+     * Drag on the chart to select a window and it zooms to it; wheel, `+`/`−`,
+     * or a drag on the strip below all do the same thing; `Reset` (or `0`, or a
+     * double-click) returns to the whole run. The y axis rescales to whatever is
+     * IN the window, which is the reason the interaction exists: on a long run
+     * one early spike can flatten the last few thousand steps — the part being
+     * steered — into a straight line.
+     *
+     * Zooming changes the DOMAIN, not an SVG transform, so strokes stay a pixel,
+     * tick labels stay legible, and the ticks are the standard nice ones for the
+     * window on screen. Every control is a labelled button and the chart itself
+     * takes focus, because a range reachable only by dragging is a range a
+     * keyboard user cannot choose.
+     */
     function SeriesChart({ spec, breakLeg }) {
       const points = spec.series.points
-      const xs = points.map((point) => point[0])
-      const ys = points.map((point) => point[1])
-      let minX = Math.min(...xs)
-      let maxX = Math.max(...xs)
-      let minY = Math.min(...ys)
-      let maxY = Math.max(...ys)
-      if (minX === maxX) { minX -= 1; maxX += 1 }
-      if (minY === maxY) { minY -= 1; maxY += 1 }
-      // A little headroom so the extremes are not welded to the frame.
-      const pad = (maxY - minY) * 0.08
-      minY -= pad
-      maxY += pad
+      const bounds = React.useMemo(() => fullRange(points), [points])
+      // `null` IS the whole run, so "never zoomed" and "reset" are one state and
+      // the readout cannot disagree with the picture.
+      const [view, setView] = React.useState(null)
+      const [brush, setBrush] = React.useState(null)
+      const hostRef = React.useRef(null)
+      const brushRef = React.useRef(null)
+      brushRef.current = brush
+      const range = view === null ? bounds : view
+      const inside = pointsInRange(points, range)
+      const drawn = pointsToDraw(points, range)
+      // The axis follows the samples IN the window. A bracketing sample only
+      // exists so the line reaches the frame, and letting its value set the
+      // scale would let the spike the reader zoomed away from keep dominating
+      // the axis — which is the whole reason to zoom. When no sample is inside,
+      // the window is crossed by one segment whose two endpoints bound
+      // everything visible in it, so those are the honest scale.
+      const values = valueRange(inside.length > 0 ? inside : drawn)
+      const windowIsEmpty = inside.length === 0 && drawn.length < 2
+      const plot = plotGeometry(range)
+
+      /** Show a window, clamped; the whole run collapses back to the null state. */
+      const showWindow = React.useCallback((next) => {
+        if (next === null) { setView(null); return }
+        const clamped = clampRange(next, bounds)
+        if (clamped === null || (clamped.lo <= bounds.lo && clamped.hi >= bounds.hi)) { setView(null); return }
+        setView(clamped)
+      }, [bounds])
+
+      const zoomBy = React.useCallback((factor, anchor) => {
+        showWindow(zoomRange(range, factor, anchor))
+      }, [range, showWindow])
+
+      // The wheel listener is bound once, so it reads the live window from a ref
+      // instead of from the render that installed it.
+      const live = React.useRef(null)
+      live.current = { range, bounds, plot }
+      React.useEffect(() => {
+        const host = hostRef.current
+        if (host === null) return undefined
+        // React's wheel listener is passive by contract, so a wheel that zooms
+        // rather than scrolls the panel has to be bound natively.
+        const onWheel = (event) => {
+          event.preventDefault()
+          const current = live.current
+          if (current === null) return
+          const anchor = valueAt(chartPixelFromEvent(event, host), current.plot)
+          const factor = event.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR
+          showWindow(zoomRange(current.range, factor, anchor))
+        }
+        host.addEventListener('wheel', onWheel, { passive: false })
+        return () => { host.removeEventListener('wheel', onWheel) }
+      }, [showWindow])
+
+      const onPointerDown = (event) => {
+        if (event.button !== 0) return
+        const host = hostRef.current
+        if (host === null) return
+        const at = chartPixelFromEvent(event, host)
+        host.setPointerCapture?.(event.pointerId)
+        setBrush({ from: at, to: at })
+      }
+      const onPointerMove = (event) => {
+        const host = hostRef.current
+        if (host === null) return
+        const at = chartPixelFromEvent(event, host)
+        setBrush((current) => (current === null ? null : { from: current.from, to: at }))
+      }
+      const onPointerUp = (event) => {
+        hostRef.current?.releasePointerCapture?.(event.pointerId)
+        const current = brushRef.current
+        setBrush(null)
+        if (current === null) return
+        if (Math.abs(current.to - current.from) < MIN_BRUSH_PIXELS) return
+        showWindow(brushRange(current.from, current.to, plot))
+      }
+      const onKeyDown = (event) => {
+        const centre = (range.lo + range.hi) / 2
+        if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomBy(1 / ZOOM_FACTOR, centre) }
+        else if (event.key === '-' || event.key === '_') { event.preventDefault(); zoomBy(ZOOM_FACTOR, centre) }
+        else if (event.key === '0' || event.key === 'Escape') { event.preventDefault(); showWindow(null) }
+        else if (event.key === 'ArrowLeft') { event.preventDefault(); showWindow(panRange(range, -PAN_FRACTION)) }
+        else if (event.key === 'ArrowRight') { event.preventDefault(); showWindow(panRange(range, PAN_FRACTION)) }
+      }
 
       const innerWidth = CHART.width - CHART.padLeft - CHART.padRight
       const innerHeight = CHART.height - CHART.padTop - CHART.padBottom
-      const projectX = (value) => CHART.padLeft + ((value - minX) / (maxX - minX)) * innerWidth
-      const projectY = (value) => CHART.padTop + innerHeight - ((value - minY) / (maxY - minY)) * innerHeight
+      const yLo = values === null ? 0 : values.lo
+      const yHi = values === null ? 1 : values.hi
+      const projectX = (value) => CHART.padLeft + ((value - range.lo) / (range.hi - range.lo)) * innerWidth
+      const projectY = (value) => CHART.padTop + innerHeight - ((value - yLo) / (yHi - yLo)) * innerHeight
 
       const children = []
-      for (const tick of niceTicks(minY, maxY, 4)) {
+      children.push(React.createElement('clipPath', { key: 'clip', id: CLIP_ID },
+        React.createElement('rect', {
+          x: CHART.padLeft, y: CHART.padTop, width: innerWidth, height: innerHeight,
+        })))
+      for (const tick of niceTicks(yLo, yHi, 4)) {
         const y = projectY(tick)
         children.push(React.createElement('line', {
           key: `grid-${tick}`, className: CLASS.gridline,
@@ -453,7 +782,7 @@ window.__ModuleLoader__.load({
           x: CHART.padLeft - 6, y: y + 3, textAnchor: 'end',
         }, formatValue(tick, spec.digits)))
       }
-      for (const tick of niceTicks(minX, maxX, 5)) {
+      for (const tick of niceTicks(range.lo, range.hi, 5)) {
         children.push(React.createElement('text', {
           key: `xtick-${tick}`, className: CLASS.axis,
           x: projectX(tick), y: CHART.height - 8, textAnchor: 'middle',
@@ -462,7 +791,7 @@ window.__ModuleLoader__.load({
 
       // The break: on the chart itself, because a joint that is only explained
       // in a footnote is a joint the reader will fit across.
-      if (Number.isFinite(breakLeg) && breakLeg >= minX && breakLeg <= maxX) {
+      if (Number.isFinite(breakLeg) && breakLeg >= range.lo && breakLeg <= range.hi) {
         const x = projectX(breakLeg)
         children.push(React.createElement('line', {
           key: 'break', className: CLASS.breakline,
@@ -474,23 +803,151 @@ window.__ModuleLoader__.load({
         }, `break leg ${breakLeg}`))
       }
 
-      children.push(React.createElement('path', {
-        key: 'line', className: CLASS.line,
-        d: polylinePath(points, projectX, projectY),
-      }))
+      if (drawn.length >= 2) {
+        children.push(React.createElement('path', {
+          key: 'line', className: CLASS.line, clipPath: `url(#${CLIP_ID})`,
+          d: polylinePath(drawn, projectX, projectY),
+        }))
+      } else if (drawn.length === 1) {
+        // One sample is a dot, not a line: a single M draws nothing at all.
+        children.push(React.createElement('circle', {
+          key: 'only', className: CLASS.dot,
+          cx: projectX(drawn[0][0]), cy: projectY(drawn[0][1]), r: 2.6,
+        }))
+      }
 
       const newest = points[points.length - 1]
-      children.push(React.createElement('circle', {
-        key: 'newest', className: CLASS.dot,
-        cx: projectX(newest[0]), cy: projectY(newest[1]), r: 2.6,
-      }))
+      if (newest !== undefined && newest[0] >= range.lo && newest[0] <= range.hi) {
+        children.push(React.createElement('circle', {
+          key: 'newest', className: CLASS.dot,
+          cx: projectX(newest[0]), cy: projectY(newest[1]), r: 2.6,
+        }))
+      }
 
-      return React.createElement('svg', {
+      if (brush !== null && brush.overview !== true && Math.abs(brush.to - brush.from) >= 1) {
+        const left = Math.min(brush.from, brush.to)
+        const right = Math.max(brush.from, brush.to)
+        children.push(React.createElement('rect', {
+          key: 'brush', className: CLASS.brush,
+          x: left, y: CHART.padTop, width: right - left, height: innerHeight,
+        }))
+        for (const [index, edge] of [left, right].entries()) {
+          children.push(React.createElement('line', {
+            key: `brushedge-${index}`, className: CLASS.brushEdge,
+            x1: edge, x2: edge, y1: CHART.padTop, y2: CHART.padTop + innerHeight,
+          }))
+        }
+      }
+
+      if (windowIsEmpty) {
+        children.push(React.createElement('text', {
+          key: 'windowempty', className: CLASS.windowNote,
+          x: CHART.padLeft + innerWidth / 2, y: CHART.padTop + innerHeight / 2, textAnchor: 'middle',
+        }, 'no points in this window · Reset shows the run'))
+      }
+
+      const atFloor = range.hi - range.lo <= (bounds.hi - bounds.lo) * MIN_WINDOW_FRACTION * 1.01
+      const windowRow = React.createElement('div', { className: CLASS.windowRow },
+        React.createElement('button', {
+          type: 'button', className: CLASS.windowButton, disabled: !(view !== null),
+          title: 'Zoom out ( - )', 'aria-label': 'Zoom out',
+          onClick: () => { zoomBy(ZOOM_FACTOR, (range.lo + range.hi) / 2) },
+        }, '−'),
+        React.createElement('button', {
+          type: 'button', className: CLASS.windowButton, disabled: atFloor,
+          title: 'Zoom in ( + )', 'aria-label': 'Zoom in',
+          onClick: () => { zoomBy(1 / ZOOM_FACTOR, (range.lo + range.hi) / 2) },
+        }, '+'),
+        React.createElement('button', {
+          type: 'button', className: CLASS.windowButton, disabled: !(view !== null),
+          title: 'Show the whole run ( 0 )', 'aria-label': 'Reset to the whole run',
+          onClick: () => { showWindow(null) },
+        }, 'Reset'),
+        React.createElement('span', {
+          className: CLASS.windowReadout, 'aria-live': 'polite',
+        }, rangeLabel(range, bounds)))
+
+      const chart = React.createElement('svg', {
+        ref: hostRef,
         className: CLASS.chart,
         viewBox: `0 0 ${CHART.width} ${CHART.height}`,
         role: 'img',
-        'aria-label': `${spec.label} across the run`,
+        tabIndex: 0,
+        'aria-label': `${spec.label}. ${rangeLabel(range, bounds)}. `
+          + `${inside.length} of ${points.length} points in view.`,
+        onPointerDown, onPointerMove, onPointerUp,
+        onDoubleClick: () => { showWindow(null) },
+        onKeyDown,
       }, ...children)
+
+      // The strip is the whole run at a stable scale, with the window drawn on
+      // it: the reader can see where they are in the run and jump anywhere,
+      // without the strip's own shape changing as they zoom.
+      const overviewPlot = { left: CHART.padLeft, right: CHART.width - CHART.padRight, lo: bounds.lo, hi: bounds.hi }
+      const overviewValues = valueRange(points) ?? { lo: 0, hi: 1 }
+      const overviewHeight = OVERVIEW.height - OVERVIEW.padTop - OVERVIEW.padBottom
+      const projectOverviewX = (value) =>
+        CHART.padLeft + ((value - bounds.lo) / (bounds.hi - bounds.lo)) * innerWidth
+      const projectOverviewY = (value) =>
+        OVERVIEW.padTop + overviewHeight - ((value - overviewValues.lo) / (overviewValues.hi - overviewValues.lo)) * overviewHeight
+      const overviewRef = React.useRef(null)
+      const overviewBrushRef = React.useRef(null)
+      const overview = points.length < 2 ? null : React.createElement('svg', {
+        ref: overviewRef,
+        className: CLASS.overview,
+        viewBox: `0 0 ${CHART.width} ${OVERVIEW.height}`,
+        role: 'img',
+        'aria-label': `The whole run, with the window on it: ${rangeLabel(range, bounds)}`,
+        onPointerDown: (event) => {
+          if (event.button !== 0 || overviewRef.current === null) return
+          const at = chartPixelFromEvent(event, overviewRef.current)
+          overviewRef.current.setPointerCapture?.(event.pointerId)
+          setBrush({ from: at, to: at, overview: true })
+        },
+        onPointerMove: (event) => {
+          if (overviewRef.current === null) return
+          const at = chartPixelFromEvent(event, overviewRef.current)
+          setBrush((current) => (current === null || current.overview !== true
+            ? current
+            : { from: current.from, to: at, overview: true }))
+        },
+        onPointerUp: (event) => {
+          overviewRef.current?.releasePointerCapture?.(event.pointerId)
+          const current = overviewBrushRef.current
+          setBrush(null)
+          if (current === null) return
+          if (Math.abs(current.to - current.from) < MIN_BRUSH_PIXELS) {
+            // A click, not a drag: keep the window's width and move it there.
+            const half = (range.hi - range.lo) / 2
+            const centre = valueAt(current.to, overviewPlot)
+            showWindow({ lo: centre - half, hi: centre + half })
+            return
+          }
+          showWindow(brushRange(current.from, current.to, overviewPlot))
+        },
+      },
+      React.createElement('path', {
+        className: CLASS.overviewLine,
+        d: polylinePath(points, projectOverviewX, projectOverviewY),
+      }),
+      // The window, and — while a drag is in flight on the strip — the window it
+      // would select, so the reader sees what they are about to zoom to.
+      React.createElement('rect', {
+        key: 'window', className: CLASS.overviewWindow,
+        x: projectOverviewX(range.lo), y: 0,
+        width: Math.max(2, projectOverviewX(range.hi) - projectOverviewX(range.lo)),
+        height: OVERVIEW.height,
+      }),
+      brush !== null && brush.overview === true && Math.abs(brush.to - brush.from) >= 1
+        ? React.createElement('rect', {
+          key: 'pending', className: CLASS.overviewWindow,
+          x: Math.min(brush.from, brush.to), y: 0,
+          width: Math.abs(brush.to - brush.from), height: OVERVIEW.height,
+        })
+        : null)
+      overviewBrushRef.current = brush !== null && brush.overview === true ? brush : null
+
+      return React.createElement(React.Fragment, null, windowRow, chart, overview)
     }
 
     /** One KPI tile. */
@@ -672,32 +1129,39 @@ window.__ModuleLoader__.load({
           state?.snapshotPath ? `reading ${state.snapshotPath}` : 'reading the configured snapshot'))
     }
 
-    /** The frame trigger: a chart glyph that opens the tab. */
+    /**
+     * The frame trigger: a chart glyph that opens the tab.
+     *
+     * The wrapper is what the stylesheet positions, so the button must be
+     * rendered inside it — a registered component that returns the button alone
+     * leaves `.dshtd-trigger` with no element to apply to.
+     */
     function TriggerButton({ sidebarRight, layout }) {
-      return React.createElement('button', {
-        className: CLASS.triggerButton,
-        type: 'button',
-        title: 'Training dashboard',
-        'aria-label': 'Training dashboard',
-        onClick: () => {
-          const open = typeof sidebarRight?.isOpen === 'function' ? sidebarRight.isOpen() : false
-          const showing = typeof sidebarRight?.activeTab === 'function'
-            ? sidebarRight.activeTab() === KIND : false
-          if (open && showing) {
-            layout.closeRightbar()
-          } else {
-            sidebarRight.openTab(KIND)
-            layout.openRightbar(true, false)
-          }
+      return React.createElement('div', { className: CLASS.trigger },
+        React.createElement('button', {
+          className: CLASS.triggerButton,
+          type: 'button',
+          title: 'Training dashboard',
+          'aria-label': 'Training dashboard',
+          onClick: () => {
+            const open = typeof sidebarRight?.isOpen === 'function' ? sidebarRight.isOpen() : false
+            const showing = typeof sidebarRight?.activeTab === 'function'
+              ? sidebarRight.activeTab() === KIND : false
+            if (open && showing) {
+              layout.closeRightbar()
+            } else {
+              sidebarRight.openTab(KIND)
+              layout.openRightbar(true, false)
+            }
+          },
+        }, React.createElement('svg', {
+          viewBox: '0 0 24 24', width: 17, height: 17, fill: 'none',
+          stroke: 'currentColor', strokeWidth: 1.7,
+          strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
         },
-      }, React.createElement('svg', {
-        viewBox: '0 0 24 24', width: 17, height: 17, fill: 'none',
-        stroke: 'currentColor', strokeWidth: 1.7,
-        strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
-      },
-      React.createElement('path', { d: 'M3 20h18' }),
-      React.createElement('path', { d: 'M4 16l4.5-5 3.5 3L20 6' }),
-      React.createElement('path', { d: 'M20 10V6h-4' })))
+        React.createElement('path', { d: 'M3 20h18' }),
+        React.createElement('path', { d: 'M4 16l4.5-5 3.5 3L20 6' }),
+        React.createElement('path', { d: 'M20 10V6h-4' }))))
     }
 
     /** The only declared dependencies: real client services, never slots. */
@@ -769,11 +1233,29 @@ window.__ModuleLoader__.load({
       ageSentence,
       emptyReason,
       CHART,
+      OVERVIEW,
+      fullRange,
+      clampRange,
+      zoomRange,
+      panRange,
+      pointsInRange,
+      pointsToDraw,
+      valueRange,
+      plotGeometry,
+      clampChartPixel,
+      valueAt,
+      brushRange,
+      rangeLabel,
+      MIN_WINDOW_FRACTION,
+      ZOOM_FACTOR,
+      PAN_FRACTION,
+      MIN_BRUSH_PIXELS,
       POLL_MS,
       TYPE_ID,
       KIND,
       ROUTE,
       Panel,
+      SeriesChart,
     }
     return module.exports
   },
