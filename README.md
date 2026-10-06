@@ -31,12 +31,29 @@ Package version **0.3.0** — snapshot contract version **1**.
 | region | content |
 | --- | --- |
 | header | the run's name, the snapshot's age with a fresh/stale badge, a Refresh button |
-| KPI row | latest step, headline series, step wall time, throughput, memory peak, evaluation accuracy |
-| chips | the series to chart, best-first; any other series the snapshot carries is appended |
+| KPI row | latest step, the held-out reading, step wall time, throughput, memory peak, evaluation accuracy |
+| chips | the four metrics this tab leads with, then a `N more series` disclosure holding everything else the snapshot carries |
 | chart | ONE series at a time on its own axis, with every break marker drawn on it, over a timeline you can select |
 | register | under the chart: every break marker in full — its leg, its kind, its reason, what that kind does to the curve, and where it was read from |
 | frontier | under the register: the next expected transition, named as an expectation and not as a fact |
 | footer | the snapshot path being read |
+
+**The chips are a short list on purpose.** A snapshot of this run carries sixty
+series, and a chip for every one of them is a wall of controls over a chart that
+draws one curve. The tab leads with the four it is steered by — the leg's own
+end-of-leg reading, throughput, VRAM peak and the exam — and the other
+thirty-six are one click away behind the disclosure. Nothing is dropped: a
+producer's own tag is still reachable, labelled by its own name.
+
+**One curve, not two.** `train/bpb_sealed` and `train/bpb_legval` are the same
+chart. Measured on this run's snapshot: the curve carries 688 readings over legs
+1–689 and the leg-end reading 730 over 1–731, and on all 688 legs they share the
+values are identical. The curve stops at the phase boundary, which is where the
+corpus transfer happens, and the leg-end reading keeps going for another 42 legs.
+Both are written by the producer, so the tab resolves the pair: where the leg-end
+reading exists the truncated copy is not offered at all, and where a producer
+writes only the curve the curve is the held-out reading. The KPI header names
+which of the two it read.
 
 **One series at a time is deliberate.** Series carry different units — bits per
 byte, seconds, GiB, accuracy, counts — and drawing them on one axis would invite
@@ -591,6 +608,20 @@ Each of these is a mistake some plugin in this harness has already paid for once
   register under a heading that calls it an expectation. A predicted leg drawn
   like a joint read from an artifact would be a guess wearing a measurement's
   clothes.
+- **A default list is a claim about what matters, and it goes stale.** The chips
+  offered nine metrics in a fixed order chosen when the tab was written, and the
+  snapshot had since grown to sixty series: the row became a wall of controls and
+  the one at the front was a truncated duplicate of the one behind it. The list is
+  now four, it is one constant with the reason for each entry beside it, and
+  everything else is behind a disclosure rather than gone. A default nobody
+  revisits is a default that decides for the reader.
+- **When two series are one chart, the tab resolves them.** `train/bpb_sealed` and
+  `train/bpb_legval` are identical on all 688 legs they share; the first stops at
+  the phase boundary and the second continues 42 legs past it. So one entry names
+  the other as its `fallbackFor`: where both exist the truncated one is not
+  offered at all, and where only the curve exists it is the reading. A reader
+  should never be handed two chips for one picture and left to work out which is
+  which.
 
 ## Licence
 

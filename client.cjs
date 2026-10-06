@@ -97,6 +97,7 @@ window.__ModuleLoader__.load({
       kpiValue: 'dshtd-kpi-value',
       chips: 'dshtd-chips',
       chip: 'dshtd-chip',
+      moreChip: 'dshtd-more-chip',
       chart: 'dshtd-chart',
       chartWrap: 'dshtd-chart-wrap',
       axis: 'dshtd-axis',
@@ -231,6 +232,17 @@ window.__ModuleLoader__.load({
   border-color: var(--dsw-alias-border-l2, #5a5a5a);
   background: transparent;
   color: var(--dsw-alias-label-tertiary, #8a8a8a);
+}
+/* The disclosure that holds the other fifty-odd series. Quieter than a chip and
+   not a series itself, so it cannot be mistaken for one. */
+.${CLASS.moreChip} {
+  border: 1px dashed var(--dsw-alias-border-l2, #3a3a3a); border-radius: 999px;
+  background: transparent; color: var(--dsw-alias-label-tertiary, #8a8a8a);
+  cursor: pointer; font-size: 11px; padding: 2px 10px; white-space: nowrap;
+}
+.${CLASS.moreChip}:hover, .${CLASS.moreChip}[data-open='true'] {
+  color: var(--dsw-alias-label-secondary, #b0b0b0);
+  border-color: var(--dsw-alias-border-l1, #4a4a4a);
 }
 .${CLASS.chartWrap} {
   border: 1px solid var(--dsw-alias-border-l1, #2e2e2e); border-radius: 8px;
@@ -415,27 +427,57 @@ window.__ModuleLoader__.load({
     // ----------------------------------------------------------------------
 
     /**
-     * The series offered as chips, best first, with their units.
+     * The metrics this tab leads with, in reading order, with their units.
      *
-     * The order is a reading order and not the host's: the headline curve
-     * first, then the things that explain a move in it (wall time, gradient
-     * norm, memory), then the evaluation readings.
+     * A SHORT list on purpose. The snapshot carries sixty series, and a chip for
+     * every one of them is a wall of controls over a chart that draws one curve:
+     * the reader ends up hunting for the few they actually steer by. Everything
+     * else is still reachable, one click away, behind "more series" — see
+     * `availableSeries` and `splitOffered`.
+     *
+     * What is here, and why:
+     *   - the leg's own end-of-leg validation reading, NOT the curve's bpb. They
+     *     are the SAME CHART: measured on the live snapshot, the curve carries 688
+     *     readings over legs 1..689 and the leg reading carries 730 over 1..731,
+     *     and on all 688 legs they share the values are identical. The curve stops
+     *     at the phase boundary (leg 690, the corpus transfer) and the leg reading
+     *     keeps going for another 42 legs. Offering both put a truncated duplicate
+     *     of one curve in the chips, and the truncated copy was the default.
+     *   - throughput, because the pass's next throughput rung is priced in units
+     *     per second and this is that number.
+     *   - VRAM peak, because the memory envelope is the physical stop.
+     *   - the exam, because it is the only instrument that measures capability
+     *     rather than compression.
      *
      * This list is a convenience and not a contract. A tag it does not know is
      * still offered, labelled by its own tag, so a producer is free to emit
      * whatever series names its run uses.
      */
     const INTERESTING = [
-      { tag: 'train/bpb_sealed', label: 'sealed bpb', unit: 'bpb', digits: 4 },
       { tag: 'train/bpb_legval', label: 'leg-val bpb', unit: 'bpb', digits: 4 },
-      { tag: 'train/wall_seconds', label: 'leg wall time', unit: 's', digits: 1 },
       { tag: 'train/units_per_second', label: 'units/s', unit: 'u/s', digits: 0 },
-      { tag: 'train/gnorm', label: 'grad norm', unit: '', digits: 3 },
-      { tag: 'train/vocabulary_size', label: 'vocab size', unit: '', digits: 0 },
       { tag: 'memory/vram_peak_gib', label: 'VRAM peak', unit: 'GiB', digits: 2 },
-      { tag: 'memory/vram_headroom_gib', label: 'VRAM headroom', unit: 'GiB', digits: 2 },
       { tag: 'eval/exam_accuracy', label: 'exam accuracy', unit: '', digits: 4 },
+      // The curve's own bits per byte, kept ONLY for a snapshot whose producer
+      // writes no leg-end reading. Where both exist it is a strict prefix of the
+      // other: identical on every shared leg, and it stops at the phase boundary.
+      {
+        tag: 'train/bpb_sealed',
+        label: 'sealed bpb (stops at the transfer)',
+        unit: 'bpb',
+        digits: 4,
+        fallbackFor: 'train/bpb_legval',
+      },
     ]
+
+    /**
+     * The held-out reading, best source first.
+     *
+     * The tab's headline number, and the one the KPI header and the default chart
+     * both read. Named once here so the two cannot disagree about which series the
+     * reading comes from.
+     */
+    const HEADLINE_TAGS = ['train/bpb_legval', 'train/bpb_sealed']
 
     /**
      * Whether a tag looks like a per-step trace rather than a per-run series.
@@ -472,25 +514,63 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * The chips to offer: every preferred series the payload actually has,
-     * then any other series so a new tag is reachable without a plugin
-     * change. Per-step trace tags are left out of the fallback list because
-     * each one is a single step and would flood the chips.
+     * Every series the payload could be charted as, the leads first.
+     *
+     * Each entry carries `primary`: the leads from INTERESTING are primary and
+     * everything else is not, so the panel can show a handful of chips and keep
+     * the rest behind a disclosure without losing the promise that a tag this
+     * tab has never heard of is still reachable.
+     *
+     * An entry with `fallbackFor` is dropped when the series it defers to is
+     * present, which is how the curve's rounded bpb stops being offered beside
+     * the leg-end reading of the same number.
+     *
+     * Per-step trace tags are left out of the fallback list because each one is a
+     * single step and would flood the chips.
      */
     function availableSeries(payload) {
       const index = seriesIndex(payload)
       const offered = []
+      const known = new Set()
+      // A series another entry defers to its better source entirely: `bpb_sealed`
+      // is a strict prefix of `bpb_legval`, so where both exist the truncated one
+      // is not offered at all, not even behind the disclosure.
+      const suppressed = new Set(INTERESTING
+        .filter((spec) => spec.fallbackFor !== undefined && index.has(spec.fallbackFor))
+        .map((spec) => spec.tag))
       for (const spec of INTERESTING) {
-        if (index.has(spec.tag)) offered.push({ ...spec, series: index.get(spec.tag) })
+        if (suppressed.has(spec.tag)) continue
+        if (index.has(spec.tag)) {
+          offered.push({ ...spec, primary: true, series: index.get(spec.tag) })
+          known.add(spec.tag)
+        }
       }
-      const known = new Set(offered.map((item) => item.tag))
       for (const [tag, item] of index) {
-        if (known.has(tag)) continue
+        if (known.has(tag) || suppressed.has(tag)) continue
         if (isTraceTag(tag)) continue
         if (tag.endsWith('_pre_break') || tag.endsWith('_post_break')) continue
-        offered.push({ tag, label: tag, unit: '', digits: 3, series: item })
+        offered.push({ tag, label: tag, unit: '', digits: 3, primary: false, series: item })
       }
       return offered
+    }
+
+    /** The chips shown by default, and the ones behind the disclosure. */
+    function splitOffered(offered) {
+      return {
+        primary: offered.filter((item) => item.primary === true),
+        more: offered.filter((item) => item.primary !== true),
+      }
+    }
+
+    /**
+     * Whether the disclosure must be open regardless of what the reader clicked.
+     *
+     * A remembered choice can live among the hidden series, because the series a
+     * reader is steering moves as the run does, and a chart drawing a series whose
+     * chip is not on screen is a chart with no visible selection.
+     */
+    function disclosureForced(chosen, more) {
+      return chosen !== null && more.some((item) => item.tag === chosen)
     }
 
     /**
@@ -561,6 +641,30 @@ window.__ModuleLoader__.load({
       const item = seriesIndex(payload).get(tag)
       if (item === undefined || item.points.length === 0) return null
       return item.points[item.points.length - 1]
+    }
+
+    /**
+     * The held-out reading, from the best source the payload carries.
+     *
+     * The leg-end reading first, and the curve's rounded copy only when that is
+     * all there is, so the header and the default chart cannot disagree about
+     * which series the number came from.
+     * @param payload - the snapshot body.
+     * @returns the newest point and the tag it came from, or null for neither.
+     */
+    function headlineReading(payload) {
+      for (const tag of HEADLINE_TAGS) {
+        const point = lastPoint(payload, tag)
+        if (point !== null) return { point, tag }
+      }
+      return null
+    }
+
+    /** The chip label for one tag, falling back to the tag, or to the reading's own name. */
+    function seriesLabel(tag) {
+      if (tag === null || tag === undefined) return 'held-out bpb'
+      const spec = INTERESTING.find((item) => item.tag === tag)
+      return spec === undefined ? tag : spec.label
     }
 
     /** Round tick values covering [min, max] on human numbers. */
@@ -1914,10 +2018,14 @@ window.__ModuleLoader__.load({
       const offered = React.useMemo(() => availableSeries(payload), [payload])
       const selection = React.useMemo(() => resolveSelection(offered, chosen), [offered, chosen])
       const activeSpec = selection.spec
+      const { primary, more } = React.useMemo(() => splitOffered(offered), [offered])
+      const [showMore, setShowMore] = React.useState(false)
+      const moreOpen = showMore || disclosureForced(chosen, more)
 
       const age = describeAge(state)
-      const latestBpb = lastPoint(payload, 'train/bpb_sealed')
-      const latestLeg = lastPoint(payload, 'train/bpb_legval') ?? latestBpb
+      const headline = headlineReading(payload)
+      const latestReading = headline === null ? null : headline.point
+      const headlineTag = headline === null ? null : headline.tag
       const latestWall = lastPoint(payload, 'train/wall_seconds')
       const latestVram = lastPoint(payload, 'memory/vram_peak_gib')
       const latestExam = lastPoint(payload, 'eval/exam_accuracy')
@@ -1943,12 +2051,14 @@ window.__ModuleLoader__.load({
       const kpis = React.createElement('div', { className: CLASS.kpis },
         React.createElement(Kpi, {
           label: 'leg',
-          value: latestLeg === null ? '—' : String(Math.round(latestLeg[0])),
+          value: latestReading === null ? '—' : String(Math.round(latestReading[0])),
         }),
         React.createElement(Kpi, {
-          label: 'sealed bpb',
-          value: latestBpb === null ? '—' : formatValue(latestBpb[1], 4),
-          title: 'the sealed exam curve, one reading per leg',
+          label: seriesLabel(headlineTag),
+          value: latestReading === null ? '—' : formatValue(latestReading[1], 4),
+          title: headlineTag === null
+            ? 'no held-out reading in this snapshot'
+            : `${headlineTag}, the held-out reading the run is steered by`,
         }),
         React.createElement(Kpi, {
           label: 'leg wall',
@@ -1981,15 +2091,34 @@ window.__ModuleLoader__.load({
         }, `${chosen} · not in this snapshot`)]
         : []
 
+      /**
+       * One chip. `data-on` marks the charted series, so the disclosure does not
+       * hide which one is on screen.
+       */
+      const chipFor = (item) => React.createElement('button', {
+        key: item.tag, type: 'button', className: CLASS.chip,
+        'data-on': activeSpec !== null && activeSpec.tag === item.tag ? 'true' : 'false',
+        onClick: () => setChosen(item.tag),
+        title: item.series.source ? `${item.tag} — ${item.series.source}` : item.tag,
+      }, item.label)
+
+      // The leads are the chips; everything else is one click away. The snapshot
+      // carries sixty series, and a chip for every one of them is a wall of
+      // controls over a chart that draws one curve.
+      const moreChip = more.length === 0 ? null : React.createElement('button', {
+        key: 'more-series', type: 'button', className: CLASS.moreChip,
+        'data-open': moreOpen ? 'true' : 'false',
+        'aria-expanded': moreOpen ? 'true' : 'false',
+        onClick: () => setShowMore((open) => !open),
+        title: moreOpen ? 'Hide the other series this snapshot carries' : 'Show every series this snapshot carries',
+      }, moreOpen ? 'fewer series' : `${more.length} more series`)
+
       const chips = offered.length === 0 && missingChip.length === 0 ? null
         : React.createElement('div', { className: CLASS.chips },
           ...missingChip,
-          ...offered.map((item) => React.createElement('button', {
-            key: item.tag, type: 'button', className: CLASS.chip,
-            'data-on': activeSpec !== null && activeSpec.tag === item.tag ? 'true' : 'false',
-            onClick: () => setChosen(item.tag),
-            title: item.series.source ? `${item.tag} — ${item.series.source}` : item.tag,
-          }, item.label)))
+          ...primary.map(chipFor),
+          moreChip,
+          ...(moreOpen ? more.map(chipFor) : []))
 
       const chart = activeSpec === null
         ? (selection.missing
@@ -2157,6 +2286,12 @@ window.__ModuleLoader__.load({
       pointsToDraw,
       valueRange,
       resolveSelection,
+      splitOffered,
+      disclosureForced,
+      headlineReading,
+      seriesLabel,
+      HEADLINE_TAGS,
+      INTERESTING,
       markerShape,
       MARKER_SHAPES,
       markerTagText,

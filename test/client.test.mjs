@@ -330,25 +330,82 @@ test('seriesIndex drops points that are not numbers', () => {
   assert.deepEqual(index.get('a').points, [[1, 1.0], [3, 3.0]])
 })
 
-test('availableSeries leads with the registered reading order', () => {
+test('the tab leads with a short list and keeps every other series reachable', () => {
   const offered = t.availableSeries({
     series: [
       { tag: 'train/wall_seconds', points: [[1, 100]] },
       { tag: 'train/bpb_sealed', points: [[1, 2.1]] },
+      { tag: 'train/bpb_legval', points: [[1, 2.1]] },
+      { tag: 'memory/vram_peak_gib', points: [[1, 4.1]] },
       { tag: 'vram_trace/step_0001_gib', points: [[1, 4.1]] },
       { tag: 'train/bpb_sealed_post_break', points: [[1, 2.1]] },
       { tag: 'something/else', points: [[1, 1]] },
     ],
   })
+  const { primary, more } = t.splitOffered(offered)
+  const leads = primary.map((item) => item.tag)
 
-  const tags = offered.map((item) => item.tag)
-  assert.equal(tags[0], 'train/bpb_sealed', 'the headline series comes first')
-  assert.ok(tags.includes('train/wall_seconds'))
-  assert.ok(tags.includes('something/else'), 'an unknown tag must still be reachable')
-  assert.ok(!tags.includes('vram_trace/step_0001_gib'),
+  assert.deepEqual(leads, ['train/bpb_legval', 'memory/vram_peak_gib'],
+    'the reading and the memory envelope are what this tab leads with when they are present')
+  assert.ok(more.some((item) => item.tag === 'something/else'),
+    'an unknown tag must still be reachable, behind the disclosure rather than gone')
+  assert.ok(more.some((item) => item.tag === 'train/wall_seconds'),
+    'a series the tab does not lead with is one click away, not dropped')
+  assert.ok(!offered.some((item) => item.tag === 'vram_trace/step_0001_gib'),
     'per-step traces are one step each and would flood the chips')
-  assert.ok(!tags.includes('train/bpb_sealed_post_break'),
+  assert.ok(!offered.some((item) => item.tag === 'train/bpb_sealed_post_break'),
     'the pre/post split series are reachable through the break marker, not the chips')
+})
+
+test('the curve\'s bpb is not offered beside the leg-end reading of the same chart', () => {
+  // Measured on the live snapshot: the curve carries 688 readings over legs
+  // 1..689 and the leg reading 730 over 1..731, IDENTICAL on all 688 shared legs.
+  // It stops at the phase boundary and the leg reading keeps going, so offering
+  // both puts a truncated duplicate of one curve in the chips.
+  const both = t.availableSeries({
+    series: [
+      { tag: 'train/bpb_sealed', points: [[1, 2.1], [689, 2.09]] },
+      { tag: 'train/bpb_legval', points: [[1, 2.1], [731, 2.41]] },
+    ],
+  })
+  assert.deepEqual(both.map((item) => item.tag), ['train/bpb_legval'],
+    'the truncated copy must not be offered beside the reading that continues past it')
+
+  // A producer that writes only the curve still gets a bpb chip.
+  const alone = t.availableSeries({ series: [{ tag: 'train/bpb_sealed', points: [[1, 2.1]] }] })
+  assert.deepEqual(alone.map((item) => item.tag), ['train/bpb_sealed'],
+    'the curve is the only held-out reading some snapshots have, so it cannot be dropped outright')
+})
+
+test('the held-out reading comes from the best source present, and the label says which', () => {
+  const payload = {
+    series: [
+      { tag: 'train/bpb_sealed', points: [[689, 2.093]] },
+      { tag: 'train/bpb_legval', points: [[731, 2.409]] },
+    ],
+  }
+  const reading = t.headlineReading(payload)
+  assert.equal(reading.tag, 'train/bpb_legval')
+  assert.deepEqual(reading.point, [731, 2.409])
+  assert.equal(t.seriesLabel(reading.tag), 'leg-val bpb',
+    'the header must name the series it read, so it cannot be mistaken for the other one')
+
+  const curveOnly = t.headlineReading({ series: [{ tag: 'train/bpb_sealed', points: [[689, 2.093]] }] })
+  assert.equal(curveOnly.tag, 'train/bpb_sealed', 'the curve is the fallback source, not a second reading')
+  assert.equal(t.headlineReading({ series: [] }), null)
+  assert.equal(t.seriesLabel(null), 'held-out bpb', 'the header still needs a name when there is no reading')
+})
+
+test('the disclosure opens itself when the charted series lives inside it', () => {
+  const more = t.splitOffered(t.availableSeries({
+    series: [{ tag: 'guard/factor_hold', points: [[1, 1]] }, { tag: 'train/bpb_legval', points: [[1, 2]] }],
+  })).more
+
+  assert.equal(t.disclosureForced('guard/factor_hold', more), true,
+    'a chart drawing a series whose chip is off screen is a chart with no visible selection')
+  assert.equal(t.disclosureForced('train/bpb_legval', more), false,
+    'a lead does not force the disclosure open')
+  assert.equal(t.disclosureForced(null, more), false, 'the default is a lead or the missing chip')
 })
 
 test('isTraceTag filters traces by shape, not by a list of known names', () => {
