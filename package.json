@@ -1,6 +1,6 @@
 {
   "name": "dsh-train-dashboard",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "A right-pane training dashboard for the DeepSeek Harness: it runs a command of your own that writes a JSON snapshot of a training run, serves that snapshot over two HTTP routes, and charts it as a right-pane tab — one series at a time, with the age of the numbers always on screen.",
   "author": "Moazzam Abdullah Khan (https://github.com/moazzamak)",
   "license": "MIT",

@@ -105,9 +105,8 @@ window.__ModuleLoader__.load({
       markerTick: 'dshtd-break-tick',
       markerLabel: 'dshtd-breaklabel',
       markerHalo: 'dshtd-breakhalo',
+      markerSwatch: 'dshtd-marker-swatch',
       markerLegText: 'dshtd-break-leg-text',
-      markerKindText: 'dshtd-break-kind-text',
-      markerWordsText: 'dshtd-break-words-text',
       frontierMark: 'dshtd-frontier-mark',
       frontierLabel: 'dshtd-frontier-label',
       breaks: 'dshtd-breaks',
@@ -126,6 +125,7 @@ window.__ModuleLoader__.load({
       breakSupport: 'dshtd-break-support',
       breakContradiction: 'dshtd-break-contradiction',
       frontier: 'dshtd-frontier',
+      frontierSwatch: 'dshtd-frontier-swatch',
       frontierTitle: 'dshtd-frontier-title',
       frontierHead: 'dshtd-frontier-head',
       frontierSentence: 'dshtd-frontier-sentence',
@@ -239,17 +239,20 @@ window.__ModuleLoader__.load({
 .${CLASS.chart} { display: block; width: 100%; height: auto; }
 .${CLASS.axis} { fill: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 9px; }
 .${CLASS.gridline} { stroke: var(--dsw-alias-border-l1, #2e2e2e); stroke-width: 1; }
-/* The break markers. THE KIND IS A WORD ON THE LINE, not only a colour: the
-   colour is a second channel for the same fact, and a reader who cannot tell
-   green from amber still reads CORPUS or SHAPE. Each kind sets one custom
-   property, and the line, its label and the register's badge all read it. */
-.${CLASS.marker}[data-kind='corpus'], .${CLASS.breakRow}[data-kind='corpus'], .${CLASS.swatch}[data-kind='corpus'] { --dshtd-kind: #3fa06b; }
-.${CLASS.marker}[data-kind='instrument'], .${CLASS.breakRow}[data-kind='instrument'], .${CLASS.swatch}[data-kind='instrument'] { --dshtd-kind: #8f7ff0; }
-.${CLASS.marker}[data-kind='arithmetic'], .${CLASS.breakRow}[data-kind='arithmetic'], .${CLASS.swatch}[data-kind='arithmetic'] { --dshtd-kind: #e05252; }
-.${CLASS.marker}[data-kind='shape'], .${CLASS.breakRow}[data-kind='shape'], .${CLASS.swatch}[data-kind='shape'] { --dshtd-kind: #e0a13f; }
-.${CLASS.marker}[data-kind='restart'], .${CLASS.breakRow}[data-kind='restart'], .${CLASS.swatch}[data-kind='restart'] { --dshtd-kind: #5aa9e6; }
-.${CLASS.marker}[data-kind='break'], .${CLASS.breakRow}[data-kind='break'], .${CLASS.swatch}[data-kind='break'] { --dshtd-kind: #9aa0a6; }
-.${CLASS.marker}, .${CLASS.breakRow}, .${CLASS.swatch} { --dshtd-kind: #9aa0a6; }
+/* The break markers. THE KIND IS A SHAPE ON THE LINE, and the colour is a second
+   channel for the same fact: a reader who cannot tell green from amber still
+   reads a circle against a triangle. The word for the kind is in the register
+   under the chart, where the reason, the meaning and the reading live too. Each
+   kind sets one custom property, and the line, its swatch and the register's badge
+   all read it. The label group is included, because the swatch is a child of that
+   group and a custom property set on the line's group does not reach it. */
+.${CLASS.marker}[data-kind='corpus'], .${CLASS.markerLabel}[data-kind='corpus'], .${CLASS.breakRow}[data-kind='corpus'], .${CLASS.swatch}[data-kind='corpus'] { --dshtd-kind: #3fa06b; }
+.${CLASS.marker}[data-kind='instrument'], .${CLASS.markerLabel}[data-kind='instrument'], .${CLASS.breakRow}[data-kind='instrument'], .${CLASS.swatch}[data-kind='instrument'] { --dshtd-kind: #8f7ff0; }
+.${CLASS.marker}[data-kind='arithmetic'], .${CLASS.markerLabel}[data-kind='arithmetic'], .${CLASS.breakRow}[data-kind='arithmetic'], .${CLASS.swatch}[data-kind='arithmetic'] { --dshtd-kind: #e05252; }
+.${CLASS.marker}[data-kind='shape'], .${CLASS.markerLabel}[data-kind='shape'], .${CLASS.breakRow}[data-kind='shape'], .${CLASS.swatch}[data-kind='shape'] { --dshtd-kind: #e0a13f; }
+.${CLASS.marker}[data-kind='restart'], .${CLASS.markerLabel}[data-kind='restart'], .${CLASS.breakRow}[data-kind='restart'], .${CLASS.swatch}[data-kind='restart'] { --dshtd-kind: #5aa9e6; }
+.${CLASS.marker}[data-kind='break'], .${CLASS.markerLabel}[data-kind='break'], .${CLASS.breakRow}[data-kind='break'], .${CLASS.swatch}[data-kind='break'] { --dshtd-kind: #9aa0a6; }
+.${CLASS.marker}, .${CLASS.markerLabel}, .${CLASS.breakRow}, .${CLASS.swatch} { --dshtd-kind: #9aa0a6; }
 .${CLASS.marker} { stroke: var(--dshtd-kind); stroke-width: 1; }
 .${CLASS.marker}[data-declared='true'] { stroke-dasharray: 3 3; }
 /* The same markers on the strip under the chart: dimmer, because they are a
@@ -257,9 +260,29 @@ window.__ModuleLoader__.load({
 .${CLASS.markerTick} { stroke: var(--dshtd-kind); stroke-width: 1; opacity: 0.55; }
 .${CLASS.markerHalo} { fill: var(--dsw-alias-bg-layer-1, #1d1d1d); opacity: 0.85; }
 .${CLASS.markerLabel} { font-size: 9px; }
-.${CLASS.markerLegText} { fill: var(--dsw-alias-label-tertiary, #8a8a8a); }
-.${CLASS.markerKindText} { fill: var(--dshtd-kind); font-weight: 600; }
-.${CLASS.markerWordsText} { fill: var(--dsw-alias-label-secondary, #b0b0b0); }
+.${CLASS.markerLegText} { fill: var(--dsw-alias-label-secondary, #b0b0b0); }
+.${CLASS.markerSwatch} { fill: var(--dshtd-kind); }
+/* The register and its key carry the SAME SHAPE as the mark on the chart, so the
+   chart can be read without separating hues: the reader finds the triangle in the
+   key and the same triangle on the line. One shape per kind, matching
+   MARKER_SHAPES in the browser half. */
+.${CLASS.swatch} {
+  width: 9px; height: 9px; flex: none; display: inline-block;
+  background: var(--dshtd-kind); border-radius: 2px;
+}
+.${CLASS.swatch}[data-kind='corpus'] { border-radius: 50%; }
+.${CLASS.swatch}[data-kind='instrument'] { border-radius: 2px; }
+.${CLASS.swatch}[data-kind='shape'] { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.${CLASS.swatch}[data-kind='arithmetic'] { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.${CLASS.swatch}[data-kind='restart'] { clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.${CLASS.swatch}[data-kind='break'] { clip-path: inset(35% 0 35% 0); }
+.${CLASS.swatch}[data-kind='unknown'] {
+  clip-path: polygon(35% 0, 65% 0, 65% 35%, 100% 35%, 100% 65%, 65% 65%, 65% 100%,
+    35% 100%, 35% 65%, 0 65%, 0 35%, 35% 35%);
+}
+/* The frontier's own swatch: the outline of a diamond, in the label colour. An
+   expectation is not a kind of joint, so it is the one swatch that is not filled. */
+.${CLASS.frontierSwatch} { fill: none; stroke: var(--dsw-alias-label-tertiary, #8a8a8a); stroke-width: 1; }
 /* The frontier: dashed, dimmer, and labelled "expected". It must not look like
    the markers above, which are read from artifacts that exist. */
 .${CLASS.frontierMark} { stroke: var(--dsw-alias-label-tertiary, #8a8a8a); stroke-width: 1; stroke-dasharray: 6 4; opacity: 0.9; }
@@ -868,6 +891,43 @@ window.__ModuleLoader__.load({
     /** The kind word for the producer's own `break_leg`, which carries no kind. */
     const DECLARED_KIND = 'break'
 
+    /**
+     * The shape each kind of break is drawn as on the chart.
+     *
+     * The chart carries the kind as a SHAPE, and the colour is a second channel
+     * for the same fact rather than the only one: a kind encoded by hue alone is
+     * invisible to a reader who cannot separate the hues, and these kinds do
+     * different things to the curve, so an unreadable kind invites exactly the
+     * comparison the register exists to prevent. The WORD for the kind lives in
+     * the register under the chart, where there is room for it; the chart carries
+     * the shape, the colour, and the leg number that joins the two. The
+     * assignment is fixed for the life of the tab, so a kind never changes shape
+     * under a reader who has learned it.
+     *
+     * A kind this tab has never seen still gets a shape, because a marker drawn
+     * without one is worse than no marker.
+     */
+    const MARKER_SHAPES = {
+      corpus: 'circle',
+      instrument: 'square',
+      arithmetic: 'triangle',
+      shape: 'diamond',
+      restart: 'triangle-down',
+      [DECLARED_KIND]: 'bar',
+      [UNKNOWN_KIND]: 'plus',
+    }
+
+    /** The shape one hand of kinds is drawn as; an unseen kind is a plus. */
+    function markerShape(kind) {
+      return MARKER_SHAPES[kind] ?? MARKER_SHAPES[UNKNOWN_KIND]
+    }
+
+    /** Side of the marker swatch, in chart units. */
+    const MARKER_SWATCH_SIZE = 7
+
+    /** The gap between a marker's swatch and its leg number. */
+    const MARKER_SWATCH_GAP = 3
+
     /** How much of a marker's own label fits on the chart before it is cut. */
     const MARKER_LABEL_CHARS = 22
 
@@ -988,11 +1048,19 @@ window.__ModuleLoader__.load({
       return marker.kind.toUpperCase()
     }
 
-    /** One marker's chart tag: its leg, its KIND, then as much of its reason as fits. */
+    /**
+     * One marker's chart tag: its leg number, and nothing else.
+     *
+     * The chart label is the JOIN KEY to the register under it, not a summary of
+     * it. Drawing the kind's word and the first words of the reason on the chart
+     * repeated what the register row below already says in full, and it cost the
+     * reader the curve: six joints inside fifty legs stacked into six lanes of
+     * prose across the plot. The kind stays visible on the chart as a shape, the
+     * leg number says which register row to read, and the register carries the
+     * words — which is also what the marker's own tooltip carries.
+     */
     function markerTagText(marker) {
-      const head = `${marker.leg} ${markerKindLabel(marker)}`
-      const words = clipWords(marker.label)
-      return words === '' ? head : `${head} ${words}`
+      return String(marker.leg)
     }
 
     /**
@@ -1019,6 +1087,57 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The swatch that carries one marker's kind on the chart.
+     *
+     * Filled shapes rather than outlines, so the colour has something solid to
+     * sit in at 7 chart units and the shape still reads when the colour does not.
+     * @param shape - a name from MARKER_SHAPES.
+     * @param cx - centre x, in chart units.
+     * @param cy - centre y, in chart units.
+     * @param key - React key.
+     * @returns the SVG element for the swatch.
+     */
+    function markerSwatch(shape, cx, cy, key, className = CLASS.markerSwatch) {
+      const radius = MARKER_SWATCH_SIZE / 2
+      const common = { key, className }
+      const points = (list) => list.map(([x, y]) => `${x},${y}`).join(' ')
+      if (shape === 'circle') return React.createElement('circle', { ...common, cx, cy, r: radius })
+      if (shape === 'square') {
+        return React.createElement('rect', {
+          ...common, x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2,
+        })
+      }
+      if (shape === 'diamond') {
+        return React.createElement('polygon', { ...common, points: points([
+          [cx, cy - radius], [cx + radius, cy], [cx, cy + radius], [cx - radius, cy],
+        ]) })
+      }
+      if (shape === 'triangle') {
+        return React.createElement('polygon', { ...common, points: points([
+          [cx, cy - radius], [cx + radius, cy + radius], [cx - radius, cy + radius],
+        ]) })
+      }
+      if (shape === 'triangle-down') {
+        return React.createElement('polygon', { ...common, points: points([
+          [cx - radius, cy - radius], [cx + radius, cy - radius], [cx, cy + radius],
+        ]) })
+      }
+      if (shape === 'plus') {
+        const arm = radius / 3
+        return React.createElement('polygon', { ...common, points: points([
+          [cx - arm, cy - radius], [cx + arm, cy - radius], [cx + arm, cy - arm],
+          [cx + radius, cy - arm], [cx + radius, cy + arm], [cx + arm, cy + arm],
+          [cx + arm, cy + radius], [cx - arm, cy + radius], [cx - arm, cy + arm],
+          [cx - radius, cy + arm], [cx - radius, cy - arm], [cx - arm, cy - arm],
+        ]) })
+      }
+      // The bar: the declared joint, whose kind the snapshot never stated.
+      return React.createElement('rect', {
+        ...common, x: cx - radius, y: cy - radius / 3, width: radius * 2, height: (radius * 2) / 3,
+      })
+    }
+
+    /**
      * Where each visible marker's label sits, so no two labels overlap.
      *
      * Labels are placed left to right into the lowest lane whose last label has
@@ -1038,7 +1157,8 @@ window.__ModuleLoader__.load({
       for (const marker of markers) {
         const x = projectX(marker.leg)
         const text = markerTagText(marker)
-        const width = text.length * MARKER_CHAR_WIDTH + MARKER_LABEL_PAD
+        const width = MARKER_SWATCH_SIZE + MARKER_SWATCH_GAP
+          + text.length * MARKER_CHAR_WIDTH + MARKER_LABEL_PAD
         const fitsStart = x + width <= plot.right
         const fitsEnd = x - width >= plot.left
         const anchor = fitsStart || !fitsEnd ? 'start' : 'end'
@@ -1363,18 +1483,17 @@ window.__ModuleLoader__.load({
           className: CLASS.markerHalo,
           x: haloX, y: labelY - 9, width: entry.width, height: 11,
         }),
+        markerSwatch(markerShape(marker.kind), haloX + MARKER_SWATCH_SIZE / 2, labelY - 3, 'swatch'),
         React.createElement('text', {
-          x: haloX + 4, y: labelY,
+          x: haloX + MARKER_SWATCH_SIZE + MARKER_SWATCH_GAP, y: labelY,
         },
-        React.createElement('tspan', { className: CLASS.markerLegText }, `${marker.leg} `),
-        React.createElement('tspan', { className: CLASS.markerKindText }, markerKindLabel(marker)),
-        clipWords(marker.label) === '' ? null : React.createElement(
-          'tspan', { className: CLASS.markerWordsText }, ` ${clipWords(marker.label)}`))))
+        React.createElement('tspan', { className: CLASS.markerLegText }, String(marker.leg)))))
       }
       if (frontierInWindow) {
         const x = projectX(expectedLeg)
-        const text = frontierTagText(breaks.frontier)
-        const width = Math.min(text.length * MARKER_CHAR_WIDTH + MARKER_LABEL_PAD, innerWidth)
+        const text = String(expectedLeg)
+        const width = MARKER_SWATCH_SIZE + MARKER_SWATCH_GAP
+          + text.length * MARKER_CHAR_WIDTH + MARKER_LABEL_PAD
         const haloX = x + width <= CHART.width - CHART.padRight ? x : x - width
         children.push(React.createElement('g', {
           key: 'frontierlabel', className: CLASS.markerLabel,
@@ -1384,8 +1503,14 @@ window.__ModuleLoader__.load({
         React.createElement('rect', {
           className: CLASS.markerHalo, x: haloX, y: markerLaneY(frontierLane) - 9, width, height: 11,
         }),
+        // The one UNFILLED swatch: an expectation is not a joint read from an
+        // artifact. Its sentence, and the caveat that its leg is a direction, are
+        // in the register under a heading that says both.
+        markerSwatch('diamond', haloX + MARKER_SWATCH_SIZE / 2, markerLaneY(frontierLane) - 3,
+          'frontier-swatch', CLASS.frontierSwatch),
         React.createElement('text', {
-          className: CLASS.frontierLabel, x: haloX + 4, y: markerLaneY(frontierLane),
+          className: CLASS.frontierLabel,
+          x: haloX + MARKER_SWATCH_SIZE + MARKER_SWATCH_GAP, y: markerLaneY(frontierLane),
         }, text)))
       }
 
@@ -2032,6 +2157,9 @@ window.__ModuleLoader__.load({
       pointsToDraw,
       valueRange,
       resolveSelection,
+      markerShape,
+      MARKER_SHAPES,
+      markerTagText,
       rememberedSeries,
       rememberSeries,
       rememberedWindow,

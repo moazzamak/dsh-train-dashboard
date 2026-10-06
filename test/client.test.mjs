@@ -803,12 +803,21 @@ test('a snapshot carrying breaks draws one marker per break', () => {
     'the markers must sit at the legs the snapshot names, oldest first')
 })
 
-test('every marker names its kind, on the chart and in the register', () => {
+/** The SVG element a kind's swatch is drawn as, from its registered shape name. */
+function swatchElementFor(kind) {
+  const shape = t.markerShape(kind)
+  if (shape === 'circle') return 'circle'
+  if (shape === 'square' || shape === 'bar') return 'rect'
+  return 'polygon'
+}
+
+test('every marker carries its kind on the chart as a shape, and names it in the register', () => {
   const tree = renderChart(snapshotWith({ breaks: ALL_KINDS }))
 
   const marks = elementsWithClass(tree, 'dshtd-breakmark')
   assert.equal(marks.length, ALL_KINDS.length)
   const labels = labelsByLeg(tree)
+  const shapesSeen = new Set()
   for (const mark of marks) {
     const kind = mark.props['data-kind']
     assert.ok(typeof kind === 'string' && kind.length > 0,
@@ -816,9 +825,26 @@ test('every marker names its kind, on the chart and in the register', () => {
     const label = labels.get(mark.props['data-leg'])
     assert.ok(label, `the marker at leg ${mark.props['data-leg']} has no label on the chart`)
     assert.equal(label.props['data-kind'], kind, 'the label and the line must be the same marker')
-    assert.ok(textOf(label).includes(kind.toUpperCase()),
-      `the marker at leg ${mark.props['data-leg']} does not name ${kind.toUpperCase()} anywhere a reader can see`)
+
+    // The chart says which kind WITHOUT a word. Drawing the kind's word and the
+    // first words of its reason on the plot repeated what the register below says
+    // in full and cost the reader the curve: six joints inside fifty legs stacked
+    // into six lanes of prose. The identifier is a shape, and the colour is a
+    // second channel for the same fact rather than the only one, so a reader who
+    // cannot separate the hues still tells the kinds apart.
+    const swatch = elementsWithClass(label, 'dshtd-marker-swatch')
+    assert.equal(swatch.length, 1,
+      `the marker at leg ${mark.props['data-leg']} carries no kind swatch on the chart`)
+    assert.equal(swatch[0].type, swatchElementFor(kind),
+      `the ${kind} swatch is not drawn as its registered shape`)
+    shapesSeen.add(t.markerShape(kind))
+
+    // The leg number is the join key to the register row, which names the kind.
+    assert.equal(textOf(label).trim(), mark.props['data-leg'],
+      'the chart label is the leg number and nothing else: the words are in the register')
   }
+  assert.equal(shapesSeen.size, ALL_KINDS.length,
+    'two kinds drawn as one shape cannot be told apart by a reader who cannot separate the colours')
 
   const rows = elementsWithClass(tree, 'dshtd-break-row')
   for (const row of rows) {
@@ -827,7 +853,55 @@ test('every marker names its kind, on the chart and in the register', () => {
   }
 })
 
-test('a kind this tab has never seen is drawn and named, never hidden', () => {
+test('no two kinds of break share a shape, and an unseen kind still gets one', () => {
+  const kinds = [...new Set(ALL_KINDS.map((marker) => marker.kind)), t.DECLARED_KIND, t.UNKNOWN_KIND]
+  const shapes = kinds.map((kind) => t.markerShape(kind))
+
+  assert.equal(new Set(shapes).size, kinds.length,
+    `two kinds share a shape: ${kinds.map((kind, at) => `${kind}=${shapes[at]}`).join(' ')}`)
+  assert.equal(t.markerShape('optimizer'), t.markerShape(t.UNKNOWN_KIND),
+    'a kind this tab has never seen gets the unknown shape rather than no shape at all')
+})
+
+/**
+ * The declaration each registered shape must appear as in the stylesheet.
+ *
+ * The chart's shape is JavaScript and the register's is CSS, so one mapping is
+ * written twice and the two can disagree. This is the assertion that catches it:
+ * a reader decodes the chart by finding the same shape in the key.
+ */
+const SHAPE_CSS = {
+  circle: 'border-radius: 50%',
+  square: 'border-radius: 2px',
+  diamond: 'clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%)',
+  triangle: 'clip-path: polygon(50% 0, 100% 100%, 0 100%)',
+  'triangle-down': 'clip-path: polygon(0 0, 100% 0, 50% 100%)',
+  bar: 'clip-path: inset(',
+  plus: 'clip-path: polygon(35% 0',
+}
+
+test('the register and its key draw the same shape as the chart, kind for kind', () => {
+  const head = installDocumentStub()
+  client.apply(fakeContext())
+  const css = head.children.map((tag) => tag.textContent).join('\n')
+  const kinds = [...new Set(ALL_KINDS.map((marker) => marker.kind)), t.DECLARED_KIND, t.UNKNOWN_KIND]
+
+  for (const kind of kinds) {
+    const shape = t.markerShape(kind)
+    // Every rule that ends in this kind's swatch selector: the kind's colour and
+    // its shape are set by two different rules, and only one of them is the shape.
+    const bodies = [...css.matchAll(
+      new RegExp(`\\.dshtd-break-swatch\\[data-kind='${kind}'\\]\\s*\\{([^}]*)\\}`, 'g'))]
+      .map((match) => match[1])
+    assert.ok(bodies.length > 0,
+      `the register has no rule for ${kind}, so the chart's shape cannot be decoded`)
+    assert.ok(bodies.some((body) => body.includes(SHAPE_CSS[shape])),
+      `the register draws ${kind} as [${bodies.map((body) => body.trim()).join(' | ')}] and the chart `
+      + `draws it as ${shape}: the reader cannot match the mark to the key`)
+  }
+})
+
+test('a kind this tab has never seen is drawn with a shape, and named in the register', () => {
   const payload = snapshotWith({
     breaks: [servedMarker({ leg: 40, kind: 'optimizer', label: 'the schedule changed', meaning: 'the OPTIMIZER changed' })],
   })
@@ -836,10 +910,13 @@ test('a kind this tab has never seen is drawn and named, never hidden', () => {
 
   assert.equal(marks.length, 1, 'a kind added by the producer must not make its marker disappear')
   assert.equal(marks[0].props['data-kind'], 'optimizer')
-  assert.ok(textOf(labelsByLeg(tree).get('40')).includes('OPTIMIZER'))
+  assert.equal(elementsWithClass(labelsByLeg(tree).get('40'), 'dshtd-marker-swatch').length, 1,
+    'an unseen kind still gets a shape, because a marker drawn without one is worse than no marker')
+  assert.ok(textOf(elementsWithClass(tree, 'dshtd-break-row')[0]).includes('OPTIMIZER'),
+    'the register names the unseen kind in the producer\'s own words')
 })
 
-test('a marker the snapshot gives no kind for says so rather than showing a blank', () => {
+test('a marker the snapshot gives no kind for says so in the register, and keeps its shape', () => {
   const marker = servedMarker({ leg: 40 })
   delete marker.kind
   const tree = renderChart(snapshotWith({ breaks: [marker] }))
@@ -847,7 +924,11 @@ test('a marker the snapshot gives no kind for says so rather than showing a blan
 
   assert.equal(marks.length, 1)
   assert.equal(marks[0].props['data-kind'], t.UNKNOWN_KIND)
-  assert.ok(textOf(labelsByLeg(tree).get('40')).includes('UNKNOWN'),
+  const label = labelsByLeg(tree).get('40')
+  assert.equal(label.props['data-kind'], t.UNKNOWN_KIND)
+  assert.equal(elementsWithClass(label, 'dshtd-marker-swatch').length, 1,
+    'an unfilled kind still gets the shape that says "no kind stated"')
+  assert.ok(textOf(elementsWithClass(tree, 'dshtd-break-row')[0]).includes('UNKNOWN'),
     'an unfilled kind must read as unknown, not as nothing')
 })
 
@@ -951,7 +1032,13 @@ test('the frontier is drawn as an expectation, with the snapshot\'s sentence and
   const frontierLabel = elementsWithClass(tree, 'dshtd-breaklabel')
     .find((label) => label.props['data-kind'] === 'frontier')
   assert.ok(frontierLabel, 'the frontier line needs its own label, or it is a line with no meaning')
-  assert.match(textOf(frontierLabel), /expected around leg 420/)
+  // The label is the leg number plus the one UNFILLED swatch: the frontier is an
+  // expectation and not a joint read from an artifact, and its sentence is in the
+  // register under a heading that says so.
+  assert.equal(textOf(frontierLabel).trim(), '420',
+    'the frontier label is its leg number, not a sentence repeated from the register')
+  assert.equal(elementsWithClass(frontierLabel, 'dshtd-frontier-swatch').length, 1,
+    'the frontier needs the outlined swatch that distinguishes an expectation from a kind')
 
   const block = textOf(elementsWithClass(tree, 'dshtd-frontier')[0])
   assert.ok(block.includes(sentence), 'the snapshot\'s own frontier sentence is shown as served')
@@ -1027,15 +1114,15 @@ test('markers close together are stacked, so no two labels write over each other
   assert.equal(t.markerLaneY(1) - t.markerLaneY(0), t.MARKER_LANE_HEIGHT)
 })
 
-test('a long reason is cut on a word boundary for the chart and kept whole in the register', () => {
+test('a long reason reads whole in the register, and never reaches the chart', () => {
   const long = servedMarker({ leg: 40, label: 'the sealed read began scoring with the read present' })
   const payload = snapshotWith({ breaks: [long] })
   const marker = t.readBreakMarkers(payload).markers[0]
 
-  const tag = t.markerTagText(marker)
-  assert.ok(tag.startsWith('40 CORPUS'), `the tag must lead with the leg and the kind, got ${tag}`)
-  assert.ok(tag.endsWith('…'), `a cut reason must show that it is cut, got ${tag}`)
-  assert.ok(!/read present/.test(tag), 'the chart cannot carry the whole sentence')
+  assert.equal(t.markerTagText(marker), '40',
+    'the chart label is the leg number: the kind is its shape, and the words are in the register')
+  assert.ok(!/read present/.test(t.markerTagText(marker)),
+    'nothing on the chart needs cutting, because the chart carries no prose')
 
   assert.ok(textOf(elementsWithClass(renderChart(payload), 'dshtd-break-row')[0])
     .includes('the sealed read began scoring with the read present'),

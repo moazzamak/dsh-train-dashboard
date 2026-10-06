@@ -46,23 +46,31 @@ exactly the comparison the axis cannot support.
 
 A long run crosses boundaries that are not learning, and a rise across one of
 them is not the model getting worse. The snapshot can carry them, and the tab
-draws each one as a vertical line labelled with its leg, its kind and the first
-words of its own reason. Kinds are colours **and** words, because the words are
-what say whether the joint can be compared across:
+draws each one as a vertical line carrying **a shape and its leg number**: the
+shape says which kind of joint it is, the number says which register row below
+reads it out, and the words stay in the register where there is room for them
+and where the reason, the meaning and the reading already live. Kinds are shapes
+**and** colours, because a kind encoded by hue alone is invisible to a reader
+who cannot separate the hues, and these kinds do different things to the curve:
 
-| kind | what it means on the chart |
-| --- | --- |
-| `corpus` | the data changed, so a rise here is expected and is not a regression |
-| `instrument` | the reading changed, so the joint is a level shift measured on different terms: no slope across it |
-| `arithmetic` | the numbers changed, so the series is not comparable across the joint at all |
-| `shape` | the leg's geometry changed with its volume held constant, so the metric stays comparable and the wall clock moves |
-| `restart` | the process restarted, and the work of that window is not in the series |
+| kind | shape | what it means on the chart |
+| --- | --- | --- |
+| `corpus` | circle | the data changed, so a rise here is expected and is not a regression |
+| `instrument` | square | the reading changed, so the joint is a level shift measured on different terms: no slope across it |
+| `arithmetic` | triangle | the numbers changed, so the series is not comparable across the joint at all |
+| `shape` | diamond | the leg's geometry changed with its volume held constant, so the metric stays comparable and the wall clock moves |
+| `restart` | triangle, point down | the process restarted, and the work of that window is not in the series |
+| `break` (declared by `break_leg`) | bar | the snapshot named a leg and no kind, and this tab will not guess one |
+| anything else | plus | a kind this tab has never seen, drawn rather than hidden |
 
-A kind the tab has never seen is still drawn, with its own name; a marker whose
-kind the snapshot omits is labelled `UNKNOWN` rather than shown as if the kind
-were known. Markers whose labels would collide are stacked so that no two write
-over each other, and every marker also gets a dim tick on the strip under the
-chart, so the joints are visible even when you have zoomed somewhere else.
+A kind the tab has never seen is still drawn, with the plus shape and the
+producer's own name in the register; a marker whose kind the snapshot omits gets
+the `UNKNOWN` row rather than being shown as if the kind were known. Markers
+whose labels would collide are stacked so that no two write over each other, and
+every marker also gets a dim tick on the strip under the chart, so the joints are
+visible even when you have zoomed somewhere else. Hovering a marker gives the
+same text the register carries, so the detail is one gesture away without being
+written across the plot.
 
 The **register** under the chart is where the markers read in full: the reason,
 the sentence your snapshot carries for that kind, the evidence the marker was
@@ -567,6 +575,22 @@ Each of these is a mistake some plugin in this harness has already paid for once
   narrowing it, through a passing unit suite: the tests asserted that the labelled
   controls existed rather than what they did. The end-to-end check clicks each
   control and reads the window back, which is how the inversion was found.
+- **The chart carries identifiers; the register carries the words.** A marker was
+  drawn with its leg, its KIND and the first words of its reason, which repeated
+  what the register row below already said in full and cost the reader the curve:
+  six joints inside fifty legs stacked into six lanes of prose across the plot.
+  The plot now carries a shape and the leg number, and the register carries the
+  prose. The shape is not decoration: a kind encoded by hue alone is invisible to
+  a reader who cannot separate the hues, and these kinds do different things to
+  the curve, so an unreadable kind invites the comparison the register exists to
+  prevent. The register draws the same shape in its key, and a test reads the
+  stylesheet and compares it against the shape table, because one mapping written
+  twice is free to disagree with itself.
+- **An expectation is not drawn like a fact.** The frontier is the one unfilled
+  swatch, in the label colour, on a dashed line, and its sentence sits in the
+  register under a heading that calls it an expectation. A predicted leg drawn
+  like a joint read from an artifact would be a guess wearing a measurement's
+  clothes.
 
 ## Licence
 
