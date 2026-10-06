@@ -355,8 +355,14 @@ test('isTraceTag filters traces by shape, not by a list of known names', () => {
   assert.equal(t.isTraceTag('vram_trace/step_0001_gib'), true)
   assert.equal(t.isTraceTag('anything/trace/step_0001'), true)
   assert.equal(t.isTraceTag('memory/step_trace'), true)
+  // The snapshot's own guard traces rotate with the leg, so a chip for one
+  // vanishes on the next refresh. Observed in the live snapshot: a revision
+  // dropped guard_trace/…_leg_00722_… and gained …_leg_00725_… in one refresh.
+  assert.equal(t.isTraceTag('guard_trace/V29035_leg_00722_factor'), true)
   assert.equal(t.isTraceTag('train/wall_seconds'), false)
   assert.equal(t.isTraceTag('someones_own/series'), false)
+  assert.equal(t.isTraceTag('train/solve_trace_bytes'), false,
+    'a tag that merely contains the word trace is a series, not a trace')
 })
 
 test('lastPoint reports the newest reading or null, never undefined', () => {
@@ -634,6 +640,72 @@ test('the numbers in the readout are the numbers on screen', () => {
 
   assert.equal(t.rangeLabel(window, bounds), 'steps 150–350 · 200 of 500 shown',
     'the readout must describe the window the axis was scaled to, not the series')
+})
+
+// ---------------------------------------------------------------------------
+// The reader's selection, which belongs to the reader and not to the payload.
+//
+// The snapshot is rebuilt from logs on disk on every refresh, so a series can
+// drop out of one revision and come back in the next. Reported from the running
+// app: the panel silently switched to the default curve whenever an update
+// arrived, which reads as a redraw and is actually the panel discarding a choice.
+// ---------------------------------------------------------------------------
+
+/** The chips a payload offers, as the panel builds them. */
+const offeredOf = (tags) => tags.map((tag) => ({ tag, label: tag, unit: '', digits: 3, series: { tag, points: [[0, 1]] } }))
+
+test('a chosen series stays chosen across a new payload', () => {
+  const first = offeredOf(['train/bpb_sealed', 'train/wall_seconds'])
+  const second = offeredOf(['train/bpb_sealed', 'train/wall_seconds', 'train/gnorm'])
+
+  assert.equal(t.resolveSelection(first, 'train/wall_seconds').spec.tag, 'train/wall_seconds')
+  assert.equal(t.resolveSelection(second, 'train/wall_seconds').spec.tag, 'train/wall_seconds',
+    'the selection must survive the payload object being replaced on every poll')
+})
+
+test('a chosen series missing from a revision is reported, never replaced', () => {
+  const offered = offeredOf(['train/bpb_sealed', 'train/wall_seconds'])
+  const selection = t.resolveSelection(offered, 'retention/files_purged')
+
+  assert.equal(selection.missing, true, 'the panel must know the choice is absent')
+  assert.equal(selection.spec, null,
+    'falling back to the first series moves the reader onto a curve they did not ask for, '
+    + 'while looking exactly like a redraw')
+})
+
+test('the default is the first series only when the reader has chosen nothing', () => {
+  const offered = offeredOf(['train/bpb_sealed', 'train/wall_seconds'])
+
+  assert.equal(t.resolveSelection(offered, null).spec.tag, 'train/bpb_sealed')
+  assert.deepEqual(t.resolveSelection([], 'train/wall_seconds'), { spec: null, missing: false },
+    'an empty payload is not a missing series; it is nothing to draw yet')
+  assert.deepEqual(t.resolveSelection([], null), { spec: null, missing: false })
+})
+
+test('the chosen series and the zoomed window are remembered outside the component', () => {
+  // A tab body is unmounted and mounted again by the pane, and React state does
+  // not survive that, which is what returned the reader to the default.
+  assert.equal(t.rememberedSeries('session-a'), null)
+
+  t.rememberSeries('session-a', 'train/gnorm')
+  assert.equal(t.rememberedSeries('session-a'), 'train/gnorm')
+  assert.equal(t.rememberedSeries('session-b'), null,
+    'two sessions must not fight over one choice')
+
+  t.rememberSeries('session-a', null)
+  assert.equal(t.rememberedSeries('session-a'), null, 'clicking the default again forgets the choice')
+
+  const bounds = { lo: 0, hi: 1000 }
+  assert.equal(t.rememberedWindow('train/gnorm'), null)
+
+  const window = t.clampRange({ lo: 900, hi: 1000 }, bounds)
+  t.rememberWindow('train/gnorm', window)
+  assert.deepEqual(t.rememberedWindow('train/gnorm'), window)
+  assert.equal(t.rememberedWindow('train/bpb_sealed'), null,
+    'a window belongs to the series it was drawn on')
+
+  t.rememberWindow('train/gnorm', null)
+  assert.equal(t.rememberedWindow('train/gnorm'), null, 'Reset forgets the window')
 })
 
 // ---------------------------------------------------------------------------

@@ -223,6 +223,15 @@ window.__ModuleLoader__.load({
   color: var(--dsw-alias-label-primary, #f0f0f0);
   border-color: var(--dsw-alias-brand-primary, #4d6bfe);
 }
+/* The reader's choice when this revision does not carry it: still selected, and
+   visibly set apart by a dashed edge as well as by its own text, so the state is
+   never carried by colour alone. */
+.${CLASS.chip}[data-missing='true'] {
+  border-style: dashed;
+  border-color: var(--dsw-alias-border-l2, #5a5a5a);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary, #8a8a8a);
+}
 .${CLASS.chartWrap} {
   border: 1px solid var(--dsw-alias-border-l1, #2e2e2e); border-radius: 8px;
   background: var(--dsw-alias-bg-layer-1, #1d1d1d); padding: 6px;
@@ -414,7 +423,13 @@ window.__ModuleLoader__.load({
      * is filtered too.
      */
     function isTraceTag(tag) {
-      return tag.startsWith('vram_trace/') || tag.includes('/trace/') || tag.endsWith('_trace')
+      return tag.includes('/trace/') || tag.endsWith('_trace')
+        // A producer's own per-step, per-leg naming: `<subject>_trace/<...>`.
+        // The snapshot's guard traces are named this way and rotate with the leg
+        // (guard_trace/…_leg_00722_… becomes …_00725_…), so a chip for one is a
+        // chip that disappears on the next refresh — and a chip that disappears
+        // is how a reader's selection used to be silently replaced.
+        || /(^|\/)[a-z0-9]+_trace\//.test(tag)
     }
 
     /** Index a payload's series by tag. */
@@ -453,6 +468,69 @@ window.__ModuleLoader__.load({
         offered.push({ tag, label: tag, unit: '', digits: 3, series: item })
       }
       return offered
+    }
+
+    /**
+     * The series each session last had on screen, and the window each series was
+     * left zoomed to.
+     *
+     * Both belong to the READER, not to the payload, so both live outside the
+     * components. A tab body is unmounted and mounted again when the pane
+     * rebuilds its view, when the session changes, and whenever the seat
+     * remounts its entry, and React state does not survive any of that: the
+     * reader's choice would silently return to the default series on the next
+     * update. Reported from the running app.
+     *
+     * The series map is keyed by session id when the seat passes one, with ''
+     * for a body rendered without one, so two sessions cannot fight over a
+     * single choice. The window map is keyed by series tag, because a window is
+     * only meaningful for the series it was drawn on.
+     */
+    const chosenSeriesBySession = new Map()
+    const windowByTag = new Map()
+
+    /** What the reader has chosen for one session, or null for the default. */
+    function rememberedSeries(sessionId) {
+      return chosenSeriesBySession.get(sessionId ?? '') ?? null
+    }
+
+    /** Remember, or forget with a null tag, the reader's choice for one session. */
+    function rememberSeries(sessionId, tag) {
+      if (tag === null || tag === undefined) chosenSeriesBySession.delete(sessionId ?? '')
+      else chosenSeriesBySession.set(sessionId ?? '', tag)
+    }
+
+    /** The window one series was left at, or null for the whole run. */
+    function rememberedWindow(tag) {
+      return windowByTag.get(tag) ?? null
+    }
+
+    /** Remember, or forget with a null window, where one series was left. */
+    function rememberWindow(tag, range) {
+      if (range === null || range === undefined) windowByTag.delete(tag)
+      else windowByTag.set(tag, range)
+    }
+
+    /**
+     * Which series to draw, given what the reader chose and what the payload has.
+     *
+     * A chosen tag that is NOT in this snapshot is reported as `missing` rather
+     * than treated as a reason to draw a different curve. The distinction is the
+     * whole point: the snapshot is rebuilt from logs on disk on every refresh, so
+     * a series can drop out of it for a revision (a rotated log, a pruned exam
+     * file), and quietly falling back to the first series moves the reader onto a
+     * curve they did not ask for while looking exactly like a redraw.
+     *
+     * @param offered - the chips the payload offers, best first.
+     * @param chosen - the tag the reader chose, or null for the default.
+     * @returns the spec to draw (null when there is nothing to draw) and whether
+     *   the reader's choice is missing from this payload.
+     */
+    function resolveSelection(offered, chosen) {
+      if (offered.length === 0) return { spec: null, missing: false }
+      if (chosen === null) return { spec: offered[0], missing: false }
+      const found = offered.find((item) => item.tag === chosen)
+      return found === undefined ? { spec: null, missing: true } : { spec: found, missing: false }
     }
 
     /** The last point of a tag, or null. */
@@ -1087,8 +1165,10 @@ window.__ModuleLoader__.load({
       const bounds = React.useMemo(() => fullRange(points), [points])
       const breaks = React.useMemo(() => breakView(payload), [payload])
       // `null` IS the whole run, so "never zoomed" and "reset" are one state and
-      // the readout cannot disagree with the picture.
-      const [view, setView] = React.useState(null)
+      // the readout cannot disagree with the picture. A window the reader left
+      // is restored on the next mount, per series, for the same reason the series
+      // choice is: this component is remounted by the pane, not by the reader.
+      const [view, setView] = React.useState(() => rememberedWindow(spec.tag))
       const [brush, setBrush] = React.useState(null)
       const hostRef = React.useRef(null)
       const brushRef = React.useRef(null)
@@ -1106,17 +1186,32 @@ window.__ModuleLoader__.load({
       const windowIsEmpty = inside.length === 0 && drawn.length < 2
       const plot = plotGeometry(range)
 
-      /** Show a window, clamped; the whole run collapses back to the null state. */
+      /**
+       * Show a window, clamped; the whole run collapses back to the null state.
+       *
+       * The settled window is remembered per series before it is applied, so a
+       * remount comes back to the same place. `Reset` forgets it, which is what
+       * makes reset and "never zoomed" the same state.
+       */
       const showWindow = React.useCallback((next) => {
-        if (next === null) { setView(null); return }
-        const clamped = clampRange(next, bounds)
-        if (clamped === null || (clamped.lo <= bounds.lo && clamped.hi >= bounds.hi)) { setView(null); return }
-        setView(clamped)
-      }, [bounds])
+        const settled = next === null ? null : clampRange(next, bounds)
+        const applied = settled === null
+          || (settled.lo <= bounds.lo && settled.hi >= bounds.hi) ? null : settled
+        rememberWindow(spec.tag, applied)
+        setView(applied)
+      }, [bounds, spec.tag])
 
       const zoomBy = React.useCallback((factor, anchor) => {
         showWindow(zoomRange(range, factor, anchor))
       }, [range, showWindow])
+
+      // `zoomRange` multiplies the window's SPAN by the factor, so a factor below
+      // one narrows and a factor above one widens. Naming the two directions is
+      // not decoration: the buttons and the keys were wired the other way round,
+      // so `+` widened and `-` narrowed. Reported by the end-to-end check, not by
+      // the unit tests, which is why the check presses every control.
+      const zoomIn = (anchor) => zoomBy(ZOOM_FACTOR, anchor)
+      const zoomOut = (anchor) => zoomBy(1 / ZOOM_FACTOR, anchor)
 
       // The wheel listener is bound once, so it reads the live window from a ref
       // instead of from the render that installed it.
@@ -1163,8 +1258,8 @@ window.__ModuleLoader__.load({
       }
       const onKeyDown = (event) => {
         const centre = (range.lo + range.hi) / 2
-        if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomBy(1 / ZOOM_FACTOR, centre) }
-        else if (event.key === '-' || event.key === '_') { event.preventDefault(); zoomBy(ZOOM_FACTOR, centre) }
+        if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomIn(centre) }
+        else if (event.key === '-' || event.key === '_') { event.preventDefault(); zoomOut(centre) }
         else if (event.key === '0' || event.key === 'Escape') { event.preventDefault(); showWindow(null) }
         else if (event.key === 'ArrowLeft') { event.preventDefault(); showWindow(panRange(range, -PAN_FRACTION)) }
         else if (event.key === 'ArrowRight') { event.preventDefault(); showWindow(panRange(range, PAN_FRACTION)) }
@@ -1342,12 +1437,12 @@ window.__ModuleLoader__.load({
         React.createElement('button', {
           type: 'button', className: CLASS.windowButton, disabled: !(view !== null),
           title: 'Zoom out ( - )', 'aria-label': 'Zoom out',
-          onClick: () => { zoomBy(ZOOM_FACTOR, (range.lo + range.hi) / 2) },
+          onClick: () => { zoomOut((range.lo + range.hi) / 2) },
         }, '−'),
         React.createElement('button', {
           type: 'button', className: CLASS.windowButton, disabled: atFloor,
           title: 'Zoom in ( + )', 'aria-label': 'Zoom in',
-          onClick: () => { zoomBy(1 / ZOOM_FACTOR, (range.lo + range.hi) / 2) },
+          onClick: () => { zoomIn((range.lo + range.hi) / 2) },
         }, '+'),
         React.createElement('button', {
           type: 'button', className: CLASS.windowButton, disabled: !(view !== null),
@@ -1630,12 +1725,16 @@ window.__ModuleLoader__.load({
      * The panel: polls the small state route, fetches the series only when the
      * revision moves, and keeps showing the last good payload throughout.
      */
-    function Panel() {
+    function Panel({ sessionId } = {}) {
       const [state, setState] = React.useState(null)
       const [payload, setPayload] = React.useState(null)
-      const [chosen, setChosen] = React.useState(null)
+      // The reader's choice is restored rather than defaulted, because this
+      // component is remounted by the pane on events the reader did not cause.
+      const [chosen, setChosen] = React.useState(() => rememberedSeries(sessionId))
       const [failure, setFailure] = React.useState(null)
       const revisionRef = React.useRef(null)
+
+      React.useEffect(() => { rememberSeries(sessionId, chosen) }, [sessionId, chosen])
 
       React.useEffect(() => {
         let stopped = false
@@ -1688,10 +1787,8 @@ window.__ModuleLoader__.load({
       }, [])
 
       const offered = React.useMemo(() => availableSeries(payload), [payload])
-      const activeSpec = React.useMemo(() => {
-        if (offered.length === 0) return null
-        return offered.find((item) => item.tag === chosen) ?? offered[0]
-      }, [offered, chosen])
+      const selection = React.useMemo(() => resolveSelection(offered, chosen), [offered, chosen])
+      const activeSpec = selection.spec
 
       const age = describeAge(state)
       const latestBpb = lastPoint(payload, 'train/bpb_sealed')
@@ -1747,8 +1844,21 @@ window.__ModuleLoader__.load({
             : `last read at leg ${Math.round(latestExam[0])}`,
         }))
 
-      const chips = offered.length === 0 ? null
+      // A series the reader chose that this revision does not carry keeps its
+      // chip, marked and explained, so the selection stays visible instead of
+      // silently becoming a different curve.
+      const missingChip = selection.missing
+        ? [React.createElement('button', {
+          key: `missing:${chosen}`, type: 'button', className: CLASS.chip,
+          'data-on': 'true', 'data-missing': 'true',
+          title: `${chosen} is not in the snapshot being read now`,
+          onClick: () => setChosen(null),
+        }, `${chosen} · not in this snapshot`)]
+        : []
+
+      const chips = offered.length === 0 && missingChip.length === 0 ? null
         : React.createElement('div', { className: CLASS.chips },
+          ...missingChip,
           ...offered.map((item) => React.createElement('button', {
             key: item.tag, type: 'button', className: CLASS.chip,
             'data-on': activeSpec !== null && activeSpec.tag === item.tag ? 'true' : 'false',
@@ -1756,7 +1866,16 @@ window.__ModuleLoader__.load({
             title: item.series.source ? `${item.tag} — ${item.series.source}` : item.tag,
           }, item.label)))
 
-      const chart = activeSpec === null ? null
+      const chart = activeSpec === null
+        ? (selection.missing
+          ? React.createElement('div', { className: CLASS.notice },
+            React.createElement('div', { className: CLASS.noticeTitle }, 'That series is not in this snapshot'),
+            React.createElement('div', { className: CLASS.noticeBody },
+              `${chosen} is still the series you chose, and the snapshot being read now does not carry it. `
+              + 'That usually means the log or file it is derived from was rotated or pruned for this '
+              + 'revision, so the next one may have it back. Pick another series above, or click it again '
+              + 'to go back to the default.'))
+          : null)
         : React.createElement('div', { className: CLASS.chartWrap },
           // The whole snapshot body goes in, so the break markers and the
           // frontier are read from the SAME snapshot as the curve under them.
@@ -1912,6 +2031,11 @@ window.__ModuleLoader__.load({
       pointsInRange,
       pointsToDraw,
       valueRange,
+      resolveSelection,
+      rememberedSeries,
+      rememberSeries,
+      rememberedWindow,
+      rememberWindow,
       plotGeometry,
       clampChartPixel,
       valueAt,

@@ -546,6 +546,27 @@ Each of these is a mistake some plugin in this harness has already paid for once
   at rest and secondary on hover — so the row reads as one set of controls. The
   test asserts the trigger is in that row and that nothing of this plugin is
   registered in the overlay.
+- **The selected series belongs to the reader, not to the payload.** The
+  snapshot is rebuilt from logs on disk on every refresh, so a series can drop
+  out of one revision and come back in the next: the live snapshot rotates its
+  per-leg traces, and one refresh replaced `guard_trace/…_leg_00722_…` with
+  `…_leg_00725_…`. The panel resolved the selection with
+  `offered.find(tag) ?? offered[0]`, so a series missing from a revision silently
+  moved the reader onto the default curve, which looks exactly like a redraw and
+  is actually the panel discarding a choice. `resolveSelection` reports the choice
+  as MISSING instead, its chip stays marked with a dashed edge and its own words,
+  and nothing else is drawn in its place. Those trace tags are filtered out of the
+  chips too, by the same shape rule that already excluded `vram_trace/`.
+- **The choice and the window outlive the component.** The pane unmounts and
+  mounts a tab body again on events the reader did not cause, and React state does
+  not survive that, so both are remembered outside the component: the series per
+  session, the zoomed window per series tag. `Reset` forgets the window, which is
+  what keeps "reset" and "never zoomed" one state.
+- **Every control is pressed by a check, not merely rendered by one.** The zoom
+  buttons were wired the wrong way round, `+` widening the window and `-`
+  narrowing it, through a passing unit suite: the tests asserted that the labelled
+  controls existed rather than what they did. The end-to-end check clicks each
+  control and reads the window back, which is how the inversion was found.
 
 ## Licence
 
