@@ -48,6 +48,21 @@ function snapshotBody(overrides = {}) {
     counts: { points: 2 },
     series: [{ tag: 'train/loss', source: 'metrics.jsonl', points: [[1, 3.2], [2, 3.0]] }],
     annotations: [],
+    // The keys a producer derived from its own artifacts. They are ADDITIVE:
+    // the contract number did not move when they were added, and a reader that
+    // does not know them must still serve them untouched.
+    breaks: [
+      {
+        leg: 90, kind: 'corpus', label: 'a to b', reason: 'the corpus changed.',
+        support: 'the legs\' own log names', derived: true, contradiction: '',
+        meaning: 'the DATA changed, so a rise here is EXPECTED',
+      },
+    ],
+    frontier: {
+      phase_now: 'b', next_phase: 'c', boundary_leg: 200, next_leg: 260,
+      legs_in_phase: 40, legs_remaining: 6, expected_to_raise_bpb: true,
+      imminent: false, sentence: 'FRONTIER: b is being trained.',
+    },
     ...overrides,
   }
 }
@@ -335,6 +350,40 @@ test('series hands over the whole snapshot body', async () => {
   assert.equal(answer.status, 200)
   assert.equal(answer.body.series[0].tag, 'train/loss')
   assert.equal(answer.body.break_leg, 120)
+})
+
+test('the break markers and the frontier reach the browser untouched', async () => {
+  // THE HOST IS A PASS-THROUGH, NOT A PARSER. A key it does not know is served
+  // as the producer wrote it: a host that dropped or reshaped `breaks` would
+  // make the tab draw its own guess at another project's record, which is the
+  // one thing this plugin exists not to do.
+  const body = snapshotBody()
+  const ctx = fakeContext({ text: JSON.stringify(body) })
+  apply(ctx, { workspace: '/workspace' })
+  ctx.__injected[0].callback(ctx)
+
+  const answer = await callRoute(ctx, `${ROUTE}/series`)
+  assert.deepEqual(answer.body.breaks, body.breaks)
+  assert.deepEqual(answer.body.frontier, body.frontier)
+})
+
+test('the contract number stays at 1, because the new keys are additive', async () => {
+  // The pin is deliberate, and it is what kept the live tab working while the
+  // producer grew `breaks` and `frontier`: a snapshot that carries keys this
+  // half has never heard of is still version 1, so an older reader serves it
+  // and simply draws less. A version bump would make every deployed reader
+  // refuse the snapshot outright, so it is a decision to take in both halves at
+  // once — not one this test can make, and not one to make by accident.
+  assert.equal(SNAPSHOT_VERSION, 1)
+
+  const ctx = fakeContext({ text: JSON.stringify(snapshotBody()) })
+  apply(ctx, { workspace: '/workspace' })
+  ctx.__injected[0].callback(ctx)
+
+  const answer = await callRoute(ctx, `${ROUTE}/state`)
+  assert.equal(answer.body.haveSnapshot, true,
+    'a snapshot carrying the newer keys must not be refused for carrying them')
+  assert.equal(answer.body.breakLeg, 120, 'the older single-break key is still served')
 })
 
 test('a non-GET request is refused with 405 rather than served', async () => {

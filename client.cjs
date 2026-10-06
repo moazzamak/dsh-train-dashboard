@@ -101,8 +101,35 @@ window.__ModuleLoader__.load({
       chartWrap: 'dshtd-chart-wrap',
       axis: 'dshtd-axis',
       gridline: 'dshtd-gridline',
-      breakline: 'dshtd-breakline',
-      breaklabel: 'dshtd-breaklabel',
+      marker: 'dshtd-breakmark',
+      markerTick: 'dshtd-break-tick',
+      markerLabel: 'dshtd-breaklabel',
+      markerHalo: 'dshtd-breakhalo',
+      markerLegText: 'dshtd-break-leg-text',
+      markerKindText: 'dshtd-break-kind-text',
+      markerWordsText: 'dshtd-break-words-text',
+      frontierMark: 'dshtd-frontier-mark',
+      frontierLabel: 'dshtd-frontier-label',
+      breaks: 'dshtd-breaks',
+      breaksHead: 'dshtd-breaks-head',
+      breaksNote: 'dshtd-breaks-note',
+      breaksKey: 'dshtd-breaks-key',
+      keyItem: 'dshtd-breaks-key-item',
+      swatch: 'dshtd-break-swatch',
+      breakRow: 'dshtd-break-row',
+      breakRowHead: 'dshtd-break-row-head',
+      breakBadge: 'dshtd-break-badge',
+      breakLegText: 'dshtd-break-leg',
+      breakWhat: 'dshtd-break-what',
+      breakReason: 'dshtd-break-reason',
+      breakMeaning: 'dshtd-break-meaning',
+      breakSupport: 'dshtd-break-support',
+      breakContradiction: 'dshtd-break-contradiction',
+      frontier: 'dshtd-frontier',
+      frontierTitle: 'dshtd-frontier-title',
+      frontierHead: 'dshtd-frontier-head',
+      frontierSentence: 'dshtd-frontier-sentence',
+      frontierCaveat: 'dshtd-frontier-caveat',
       line: 'dshtd-line',
       dot: 'dshtd-dot',
       windowRow: 'dshtd-window-row',
@@ -203,8 +230,65 @@ window.__ModuleLoader__.load({
 .${CLASS.chart} { display: block; width: 100%; height: auto; }
 .${CLASS.axis} { fill: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 9px; }
 .${CLASS.gridline} { stroke: var(--dsw-alias-border-l1, #2e2e2e); stroke-width: 1; }
-.${CLASS.breakline} { stroke: var(--dsw-alias-state-warn-primary, #e5a34d); stroke-width: 1; stroke-dasharray: 3 3; }
-.${CLASS.breaklabel} { fill: var(--dsw-alias-state-warn-primary, #e5a34d); font-size: 9px; }
+/* The break markers. THE KIND IS A WORD ON THE LINE, not only a colour: the
+   colour is a second channel for the same fact, and a reader who cannot tell
+   green from amber still reads CORPUS or SHAPE. Each kind sets one custom
+   property, and the line, its label and the register's badge all read it. */
+.${CLASS.marker}[data-kind='corpus'], .${CLASS.breakRow}[data-kind='corpus'], .${CLASS.swatch}[data-kind='corpus'] { --dshtd-kind: #3fa06b; }
+.${CLASS.marker}[data-kind='instrument'], .${CLASS.breakRow}[data-kind='instrument'], .${CLASS.swatch}[data-kind='instrument'] { --dshtd-kind: #8f7ff0; }
+.${CLASS.marker}[data-kind='arithmetic'], .${CLASS.breakRow}[data-kind='arithmetic'], .${CLASS.swatch}[data-kind='arithmetic'] { --dshtd-kind: #e05252; }
+.${CLASS.marker}[data-kind='shape'], .${CLASS.breakRow}[data-kind='shape'], .${CLASS.swatch}[data-kind='shape'] { --dshtd-kind: #e0a13f; }
+.${CLASS.marker}[data-kind='restart'], .${CLASS.breakRow}[data-kind='restart'], .${CLASS.swatch}[data-kind='restart'] { --dshtd-kind: #5aa9e6; }
+.${CLASS.marker}[data-kind='break'], .${CLASS.breakRow}[data-kind='break'], .${CLASS.swatch}[data-kind='break'] { --dshtd-kind: #9aa0a6; }
+.${CLASS.marker}, .${CLASS.breakRow}, .${CLASS.swatch} { --dshtd-kind: #9aa0a6; }
+.${CLASS.marker} { stroke: var(--dshtd-kind); stroke-width: 1; }
+.${CLASS.marker}[data-declared='true'] { stroke-dasharray: 3 3; }
+/* The same markers on the strip under the chart: dimmer, because they are a
+   map of where the joints are and not the labels a reader works from. */
+.${CLASS.markerTick} { stroke: var(--dshtd-kind); stroke-width: 1; opacity: 0.55; }
+.${CLASS.markerHalo} { fill: var(--dsw-alias-bg-layer-1, #1d1d1d); opacity: 0.85; }
+.${CLASS.markerLabel} { font-size: 9px; }
+.${CLASS.markerLegText} { fill: var(--dsw-alias-label-tertiary, #8a8a8a); }
+.${CLASS.markerKindText} { fill: var(--dshtd-kind); font-weight: 600; }
+.${CLASS.markerWordsText} { fill: var(--dsw-alias-label-secondary, #b0b0b0); }
+/* The frontier: dashed, dimmer, and labelled "expected". It must not look like
+   the markers above, which are read from artifacts that exist. */
+.${CLASS.frontierMark} { stroke: var(--dsw-alias-label-tertiary, #8a8a8a); stroke-width: 1; stroke-dasharray: 6 4; opacity: 0.9; }
+.${CLASS.frontierLabel} { fill: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 9px; font-style: italic; }
+.${CLASS.breaks} {
+  display: flex; flex-direction: column; gap: 8px; margin-top: 8px;
+  border-top: 1px solid var(--dsw-alias-border-l1, #2e2e2e); padding-top: 8px;
+}
+.${CLASS.breaksHead} { font-size: 11px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.${CLASS.breaksNote} { color: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 10px; font-weight: 400; }
+.${CLASS.breaksKey} { display: flex; flex-wrap: wrap; gap: 10px; }
+.${CLASS.keyItem} { display: inline-flex; align-items: center; gap: 4px; color: var(--dsw-alias-label-secondary, #b0b0b0); font-size: 10px; }
+.${CLASS.swatch} { width: 8px; height: 8px; border-radius: 2px; background: var(--dshtd-kind); display: inline-block; }
+.${CLASS.breakRow} {
+  border-left: 2px solid var(--dshtd-kind); border-radius: 0 6px 6px 0;
+  background: var(--dsw-alias-bg-layer-2, #262626); padding: 6px 8px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.${CLASS.breakRowHead} { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.${CLASS.breakBadge} {
+  color: var(--dshtd-kind); border: 1px solid var(--dshtd-kind); border-radius: 999px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em; padding: 0 6px;
+}
+.${CLASS.breakLegText} { color: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 10px; font-variant-numeric: tabular-nums; }
+.${CLASS.breakWhat} { font-size: 11px; font-weight: 600; }
+.${CLASS.breakReason} { color: var(--dsw-alias-label-secondary, #b0b0b0); }
+.${CLASS.breakMeaning} { color: var(--dsw-alias-label-secondary, #b0b0b0); }
+.${CLASS.breakSupport}, .${CLASS.breaksNote} { color: var(--dsw-alias-label-caption, #8a8a8a); font-size: 10px; }
+.${CLASS.breakContradiction} { color: var(--dsw-alias-state-warn-primary, #e5a34d); }
+.${CLASS.frontier} {
+  border: 1px dashed var(--dsw-alias-border-l2, #3a3a3a); border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #1d1d1d); padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.${CLASS.frontierTitle} { font-weight: 600; }
+.${CLASS.frontierHead} { color: var(--dsw-alias-label-primary, #f0f0f0); }
+.${CLASS.frontierSentence} { color: var(--dsw-alias-label-secondary, #b0b0b0); }
+.${CLASS.frontierCaveat} { color: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 10px; }
 .${CLASS.line} { fill: none; stroke: var(--dsw-alias-brand-primary, #4d6bfe); stroke-width: 1.6; stroke-linejoin: round; }
 .${CLASS.dot} { fill: var(--dsw-alias-brand-primary, #4d6bfe); }
 .${CLASS.legend} { display: flex; flex-wrap: wrap; gap: 10px; color: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 10px; }
@@ -670,6 +754,313 @@ window.__ModuleLoader__.load({
         : `${X_AXIS_LABEL}s ${lo}–${hi} · ${Math.round(range.hi - range.lo)} of ${total} shown`
     }
 
+    // ----------------------------------------------------------------------
+    // Break markers and the frontier.
+    //
+    // The chart used to carry ONE break: the producer's `break_leg`. A snapshot
+    // can now carry `breaks`, a list of markers the producer derived from its
+    // own artifacts, each with a KIND — and the kinds do not mean the same
+    // thing, which is the whole reason to draw them differently:
+    //
+    //   corpus      the DATA changed, so a rise here is expected
+    //   instrument  the READ changed, so the joint is a level shift with no
+    //               slope across it
+    //   arithmetic  the numbers changed, so the series is not comparable at all
+    //   shape       the leg's geometry changed with its volume held constant
+    //   restart     the process restarted
+    //
+    // NOTHING HERE INVENTS A MEANING. Every sentence a marker shows — its short
+    // label, its reason and the meaning of its kind — is the producer's own
+    // text, carried through exactly. This half chooses where it sits and how it
+    // reads, never what it says; a paraphrase here would be a second statement
+    // of one fact, free to disagree with the producer's own view of the run.
+    // ----------------------------------------------------------------------
+
+    /**
+     * The five kinds the producer's markers use, in the order the chart lists
+     * them at one leg. An unknown kind is NOT dropped: it keeps its own word and
+     * is drawn in a neutral colour. A new kind is the producer's business, and a
+     * tab that silently hid it would be hiding a break.
+     */
+    const KIND_ORDER = ['corpus', 'instrument', 'arithmetic', 'shape', 'restart']
+
+    /** The kind word shown when the snapshot serves a marker with no kind. */
+    const UNKNOWN_KIND = 'unknown'
+
+    /** The kind word for the producer's own `break_leg`, which carries no kind. */
+    const DECLARED_KIND = 'break'
+
+    /** How much of a marker's own label fits on the chart before it is cut. */
+    const MARKER_LABEL_CHARS = 22
+
+    /**
+     * Estimated width of one character at the marker label's font size, and the
+     * gap between a marker's line and its label.
+     *
+     * An estimate, because SVG text is measured by the browser and this is
+     * arithmetic a test can pin. It is deliberately generous (the label font is
+     * proportional, and these tags are digit- and capital-heavy): an
+     * over-estimate costs a lane, an under-estimate lets two labels touch.
+     */
+    const MARKER_CHAR_WIDTH = 5.2
+    const MARKER_LABEL_PAD = 8
+
+    /** The vertical step between two marker labels that would otherwise collide. */
+    const MARKER_LANE_HEIGHT = 12
+
+    /** The chart tag for a marker with no label of its own. */
+    function markerKindWord(kind) {
+      return typeof kind === 'string' && kind.trim() !== '' ? kind.trim().toLowerCase() : UNKNOWN_KIND
+    }
+
+    /** A string field of a served marker, or '' when it is absent or not text. */
+    function markerText(value) {
+      return typeof value === 'string' ? value : ''
+    }
+
+    /**
+     * Cut `text` to at most `limit` characters, on a word boundary, with `…`.
+     *
+     * The chart has room for a few words and the register has room for all of
+     * them, so the cut is visible rather than silent: the ellipsis says the
+     * sentence continues, and the marker's own tooltip and register row carry it
+     * whole. Cutting mid-word is what this avoids.
+     */
+    function clipWords(text, limit = MARKER_LABEL_CHARS) {
+      const words = String(text ?? '').trim()
+      if (words.length <= limit) return words
+      const head = words.slice(0, limit)
+      const lastSpace = head.lastIndexOf(' ')
+      return `${(lastSpace > 0 ? head.slice(0, lastSpace) : head).trimEnd()}…`
+    }
+
+    /** One served marker, normalized; every field the chart reads is a string or a number. */
+    function markerFrom(entry) {
+      return {
+        leg: entry.leg,
+        kind: markerKindWord(entry.kind),
+        label: markerText(entry.label),
+        reason: markerText(entry.reason),
+        meaning: markerText(entry.meaning),
+        support: markerText(entry.support),
+        contradiction: markerText(entry.contradiction),
+        // The producer's own statement about where the marker came from. A
+        // marker whose leg is a constant in the producer's code says so; one
+        // derived from artifacts says nothing, because there is nothing to warn
+        // about. Absent is NOT read as "declared": that would put a warning on
+        // every marker of a producer too old to serve the field.
+        declaredInCode: entry.derived === false,
+        declared: false,
+      }
+    }
+
+    /**
+     * The producer's own `break_leg`, as a marker.
+     *
+     * Kept, and kept distinct: it is the one joint the snapshot declares without
+     * deriving it, and it is what a producer that serves no `breaks` array has.
+     * It carries no kind, and this tab does not guess one — the register says so
+     * in as many words rather than colouring it like a corpus change.
+     */
+    function declaredLegMarker(leg) {
+      return {
+        leg,
+        kind: DECLARED_KIND,
+        label: '',
+        reason: '',
+        meaning: '',
+        support: '',
+        contradiction: '',
+        declaredInCode: false,
+        declared: true,
+      }
+    }
+
+    /**
+     * The markers a snapshot serves, oldest leg first, and what could not be used.
+     *
+     * `payload.breaks` is the producer's derived list; `payload.break_leg` is the
+     * older single-break key, folded in as its own marker so a producer that
+     * still writes only that one keeps working. A marker with no readable leg
+     * cannot be placed on an axis at all, so it is counted and reported rather
+     * than dropped in silence.
+     *
+     * @returns `{ markers, skipped }`.
+     */
+    function readBreakMarkers(payload) {
+      const served = payload !== null && typeof payload === 'object' && Array.isArray(payload.breaks)
+        ? payload.breaks : []
+      const markers = []
+      let skipped = 0
+      for (const entry of served) {
+        if (entry === null || typeof entry !== 'object' || !Number.isFinite(entry.leg)) {
+          skipped += 1
+          continue
+        }
+        markers.push(markerFrom(entry))
+      }
+      const declaredLeg = payload !== null && typeof payload === 'object' ? payload.break_leg : null
+      if (Number.isFinite(declaredLeg)) markers.push(declaredLegMarker(declaredLeg))
+      markers.sort((left, right) => left.leg - right.leg)
+      return { markers, skipped }
+    }
+
+    /** The kind word a marker shows, upper case, for a badge or a chart tag. */
+    function markerKindLabel(marker) {
+      return marker.kind.toUpperCase()
+    }
+
+    /** One marker's chart tag: its leg, its KIND, then as much of its reason as fits. */
+    function markerTagText(marker) {
+      const head = `${marker.leg} ${markerKindLabel(marker)}`
+      const words = clipWords(marker.label)
+      return words === '' ? head : `${head} ${words}`
+    }
+
+    /**
+     * Everything a marker has to say, for its SVG tooltip.
+     *
+     * The same three parts the producer's own chart text carries — what it is,
+     * what it does to the curve, and where it was read from — so a reader who
+     * hovers the marker gets the record's words and not this file's.
+     */
+    function markerTooltip(marker) {
+      const head = `LEG ${marker.leg} — ${markerKindLabel(marker)}`
+      const lines = [marker.label === '' ? head : `${head}: ${marker.label}`]
+      if (marker.reason !== '') lines.push('', marker.reason)
+      if (marker.meaning !== '') {
+        lines.push('', `WHAT THIS ${markerKindLabel(marker)} CHANGE DOES TO THE CURVE: ${marker.meaning}.`)
+      }
+      if (marker.contradiction !== '') lines.push('', `THE LEGS CONTRADICT THIS: ${marker.contradiction}`)
+      if (marker.support !== '') lines.push('', `READ FROM: ${marker.support}`)
+      if (marker.declaredInCode) {
+        lines.push('', "THIS MARKER'S LEG IS A CONSTANT IN THE CODE, not a reading: see the READ FROM "
+          + 'line for why no artifact carries it.')
+      }
+      return lines.join('\n')
+    }
+
+    /**
+     * Where each visible marker's label sits, so no two labels overlap.
+     *
+     * Labels are placed left to right into the lowest lane whose last label has
+     * already ended, which stacks a cluster of markers into a readable cascade
+     * instead of drawing six sentences on top of one another. A label near the
+     * right edge is placed to the LEFT of its line, because a label that runs
+     * off the frame is a label nobody reads.
+     *
+     * @param markers - markers inside the window, ascending in leg.
+     * @param projectX - chart-space x of a leg.
+     * @param plot - the frame's own left and right columns.
+     * @returns one `{ marker, x, lane, text, anchor }` per marker, in order.
+     */
+    function layoutMarkerLabels(markers, projectX, plot) {
+      const laneEnds = []
+      const placed = []
+      for (const marker of markers) {
+        const x = projectX(marker.leg)
+        const text = markerTagText(marker)
+        const width = text.length * MARKER_CHAR_WIDTH + MARKER_LABEL_PAD
+        const fitsStart = x + width <= plot.right
+        const fitsEnd = x - width >= plot.left
+        const anchor = fitsStart || !fitsEnd ? 'start' : 'end'
+        const span = anchor === 'start'
+          ? { lo: x, hi: Math.min(x + width, plot.right) }
+          : { lo: Math.max(x - width, plot.left), hi: x }
+        let lane = laneEnds.findIndex((end) => end <= span.lo)
+        if (lane < 0) { lane = laneEnds.length; laneEnds.push(span.hi) } else { laneEnds[lane] = span.hi }
+        placed.push({ marker, x, lane, text, anchor, width })
+      }
+      return placed
+    }
+
+    /** The baseline y of the labels in one lane. */
+    function markerLaneY(lane) {
+      return CHART.padTop + 9 + lane * MARKER_LANE_HEIGHT
+    }
+
+    /**
+     * The frontier as this tab reads it: the next expected transition, in the
+     * producer's own words plus the numbers the compact line needs.
+     *
+     * `null` when the snapshot serves none, which is not the same as a frontier
+     * with nothing ahead of it: the register says which of the two it is.
+     */
+    function readFrontier(payload) {
+      const raw = payload !== null && typeof payload === 'object' ? payload.frontier : null
+      if (raw === null || typeof raw !== 'object') return null
+      return {
+        phaseNow: markerText(raw.phase_now),
+        nextPhase: markerText(raw.next_phase),
+        boundaryLeg: Number.isFinite(raw.boundary_leg) ? raw.boundary_leg : null,
+        nextLeg: Number.isFinite(raw.next_leg) ? raw.next_leg : null,
+        legsInPhase: Number.isFinite(raw.legs_in_phase) ? raw.legs_in_phase : null,
+        legsRemaining: Number.isFinite(raw.legs_remaining) ? raw.legs_remaining : null,
+        raiseExpected: raw.expected_to_raise_bpb === true,
+        imminent: raw.imminent === true,
+        sentence: markerText(raw.sentence),
+      }
+    }
+
+    /**
+     * The leg the frontier's dashed line sits on: where the change is expected.
+     *
+     * One statement of the rule, read by the chart, by the frontier's own line
+     * of text and by the register's note about why the line is not on screen.
+     * An imminent transition is at the producer's boundary leg — the next leg
+     * trained — and a predicted one is at its own projected leg.
+     */
+    function frontierLeg(frontier) {
+      if (frontier === null) return null
+      const leg = frontier.imminent
+        ? (frontier.boundaryLeg ?? frontier.nextLeg)
+        : frontier.nextLeg
+      return Number.isFinite(leg) ? leg : null
+    }
+
+    /**
+     * The frontier's one line, as an EXPECTATION and never as a fact.
+     *
+     * The leg the producer names is where its own budget says the current
+     * corpus runs out, so this reads "expected around leg N"; when the producer
+     * says the transition is imminent — the next leg to train is the new corpus
+     * — the wording moves to "at leg N", because there is nothing left to
+     * predict. A frontier with no corpus after it says exactly that, rather
+     * than leaving a leg number with nothing behind it.
+     */
+    function frontierTagText(frontier) {
+      if (frontier === null) return ''
+      const named = frontierLeg(frontier)
+      if (frontier.imminent && named !== null) {
+        return `the corpus changes AT LEG ${named} — the next leg trained is the new one`
+      }
+      if (frontier.nextPhase === '') return 'no further corpus change is scheduled ahead'
+      if (named === null) return `the next corpus change is ${frontier.phaseNow} to ${frontier.nextPhase}, leg not stated`
+      const pair = frontier.phaseNow === '' ? frontier.nextPhase : `${frontier.phaseNow} to ${frontier.nextPhase}`
+      return `next corpus change expected around leg ${named} · ${pair}`
+    }
+
+    /**
+     * Why the frontier's leg is a direction and not a measurement.
+     *
+     * Stated on screen rather than left to the reader, because a predicted leg
+     * with no caveat reads as a schedule and a predicted rise reads as a
+     * measurement. Both are expectations: the leg comes from a budget divided by
+     * one leg's volume, and the direction of the rise is registered from the
+     * record — no sealed read exists for a corpus before its first leg, so how
+     * far the level moves cannot be told from it.
+     */
+    const FRONTIER_CAVEAT = 'EXPECTED, NOT OBSERVED: this is where the producer\'s own budget says the '
+      + 'current corpus runs out, and its controller may end a visit early. It is a DIRECTION and not a '
+      + 'magnitude — whether bits per byte rises at the change is registered from the record, and by how '
+      + 'much is not known, because no sealed read exists for a corpus before its first leg.'
+
+    /** Everything the chart and the register need from one snapshot body. */
+    function breakView(payload) {
+      const read = readBreakMarkers(payload)
+      return { markers: read.markers, skipped: read.skipped, frontier: readFrontier(payload) }
+    }
+
     /**
      * The chart for one series, over the timeline the reader selects.
      *
@@ -685,10 +1076,16 @@ window.__ModuleLoader__.load({
      * window on screen. Every control is a labelled button and the chart itself
      * takes focus, because a range reachable only by dragging is a range a
      * keyboard user cannot choose.
+     *
+     * `payload` is the whole snapshot body, so the markers and the frontier come
+     * from the SAME read as the series they annotate: taking them from the
+     * polled state route instead would let the lines be one revision ahead of
+     * the curve they sit on.
      */
-    function SeriesChart({ spec, breakLeg }) {
+    function SeriesChart({ spec, payload }) {
       const points = spec.series.points
       const bounds = React.useMemo(() => fullRange(points), [points])
+      const breaks = React.useMemo(() => breakView(payload), [payload])
       // `null` IS the whole run, so "never zoomed" and "reset" are one state and
       // the readout cannot disagree with the picture.
       const [view, setView] = React.useState(null)
@@ -803,18 +1200,98 @@ window.__ModuleLoader__.load({
         }, String(Math.round(tick))))
       }
 
-      // The break: on the chart itself, because a joint that is only explained
-      // in a footnote is a joint the reader will fit across.
-      if (Number.isFinite(breakLeg) && breakLeg >= range.lo && breakLeg <= range.hi) {
-        const x = projectX(breakLeg)
-        children.push(React.createElement('line', {
-          key: 'break', className: CLASS.breakline,
-          x1: x, x2: x, y1: CHART.padTop, y2: CHART.padTop + innerHeight,
-        }))
-        children.push(React.createElement('text', {
-          key: 'breaklabel', className: CLASS.breaklabel,
-          x: x + 3, y: CHART.padTop + 9,
-        }, `break leg ${breakLeg}`))
+      // The break markers: on the chart itself, because a joint that is only
+      // explained in a footnote is a joint the reader will fit across. Each one
+      // is a vertical line labelled with its leg, its KIND and the first words of
+      // its own reason, and the register under the chart carries the rest.
+      //
+      // LINES FIRST, THEN LABELS, in two passes over one placement list. A label
+      // sits on an opaque chip, and a line drawn after that chip would be drawn
+      // across the text: with the cluster this run has — six joints inside fifty
+      // legs — that is the common case and not the corner. The whole group is
+      // clipped to the plot, so a label near the right edge cannot draw outside
+      // the frame where nobody would read it.
+      const visibleMarkers = breaks.markers.filter(
+        (marker) => marker.leg >= range.lo && marker.leg <= range.hi)
+      const markerLayout = layoutMarkerLabels(visibleMarkers, projectX, plot)
+      for (const [index, entry] of markerLayout.entries()) {
+        const { marker } = entry
+        children.push(React.createElement('g', {
+          key: `marker-${marker.leg}-${index}`,
+          className: CLASS.marker,
+          'data-kind': marker.kind,
+          'data-leg': String(marker.leg),
+          'data-declared': marker.declared ? 'true' : 'false',
+          clipPath: `url(#${CLIP_ID})`,
+        },
+        React.createElement('line', {
+          x1: entry.x, x2: entry.x, y1: CHART.padTop, y2: CHART.padTop + innerHeight,
+        }),
+        React.createElement('title', null, markerTooltip(marker))))
+      }
+
+      // The frontier, drawn as an expectation and not as a fact: a dashed line in
+      // the label colour rather than a kind's colour, in a lane of its own, and
+      // labelled with the word "expected".
+      const expectedLeg = frontierLeg(breaks.frontier)
+      const frontierInWindow = expectedLeg !== null && expectedLeg >= range.lo && expectedLeg <= range.hi
+      if (frontierInWindow) {
+        children.push(React.createElement('g', {
+          key: 'frontier', className: CLASS.frontierMark,
+          'data-expectation': 'true', 'data-leg': String(expectedLeg),
+          clipPath: `url(#${CLIP_ID})`,
+        },
+        React.createElement('line', {
+          x1: projectX(expectedLeg), x2: projectX(expectedLeg),
+          y1: CHART.padTop, y2: CHART.padTop + innerHeight,
+        }),
+        React.createElement('title', null,
+          breaks.frontier.sentence === '' ? frontierTagText(breaks.frontier) : breaks.frontier.sentence)))
+      }
+
+      // The labels, over every line: one chip per marker, so the text is never
+      // crossed by a line, and the frontier's own label in the lane below them.
+      const frontierLane = markerLayout.length === 0
+        ? 0 : Math.max(...markerLayout.map((entry) => entry.lane)) + 1
+      for (const [index, entry] of markerLayout.entries()) {
+        const { marker } = entry
+        const haloX = entry.anchor === 'start' ? entry.x : entry.x - entry.width
+        const labelY = markerLaneY(entry.lane)
+        children.push(React.createElement('g', {
+          key: `markerlabel-${marker.leg}-${index}`,
+          className: CLASS.markerLabel,
+          'data-kind': marker.kind,
+          'data-leg': String(marker.leg),
+          clipPath: `url(#${CLIP_ID})`,
+        },
+        React.createElement('rect', {
+          className: CLASS.markerHalo,
+          x: haloX, y: labelY - 9, width: entry.width, height: 11,
+        }),
+        React.createElement('text', {
+          x: haloX + 4, y: labelY,
+        },
+        React.createElement('tspan', { className: CLASS.markerLegText }, `${marker.leg} `),
+        React.createElement('tspan', { className: CLASS.markerKindText }, markerKindLabel(marker)),
+        clipWords(marker.label) === '' ? null : React.createElement(
+          'tspan', { className: CLASS.markerWordsText }, ` ${clipWords(marker.label)}`))))
+      }
+      if (frontierInWindow) {
+        const x = projectX(expectedLeg)
+        const text = frontierTagText(breaks.frontier)
+        const width = Math.min(text.length * MARKER_CHAR_WIDTH + MARKER_LABEL_PAD, innerWidth)
+        const haloX = x + width <= CHART.width - CHART.padRight ? x : x - width
+        children.push(React.createElement('g', {
+          key: 'frontierlabel', className: CLASS.markerLabel,
+          'data-kind': 'frontier', 'data-leg': String(expectedLeg),
+          'data-expectation': 'true', clipPath: `url(#${CLIP_ID})`,
+        },
+        React.createElement('rect', {
+          className: CLASS.markerHalo, x: haloX, y: markerLaneY(frontierLane) - 9, width, height: 11,
+        }),
+        React.createElement('text', {
+          className: CLASS.frontierLabel, x: haloX + 4, y: markerLaneY(frontierLane),
+        }, text)))
       }
 
       if (drawn.length >= 2) {
@@ -892,6 +1369,11 @@ window.__ModuleLoader__.load({
         onPointerDown, onPointerMove, onPointerUp,
         onDoubleClick: () => { showWindow(null) },
         onKeyDown,
+        // The markers are part of what the picture says, so they are part of
+        // what its accessible name says: a screen reader gets the count.
+        'aria-label': `${spec.label}. ${rangeLabel(range, bounds)}. `
+          + `${inside.length} of ${points.length} points in view. `
+          + `${visibleMarkers.length} of ${breaks.markers.length} break markers in this window.`,
       }, ...children)
 
       // The strip is the whole run at a stable scale, with the window drawn on
@@ -906,6 +1388,18 @@ window.__ModuleLoader__.load({
         OVERVIEW.padTop + overviewHeight - ((value - overviewValues.lo) / (overviewValues.hi - overviewValues.lo)) * overviewHeight
       const overviewRef = React.useRef(null)
       const overviewBrushRef = React.useRef(null)
+      // Every marker gets a tick on the strip as well, so the joints are visible
+      // on the whole run even when the reader has zoomed somewhere else.
+      const overviewMarks = points.length < 2 ? [] : breaks.markers
+        .filter((marker) => marker.leg >= bounds.lo && marker.leg <= bounds.hi)
+        .map((marker, index) => React.createElement('line', {
+          key: `ovmark-${marker.leg}-${index}`,
+          className: CLASS.markerTick,
+          'data-kind': marker.kind,
+          'data-leg': String(marker.leg),
+          x1: projectOverviewX(marker.leg), x2: projectOverviewX(marker.leg),
+          y1: OVERVIEW.padTop, y2: OVERVIEW.padTop + overviewHeight,
+        }))
       const overview = points.length < 2 ? null : React.createElement('svg', {
         ref: overviewRef,
         className: CLASS.overview,
@@ -944,6 +1438,7 @@ window.__ModuleLoader__.load({
         className: CLASS.overviewLine,
         d: polylinePath(points, projectOverviewX, projectOverviewY),
       }),
+      ...overviewMarks,
       // The window, and — while a drag is in flight on the strip — the window it
       // would select, so the reader sees what they are about to zoom to.
       React.createElement('rect', {
@@ -961,7 +1456,167 @@ window.__ModuleLoader__.load({
         : null)
       overviewBrushRef.current = brush !== null && brush.overview === true ? brush : null
 
-      return React.createElement(React.Fragment, null, windowRow, chart, overview)
+      return React.createElement(React.Fragment, null,
+        windowRow, chart, overview, breakRegister(breaks, { range, bounds }))
+    }
+
+    /** The kinds present in a marker list, in the registered order, unknown last. */
+    function kindsPresent(markers) {
+      const present = []
+      for (const kind of KIND_ORDER) {
+        if (markers.some((marker) => marker.kind === kind)) present.push(kind)
+      }
+      for (const marker of markers) {
+        if (!present.includes(marker.kind)) present.push(marker.kind)
+      }
+      return present
+    }
+
+    /**
+     * One marker's row in the register: what it is, what it does to the curve,
+     * where it was read from, and any contradiction the producer attached.
+     *
+     * EVERY SENTENCE HERE IS THE PRODUCER'S. The kind's meaning is served as
+     * `meaning`, the reason as `reason`, the evidence as `support`, and the
+     * warning about a leg that is a constant in code is the producer's own. The
+     * two views therefore cannot disagree: this one has no words of its own to
+     * disagree with. The only text this half writes is the one row for the
+     * snapshot's `break_leg`, which carries no kind for anyone to quote.
+     */
+    function breakRow(marker, index) {
+      const kindLabel = markerKindLabel(marker)
+      const headline = marker.declared
+        ? "declared by the snapshot's own break_leg"
+        : marker.label
+      const reason = marker.declared
+        ? 'This joint comes from `break_leg`, which names a leg and no kind. This tab therefore claims '
+          + 'none: it cannot tell from `break_leg` alone whether the data, the reading, the arithmetic, '
+          + "the leg's shape or the process changed here, and a guess would put a kind on the chart that "
+          + 'the snapshot never stated.'
+        : marker.reason
+      const parts = [
+        React.createElement('div', { key: 'head', className: CLASS.breakRowHead },
+          React.createElement('span', { className: CLASS.swatch, 'data-kind': marker.kind }),
+          React.createElement('span', { className: CLASS.breakBadge }, kindLabel),
+          React.createElement('span', { className: CLASS.breakLegText }, `LEG ${marker.leg}`),
+          headline === '' ? null : React.createElement('span', { className: CLASS.breakWhat }, headline)),
+      ]
+      if (reason !== '') {
+        parts.push(React.createElement('div', { key: 'reason', className: CLASS.breakReason }, reason))
+      }
+      if (marker.meaning !== '') {
+        parts.push(React.createElement('div', { key: 'meaning', className: CLASS.breakMeaning },
+          `WHAT THIS ${kindLabel} CHANGE DOES TO THE CURVE: ${marker.meaning}.`))
+      }
+      if (marker.contradiction !== '') {
+        parts.push(React.createElement('div', { key: 'contradiction', className: CLASS.breakContradiction },
+          `THE LEGS CONTRADICT THIS: ${marker.contradiction}`))
+      }
+      if (marker.support !== '') {
+        parts.push(React.createElement('div', { key: 'support', className: CLASS.breakSupport },
+          `READ FROM: ${marker.support}`))
+      }
+      if (marker.declaredInCode) {
+        parts.push(React.createElement('div', { key: 'declared', className: CLASS.breaksNote },
+          "THIS MARKER'S LEG IS A CONSTANT IN THE CODE, not a reading: see the READ FROM line for why "
+          + 'no artifact carries it.'))
+      }
+      return React.createElement('div', {
+        key: `row-${marker.leg}-${marker.kind}-${index}`,
+        className: CLASS.breakRow,
+        'data-kind': marker.kind,
+        'data-leg': String(marker.leg),
+        'data-declared': marker.declared ? 'true' : 'false',
+      }, ...parts)
+    }
+
+    /**
+     * The frontier block: the producer's own sentence, under this tab's caveat.
+     *
+     * The dashed line can only be drawn when the expected leg is on the axis on
+     * screen, which on a live run it usually is not — the transition is AHEAD of
+     * the last point. A block that showed the number and no line, and said
+     * nothing about the missing line, would leave a reader hunting for a marker
+     * that is not there, so the absence is stated with its reason.
+     */
+    function frontierBlock(frontier, chart) {
+      if (frontier === null) return null
+      const head = frontierTagText(frontier)
+        + (frontier.raiseExpected ? ' · a rise in bits per byte is EXPECTED there' : '')
+      const parts = [
+        React.createElement('div', { key: 'title', className: CLASS.frontierTitle },
+          'Frontier — the next corpus change, as an expectation'),
+        React.createElement('div', { key: 'head', className: CLASS.frontierHead }, head),
+      ]
+      if (frontier.sentence !== '') {
+        parts.push(React.createElement('div', { key: 'sentence', className: CLASS.frontierSentence },
+          frontier.sentence))
+      }
+      const expectedLeg = frontierLeg(frontier)
+      if (chart !== undefined && expectedLeg !== null) {
+        if (expectedLeg > chart.bounds.hi) {
+          parts.push(React.createElement('div', { key: 'absence', className: CLASS.frontierCaveat },
+            `Its dashed line is not on the chart yet: leg ${expectedLeg} is past the last point of the `
+            + `series on screen (leg ${Math.round(chart.bounds.hi)}). The line appears when the axis `
+            + 'reaches it.'))
+        } else if (expectedLeg < chart.range.lo || expectedLeg > chart.range.hi) {
+          parts.push(React.createElement('div', { key: 'absence', className: CLASS.frontierCaveat },
+            `Its dashed line is outside the window on screen (leg ${expectedLeg}); press Reset to see `
+            + 'the whole run.'))
+        }
+      }
+      parts.push(React.createElement('div', { key: 'caveat', className: CLASS.frontierCaveat },
+        FRONTIER_CAVEAT))
+      return React.createElement('div', {
+        className: CLASS.frontier, 'data-expectation': 'true',
+      }, ...parts)
+    }
+
+    /**
+     * The register under the chart: every marker, readable, whether or not it is
+     * in the window the reader is looking at.
+     *
+     * The chart can only carry a few words per marker, and a marker scrolled out
+     * of the window carries none. This is where they all read in full, and it is
+     * deliberately BELOW the chart rather than beside it: a joint explained in a
+     * tooltip alone is a joint the reader has to already suspect in order to
+     * find.
+     *
+     * @param breaks - `breakView(payload)`.
+     * @param chart - `{ range, bounds }` of the chart this register sits under.
+     * @returns the block, or null when the snapshot serves no markers and no
+     *   frontier — an empty box would be chrome.
+     */
+    function breakRegister(breaks, chart) {
+      const frontier = breaks.frontier
+      if (breaks.markers.length === 0 && frontier === null && breaks.skipped === 0) return null
+      const visible = chart === undefined ? breaks.markers.length
+        : breaks.markers.filter((marker) => marker.leg >= chart.range.lo && marker.leg <= chart.range.hi).length
+      const parts = []
+      parts.push(React.createElement('div', { key: 'head', className: CLASS.breaksHead },
+        React.createElement('span', null, 'Break markers'),
+        React.createElement('span', { className: CLASS.breaksNote },
+          `${breaks.markers.length} in the snapshot · ${visible} in this window`
+          + (breaks.markers.length > 0 ? ' · drag on the chart to zoom to one' : ''))))
+      if (breaks.markers.length > 0) {
+        parts.push(React.createElement('div', { key: 'key', className: CLASS.breaksKey },
+          ...kindsPresent(breaks.markers).map((kind) => React.createElement('span', {
+            key: `key-${kind}`, className: CLASS.keyItem,
+          },
+          React.createElement('span', { className: CLASS.swatch, 'data-kind': kind }),
+          kind.toUpperCase()))))
+      }
+      if (breaks.skipped > 0) {
+        parts.push(React.createElement('div', { key: 'skipped', className: CLASS.breakContradiction },
+          `${breaks.skipped} marker(s) in this snapshot carry no readable leg, so they cannot be placed `
+          + 'on the axis and are not drawn. The rest of the list is unaffected.'))
+      }
+      for (const [index, marker] of breaks.markers.entries()) {
+        parts.push(breakRow(marker, index))
+      }
+      const block = frontierBlock(frontier, chart)
+      if (block !== null) parts.push(React.createElement('div', { key: 'frontier' }, block))
+      return React.createElement('div', { className: CLASS.breaks }, ...parts)
     }
 
     /** One KPI tile. */
@@ -1103,7 +1758,9 @@ window.__ModuleLoader__.load({
 
       const chart = activeSpec === null ? null
         : React.createElement('div', { className: CLASS.chartWrap },
-          React.createElement(SeriesChart, { spec: activeSpec, breakLeg: state?.breakLeg }),
+          // The whole snapshot body goes in, so the break markers and the
+          // frontier are read from the SAME snapshot as the curve under them.
+          React.createElement(SeriesChart, { spec: activeSpec, payload }),
           React.createElement('div', { className: CLASS.legend },
             React.createElement('span', { className: CLASS.legendItem },
               `${activeSpec.series.points.length} points · unit ${activeSpec.unit || 'none'}`
@@ -1260,6 +1917,26 @@ window.__ModuleLoader__.load({
       valueAt,
       brushRange,
       rangeLabel,
+      breakView,
+      readBreakMarkers,
+      readFrontier,
+      markerKindWord,
+      markerKindLabel,
+      markerTagText,
+      markerTooltip,
+      clipWords,
+      layoutMarkerLabels,
+      markerLaneY,
+      frontierTagText,
+      frontierLeg,
+      FRONTIER_CAVEAT,
+      KIND_ORDER,
+      UNKNOWN_KIND,
+      DECLARED_KIND,
+      MARKER_LABEL_CHARS,
+      MARKER_CHAR_WIDTH,
+      MARKER_LABEL_PAD,
+      MARKER_LANE_HEIGHT,
       MIN_WINDOW_FRACTION,
       ZOOM_FACTOR,
       PAN_FRACTION,
@@ -1270,6 +1947,9 @@ window.__ModuleLoader__.load({
       ROUTE,
       Panel,
       SeriesChart,
+      breakRegister,
+      breakRow,
+      frontierBlock,
     }
     return module.exports
   },

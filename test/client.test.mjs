@@ -65,6 +65,20 @@ function elementsWithClass(node, name, found = []) {
 }
 
 /**
+ * Every string in a rendered tree, joined — what a reader would actually read.
+ *
+ * Function components are called for the same reason `elementsWithClass` calls
+ * them, and the components walked here render no hooks of their own.
+ */
+function textOf(node) {
+  if (node === null || node === undefined || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(textOf).join(' ')
+  if (typeof node.type === 'function') return textOf(node.type(node.props ?? {}))
+  return (node.children ?? []).map(textOf).join(' ')
+}
+
+/**
  * Minimal DOM: `apply` installs the bundle's stylesheet, which is a real side
  * effect a browser performs and this environment has to provide. It is a stub
  * and not a fake of the whole document, so a test cannot accidentally depend
@@ -594,7 +608,7 @@ test('the readout names the window, not just the series', () => {
 test('the window controls are labelled buttons and the chart takes focus', () => {
   const tree = t.SeriesChart({
     spec: { label: 'sealed bpb', digits: 3, unit: 'bpb', series: { tag: 'train/bpb_sealed', points: SERIES } },
-    breakLeg: null,
+    payload: null,
   })
 
   const buttons = elementsWithClass(tree, 'dshtd-window-button')
@@ -620,4 +634,346 @@ test('the numbers in the readout are the numbers on screen', () => {
 
   assert.equal(t.rangeLabel(window, bounds), 'steps 150–350 · 200 of 500 shown',
     'the readout must describe the window the axis was scaled to, not the series')
+})
+
+// ---------------------------------------------------------------------------
+// Break markers and the frontier.
+//
+// The tab used to carry ONE break — the producer's `break_leg` — and it was the
+// only marker a reader could see. A snapshot can now carry `breaks`: markers the
+// producer derived from its own artifacts, each with a KIND, plus a `frontier`
+// naming the next expected transition. Three defects motivate these tests, and
+// every one of them is silent on screen:
+//
+//   1. A MARKER THAT IS NEVER DRAWN. The keys can arrive and the tab can go on
+//      drawing the one break it always drew; nothing errors, and the reader
+//      concludes the run crossed no other boundary.
+//   2. A MARKER DRAWN WITHOUT ITS KIND. The kinds mean different things about
+//      the curve — a corpus change explains a rise, an instrument change makes
+//      the joint a level shift, an arithmetic change makes the series
+//      incomparable — so a marker whose kind is invisible is worse than no
+//      marker: it invites exactly the comparison it should prevent.
+//   3. A FRONTIER DRAWN AS A FACT. It is where the producer's budget says the
+//      current corpus runs out, and it is a direction, not a measurement.
+//
+// The words a marker shows are the SNAPSHOT'S OWN, and these fixtures are
+// deliberately plain: what is pinned here is that this half draws what it is
+// given, not that it agrees with any particular producer's wording.
+// ---------------------------------------------------------------------------
+
+/** A series an axis of 10..500 can carry, with markers placed inside it. */
+const BREAK_SERIES = [[10, 1.0], [100, 2.0], [200, 3.0], [300, 4.0], [400, 5.0], [500, 6.0]]
+
+/** The chart spec the panel builds from a snapshot, in miniature. */
+function chartSpec() {
+  return {
+    tag: 'train/loss', label: 'loss', unit: '', digits: 3,
+    series: { tag: 'train/loss', source: 'fixture', points: BREAK_SERIES },
+  }
+}
+
+/** One served marker, carrying every field a producer sends. */
+function servedMarker(overrides = {}) {
+  return {
+    leg: 40,
+    kind: 'corpus',
+    label: 'the data changed',
+    reason: 'the data changed at this leg.',
+    support: 'the legs\' own log names',
+    derived: true,
+    contradiction: '',
+    meaning: 'the DATA changed, so a rise here is EXPECTED',
+    ...overrides,
+  }
+}
+
+/** One marker of each kind, at legs the whole-run axis covers. */
+const ALL_KINDS = [
+  servedMarker({ leg: 40, kind: 'instrument', label: 'the read changed', reason: 'the reading began differently.' }),
+  servedMarker({ leg: 120, kind: 'shape', label: '2048 to 1024 steps', reason: 'the leg ran fewer steps.' }),
+  servedMarker({ leg: 121, kind: 'arithmetic', label: 'float32 to bfloat16', reason: 'the numbers changed.' }),
+  servedMarker({ leg: 200, kind: 'restart', label: 'restart after 2.6 hours', reason: 'the process restarted.' }),
+  servedMarker({ leg: 260, kind: 'corpus', label: 'a to b', reason: 'the corpus changed.' }),
+]
+
+/** A snapshot body with whatever the case under test serves. */
+function snapshotWith(overrides = {}) {
+  return {
+    snapshot_version: 1,
+    generated_at: new Date().toISOString(),
+    revision: 'r1',
+    series: [{ tag: 'train/loss', points: BREAK_SERIES }],
+    ...overrides,
+  }
+}
+
+/** Render one series' chart the way the panel renders it. */
+function renderChart(payload) {
+  return t.SeriesChart({ spec: chartSpec(), payload })
+}
+
+/** The marker labels drawn on a chart, by the leg they belong to. */
+function labelsByLeg(tree) {
+  const labels = new Map()
+  for (const label of elementsWithClass(tree, 'dshtd-breaklabel')) {
+    labels.set(label.props['data-leg'], label)
+  }
+  return labels
+}
+
+test('a snapshot carrying breaks draws one marker per break', () => {
+  const marks = elementsWithClass(renderChart(snapshotWith({ breaks: ALL_KINDS })), 'dshtd-breakmark')
+
+  assert.equal(marks.length, ALL_KINDS.length,
+    `drew ${marks.length} markers for ${ALL_KINDS.length} breaks: a break the tab does not draw `
+    + 'is a joint the reader will fit straight across')
+  assert.deepEqual(marks.map((mark) => mark.props['data-leg']), ['40', '120', '121', '200', '260'],
+    'the markers must sit at the legs the snapshot names, oldest first')
+})
+
+test('every marker names its kind, on the chart and in the register', () => {
+  const tree = renderChart(snapshotWith({ breaks: ALL_KINDS }))
+
+  const marks = elementsWithClass(tree, 'dshtd-breakmark')
+  assert.equal(marks.length, ALL_KINDS.length)
+  const labels = labelsByLeg(tree)
+  for (const mark of marks) {
+    const kind = mark.props['data-kind']
+    assert.ok(typeof kind === 'string' && kind.length > 0,
+      'a marker with no kind cannot be told from any other: the kinds do different things to the curve')
+    const label = labels.get(mark.props['data-leg'])
+    assert.ok(label, `the marker at leg ${mark.props['data-leg']} has no label on the chart`)
+    assert.equal(label.props['data-kind'], kind, 'the label and the line must be the same marker')
+    assert.ok(textOf(label).includes(kind.toUpperCase()),
+      `the marker at leg ${mark.props['data-leg']} does not name ${kind.toUpperCase()} anywhere a reader can see`)
+  }
+
+  const rows = elementsWithClass(tree, 'dshtd-break-row')
+  for (const row of rows) {
+    assert.ok(textOf(row).includes(row.props['data-kind'].toUpperCase()),
+      `the register row at leg ${row.props['data-leg']} does not name its kind`)
+  }
+})
+
+test('a kind this tab has never seen is drawn and named, never hidden', () => {
+  const payload = snapshotWith({
+    breaks: [servedMarker({ leg: 40, kind: 'optimizer', label: 'the schedule changed', meaning: 'the OPTIMIZER changed' })],
+  })
+  const tree = renderChart(payload)
+  const marks = elementsWithClass(tree, 'dshtd-breakmark')
+
+  assert.equal(marks.length, 1, 'a kind added by the producer must not make its marker disappear')
+  assert.equal(marks[0].props['data-kind'], 'optimizer')
+  assert.ok(textOf(labelsByLeg(tree).get('40')).includes('OPTIMIZER'))
+})
+
+test('a marker the snapshot gives no kind for says so rather than showing a blank', () => {
+  const marker = servedMarker({ leg: 40 })
+  delete marker.kind
+  const tree = renderChart(snapshotWith({ breaks: [marker] }))
+  const marks = elementsWithClass(tree, 'dshtd-breakmark')
+
+  assert.equal(marks.length, 1)
+  assert.equal(marks[0].props['data-kind'], t.UNKNOWN_KIND)
+  assert.ok(textOf(labelsByLeg(tree).get('40')).includes('UNKNOWN'),
+    'an unfilled kind must read as unknown, not as nothing')
+})
+
+test('the register reads out the snapshot\'s own words, not this plugin\'s', () => {
+  const rows = elementsWithClass(renderChart(snapshotWith({ breaks: ALL_KINDS })), 'dshtd-break-row')
+
+  assert.equal(rows.length, ALL_KINDS.length)
+  for (const [index, marker] of ALL_KINDS.entries()) {
+    const text = textOf(rows[index])
+    assert.ok(text.includes(marker.label), `the label for leg ${marker.leg} is not the snapshot's own`)
+    assert.ok(text.includes(marker.reason), `the reason for leg ${marker.leg} is not the snapshot's own`)
+    assert.ok(text.includes(marker.meaning),
+      `the meaning of the kind at leg ${marker.leg} is not the snapshot's own: a paraphrase here is a `
+      + 'second statement of one fact, free to disagree with the record')
+    assert.ok(text.includes(marker.support), `the evidence for leg ${marker.leg} is not shown`)
+  }
+})
+
+test('a marker whose leg is a constant in the producer\'s code is flagged as one', () => {
+  const payload = snapshotWith({ breaks: [servedMarker({ derived: false, leg: 40 })] })
+  const derived = textOf(elementsWithClass(renderChart(payload), 'dshtd-break-row')[0])
+
+  assert.match(derived, /CONSTANT IN THE CODE/,
+    'a declared leg shown like a measured one is a guess wearing a measurement\'s clothes')
+  const measured = textOf(elementsWithClass(
+    renderChart(snapshotWith({ breaks: [servedMarker({ leg: 40 })] })), 'dshtd-break-row')[0])
+  assert.ok(!/CONSTANT IN THE CODE/.test(measured), 'a derived marker must not carry the warning')
+})
+
+test('a contradiction the snapshot attaches is shown, not swallowed', () => {
+  const payload = snapshotWith({
+    breaks: [servedMarker({ leg: 40, contradiction: 'the following legs do not show this change' })],
+  })
+  const text = textOf(elementsWithClass(renderChart(payload), 'dshtd-break-row')[0])
+
+  assert.match(text, /THE LEGS CONTRADICT THIS/)
+  assert.ok(text.includes('the following legs do not show this change'))
+})
+
+test('a marker past the end of the series still reads in the register', () => {
+  const payload = snapshotWith({ breaks: [servedMarker({ leg: 900, label: 'beyond the last point' })] })
+  const tree = renderChart(payload)
+
+  assert.equal(elementsWithClass(tree, 'dshtd-breakmark').length, 0,
+    'a leg outside the axis cannot be drawn on it')
+  const rows = elementsWithClass(tree, 'dshtd-break-row')
+  assert.equal(rows.length, 1, 'the register carries every marker, in the window or not')
+  assert.ok(textOf(rows[0]).includes('beyond the last point'))
+})
+
+test('a marker with no readable leg is counted and reported, never dropped in silence', () => {
+  const payload = snapshotWith({ breaks: [servedMarker({ leg: 40 }), { kind: 'corpus', label: 'no leg' }] })
+  const tree = renderChart(payload)
+
+  const read = t.readBreakMarkers(payload)
+  assert.equal(read.markers.length, 1)
+  assert.equal(read.skipped, 1)
+  assert.match(textOf(elementsWithClass(tree, 'dshtd-breaks')[0]), /carry no readable leg/,
+    'a marker that cannot be placed is a gap in the picture, and the picture has to say so')
+})
+
+test('a producer that serves only break_leg keeps its marker, and no kind is invented for it', () => {
+  const payload = snapshotWith({ break_leg: 300 })
+  const tree = renderChart(payload)
+  const marks = elementsWithClass(tree, 'dshtd-breakmark')
+
+  assert.equal(marks.length, 1, 'the older single-break key must keep working on its own')
+  assert.equal(marks[0].props['data-leg'], '300')
+  assert.equal(marks[0].props['data-kind'], t.DECLARED_KIND)
+
+  const row = textOf(elementsWithClass(tree, 'dshtd-break-row')[0])
+  assert.ok(row.includes("snapshot's own break_leg"))
+  assert.match(row, /claims none/,
+    'break_leg names a leg and no kind, so the tab must say it is not claiming one')
+})
+
+test('a snapshot with neither breaks nor break_leg draws no markers and no register', () => {
+  const tree = renderChart(snapshotWith())
+
+  assert.equal(elementsWithClass(tree, 'dshtd-breakmark').length, 0)
+  assert.equal(elementsWithClass(tree, 'dshtd-breaks').length, 0,
+    'an empty register box under every chart is chrome')
+})
+
+test('the frontier is drawn as an expectation, with the snapshot\'s sentence and a caveat', () => {
+  const sentence = 'FRONTIER: a is being trained; the next corpus transition is a to b at about leg 420.'
+  const payload = snapshotWith({
+    breaks: ALL_KINDS,
+    frontier: {
+      phase_now: 'a', next_phase: 'b', boundary_leg: 300, next_leg: 420,
+      legs_in_phase: 40, legs_remaining: 3, expected_to_raise_bpb: true,
+      imminent: false, sentence,
+    },
+  })
+  const tree = renderChart(payload)
+  const marks = elementsWithClass(tree, 'dshtd-frontier-mark')
+
+  assert.equal(marks.length, 1, 'the expected transition is inside the axis, so it must be drawn')
+  assert.equal(marks[0].props['data-expectation'], 'true',
+    'the frontier line must be marked as an expectation for anything reading the DOM')
+  const frontierLabel = elementsWithClass(tree, 'dshtd-breaklabel')
+    .find((label) => label.props['data-kind'] === 'frontier')
+  assert.ok(frontierLabel, 'the frontier line needs its own label, or it is a line with no meaning')
+  assert.match(textOf(frontierLabel), /expected around leg 420/)
+
+  const block = textOf(elementsWithClass(tree, 'dshtd-frontier')[0])
+  assert.ok(block.includes(sentence), 'the snapshot\'s own frontier sentence is shown as served')
+  assert.match(block, /EXPECTED, NOT OBSERVED/)
+  assert.match(block, /DIRECTION and not a magnitude/,
+    'the leg is a projection and the rise is a registered direction: the reader has to be told which')
+  assert.match(block, /a rise in bits per byte is EXPECTED there/)
+})
+
+test('a frontier past the end of the series says where its line went', () => {
+  const payload = snapshotWith({
+    frontier: {
+      phase_now: 'a', next_phase: 'b', boundary_leg: 300, next_leg: 900,
+      legs_in_phase: 40, legs_remaining: 10, expected_to_raise_bpb: false,
+      imminent: false, sentence: 'FRONTIER: a is being trained.',
+    },
+  })
+  const tree = renderChart(payload)
+
+  assert.equal(elementsWithClass(tree, 'dshtd-frontier-mark').length, 0,
+    'a leg past the last point of the series cannot be drawn')
+  const block = textOf(elementsWithClass(tree, 'dshtd-frontier')[0])
+  assert.match(block, /past the last point/, 'the missing line needs its reason, or the reader hunts for it')
+  assert.match(block, /leg 500/)
+})
+
+test('an imminent frontier reads AT LEG, because there is nothing left to predict', () => {
+  const frontier = t.readFrontier(snapshotWith({
+    frontier: {
+      phase_now: 'b', next_phase: 'c', boundary_leg: 300, next_leg: 300,
+      legs_in_phase: 0, legs_remaining: 0, expected_to_raise_bpb: true,
+      imminent: true, sentence: '',
+    },
+  }))
+
+  const text = t.frontierTagText(frontier)
+  assert.match(text, /AT LEG 300/)
+  assert.ok(!/expected around/.test(text),
+    'the next leg to train is the new corpus: there is nothing to expect, it is about to happen')
+  assert.equal(t.frontierLeg(frontier), 300, 'the line belongs on the boundary leg, not a projection')
+})
+
+test('a frontier with no corpus after it says so rather than naming a leg', () => {
+  const frontier = t.readFrontier(snapshotWith({
+    frontier: {
+      phase_now: 'a', next_phase: '', boundary_leg: 300, next_leg: 300,
+      legs_in_phase: 40, legs_remaining: 0, expected_to_raise_bpb: false,
+      imminent: false, sentence: '',
+    },
+  }))
+
+  assert.match(t.frontierTagText(frontier), /no further corpus change is scheduled ahead/)
+})
+
+test('markers close together are stacked, so no two labels write over each other', () => {
+  const plot = { left: t.CHART.padLeft, right: t.CHART.width - t.CHART.padRight }
+  const projectX = (leg) => plot.left + (leg / 1000) * (plot.right - plot.left)
+  const markers = [40, 400, 401, 700].map((leg) => ({ leg, kind: 'corpus', label: 'the data changed' }))
+  const placed = t.layoutMarkerLabels(markers, projectX, plot)
+
+  assert.equal(placed[0].lane, placed[1].lane, 'markers far enough apart share the top lane')
+  assert.notEqual(placed[1].lane, placed[2].lane, 'two markers a leg apart must not share a lane')
+
+  for (const one of placed) {
+    for (const other of placed) {
+      if (one === other || one.lane !== other.lane) continue
+      const [first, second] = one.x <= other.x ? [one, other] : [other, one]
+      assert.ok(first.x + first.width <= second.x + 0.001,
+        `two labels in lane ${one.lane} overlap: the chart would be unreadable exactly where the `
+        + 'breaks cluster')
+    }
+  }
+  assert.equal(t.markerLaneY(1) - t.markerLaneY(0), t.MARKER_LANE_HEIGHT)
+})
+
+test('a long reason is cut on a word boundary for the chart and kept whole in the register', () => {
+  const long = servedMarker({ leg: 40, label: 'the sealed read began scoring with the read present' })
+  const payload = snapshotWith({ breaks: [long] })
+  const marker = t.readBreakMarkers(payload).markers[0]
+
+  const tag = t.markerTagText(marker)
+  assert.ok(tag.startsWith('40 CORPUS'), `the tag must lead with the leg and the kind, got ${tag}`)
+  assert.ok(tag.endsWith('…'), `a cut reason must show that it is cut, got ${tag}`)
+  assert.ok(!/read present/.test(tag), 'the chart cannot carry the whole sentence')
+
+  assert.ok(textOf(elementsWithClass(renderChart(payload), 'dshtd-break-row')[0])
+    .includes('the sealed read began scoring with the read present'),
+  'the register is where the whole sentence reads')
+})
+
+test('the chart\'s accessible name carries the markers, so the picture is not the only place they exist', () => {
+  const tree = renderChart(snapshotWith({ breaks: ALL_KINDS }))
+  const chart = elementsWithClass(tree, 'dshtd-chart')[0]
+
+  assert.match(chart.props['aria-label'], /break marker/)
+  assert.match(chart.props['aria-label'], new RegExp(`${ALL_KINDS.length} of ${ALL_KINDS.length}`))
 })

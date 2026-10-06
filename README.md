@@ -3,7 +3,9 @@
 A training dashboard for the DeepSeek Harness (DSH). It adds a **Training
 dashboard** tab to the right pane, beside Files, Terminal and Document, and
 charts a JSON snapshot of a training run: a KPI header, one series at a time on
-its own axis, and an optional break point marked on the chart.
+its own axis, the joints that make the series incomparable marked on the chart
+with the reason for each, and the next expected transition stated ahead of the
+curve.
 
 The plugin does **not** parse your logs. It runs a command of your own, that
 command writes the snapshot JSON described below, and the tab reads it. So the
@@ -17,8 +19,10 @@ and it never competes with your own parser for the truth about a run.
   is the only file the plugin causes to be written
 - the age of the numbers is always on screen, so a stale chart can never be
   mistaken for a live one
+- every word a break marker shows is your snapshot's own: the tab chooses where
+  a marker sits and how it reads, never what it says
 
-Package version **0.1.0** — snapshot contract version **1**.
+Package version **0.3.0** — snapshot contract version **1**.
 
 ---
 
@@ -29,12 +33,55 @@ Package version **0.1.0** — snapshot contract version **1**.
 | header | the run's name, the snapshot's age with a fresh/stale badge, a Refresh button |
 | KPI row | latest step, headline series, step wall time, throughput, memory peak, evaluation accuracy |
 | chips | the series to chart, best-first; any other series the snapshot carries is appended |
-| chart | ONE series at a time on its own axis, with an optional break point marked, over a timeline you can select |
+| chart | ONE series at a time on its own axis, with every break marker drawn on it, over a timeline you can select |
+| register | under the chart: every break marker in full — its leg, its kind, its reason, what that kind does to the curve, and where it was read from |
+| frontier | under the register: the next expected transition, named as an expectation and not as a fact |
 | footer | the snapshot path being read |
 
 **One series at a time is deliberate.** Series carry different units — bits per
 byte, seconds, GiB, accuracy, counts — and drawing them on one axis would invite
 exactly the comparison the axis cannot support.
+
+### Breaks, kinds and the frontier
+
+A long run crosses boundaries that are not learning, and a rise across one of
+them is not the model getting worse. The snapshot can carry them, and the tab
+draws each one as a vertical line labelled with its leg, its kind and the first
+words of its own reason. Kinds are colours **and** words, because the words are
+what say whether the joint can be compared across:
+
+| kind | what it means on the chart |
+| --- | --- |
+| `corpus` | the data changed, so a rise here is expected and is not a regression |
+| `instrument` | the reading changed, so the joint is a level shift measured on different terms: no slope across it |
+| `arithmetic` | the numbers changed, so the series is not comparable across the joint at all |
+| `shape` | the leg's geometry changed with its volume held constant, so the metric stays comparable and the wall clock moves |
+| `restart` | the process restarted, and the work of that window is not in the series |
+
+A kind the tab has never seen is still drawn, with its own name; a marker whose
+kind the snapshot omits is labelled `UNKNOWN` rather than shown as if the kind
+were known. Markers whose labels would collide are stacked so that no two write
+over each other, and every marker also gets a dim tick on the strip under the
+chart, so the joints are visible even when you have zoomed somewhere else.
+
+The **register** under the chart is where the markers read in full: the reason,
+the sentence your snapshot carries for that kind, the evidence the marker was
+read from, and any contradiction the snapshot attaches. Markers that fall
+outside the window on screen, or past the last point of the series, still appear
+there — the chart can only draw what its axis covers, and a marker that is
+missing from the picture without a word about it is a marker nobody finds.
+
+The **frontier** is the next expected transition, drawn as a dashed line in a
+lane of its own and labelled `next corpus change expected around leg N`. It is
+deliberately not drawn like the markers above it: those are read from artifacts
+that exist, and this one is a projection. The tab says so, in the block under
+the register, and it also says why its dashed line may not be on the chart yet.
+
+**Both the markers and the frontier come from your snapshot, in your words.** The
+tab does not decide that a rise is expected, that a joint is a level shift or
+that a transition is coming; it draws what your producer derived and repeats its
+sentences, so the chart and your own record cannot tell different stories about
+one run.
 
 ### Selecting the timeline
 
@@ -119,6 +166,29 @@ project and this plugin. This is a complete example:
     { "tag": "memory/vram_peak_gib", "source": "step logs", "points": [[1, 11.4], [2, 11.6], [3, 11.5]] }
   ],
   "annotations": [],
+  "breaks": [
+    {
+      "leg": 380,
+      "kind": "corpus",
+      "label": "corpus_a to corpus_b",
+      "reason": "the corpus changed, so a rise in bits per byte here is expected.",
+      "support": "the legs' own log names",
+      "derived": true,
+      "contradiction": "",
+      "meaning": "the DATA changed, so a rise in bpb here is EXPECTED"
+    }
+  ],
+  "frontier": {
+    "phase_now": "corpus_b",
+    "next_phase": "corpus_c",
+    "boundary_leg": 380,
+    "next_leg": 460,
+    "legs_in_phase": 80,
+    "legs_remaining": 61,
+    "expected_to_raise_bpb": false,
+    "imminent": false,
+    "sentence": "FRONTIER: corpus_b is being trained; the next corpus transition is corpus_b to corpus_c at about leg 460."
+  },
   "counts": { "points": 9 },
   "sources": "metrics.jsonl + step logs"
 }
@@ -130,7 +200,9 @@ project and this plugin. This is a complete example:
 | `generated_at` | strongly recommended | ISO-8601 timestamp of when the numbers were **read**. Drives the age badge and the stale banner. Without it the tab reports the snapshot as stale, because it cannot know the age. |
 | `revision` | recommended | Any string that changes when the contents change: a timestamp, a file mtime, a hash. The tab fetches the series body only when this moves. If you omit it, `generated_at` is used as the revision. |
 | `arm` | optional | The run's own name, shown in the header as `run <arm>`. |
-| `break_leg` | optional | An x value to mark with a dashed vertical line labelled `break leg N`: a restart, a schedule change, anything that makes the two halves incomparable. Without it nothing is marked. |
+| `break_leg` | optional | One x value to mark, for a producer that has one joint and no kind for it. It is drawn as a dashed marker labelled `BREAK`, and the tab says in the register that it is not claiming a kind for it. |
+| `breaks` | optional | An array of markers, each derived from your own artifacts. See below. |
+| `frontier` | optional | The next expected transition. See below. |
 | `series` | yes (may be empty) | The array of series to chart. |
 | `series[].tag` | yes | The series name. A slash groups it: `train/loss`, `memory/vram_peak_gib`. |
 | `series[].points` | yes | Array of `[x, y]` pairs of finite numbers. `x` is the step axis. A pair that is not two finite numbers is dropped; a series left with nothing is not offered at all. |
@@ -138,6 +210,40 @@ project and this plugin. This is a complete example:
 | `annotations` | optional | Free-form array, forwarded to the browser untouched. |
 | `counts` | optional | Free-form object, e.g. `{"points": 4123}`; echoed by `/state`. |
 | `sources` | optional | String naming the producer's inputs; echoed by `/state` as `snapshotSources`. |
+
+### `breaks[]`: the markers
+
+| field | required | what it does |
+| --- | --- | --- |
+| `leg` | **yes** | The x value the marker sits at. A marker without a readable `leg` cannot be placed on an axis: it is counted and reported under the chart rather than dropped in silence. |
+| `kind` | strongly recommended | One of `corpus`, `instrument`, `arithmetic`, `shape`, `restart` — or any other word, which is drawn and named as it is. Omitted, the marker is labelled `UNKNOWN`. |
+| `label` | recommended | A few words naming the change (`corpus_a to corpus_b`, `512 to 256 steps a leg`). Drawn on the chart, cut on a word boundary if it does not fit. |
+| `reason` | recommended | The sentence that says what happened and whether a move across it is expected. Shown in full in the register. |
+| `meaning` | recommended | What this kind of change does to the curve. Shown in the register under `WHAT THIS <KIND> CHANGE DOES TO THE CURVE:`. |
+| `support` | optional | Where the marker was read from, in a sentence a reader can check. Shown as `READ FROM:`. |
+| `derived` | optional | `false` marks a leg that is a constant in your code rather than a reading; the register then says so. Absent means nothing is claimed either way. |
+| `contradiction` | optional | Set when your own evidence contradicts the change the marker names. Shown prominently, because hiding it would leave the chart claiming a change the legs do not show. |
+
+Markers are drawn oldest first. Several markers on one leg are fine: their
+labels are stacked so they cannot overlap.
+
+### `frontier`: the next expected transition
+
+| field | required | what it does |
+| --- | --- | --- |
+| `phase_now` | recommended | The corpus being trained now. |
+| `next_phase` | recommended | The corpus expected next. Empty means none is scheduled, and the tab says exactly that instead of naming a leg. |
+| `next_leg` | recommended | The leg the transition is expected at — a projection from your own budget, so the tab reads it as `expected around leg N`. |
+| `boundary_leg` | optional | The first leg of the current phase. With `imminent: true`, this is the leg the tab draws, because nothing is left to predict. |
+| `legs_in_phase`, `legs_remaining` | optional | Context for the frontier; shown inside `sentence` when your producer writes one. |
+| `expected_to_raise_bpb` | optional | `true` when a rise in bits per byte is expected at the transition. The tab then says so beside the expected leg. |
+| `imminent` | optional | `true` when the next leg trained is already the new corpus. The wording moves from `expected around leg N` to `changes AT LEG N`. |
+| `sentence` | recommended | Your own full statement about the frontier. Shown verbatim, under the tab's note that it is an expectation and not a measurement. |
+
+The tab always adds one caveat of its own to the frontier — that the leg is a
+projection from your budget and the rise is a direction rather than a magnitude
+— and it says why a dashed line that is past the end of the series is not on the
+chart. Everything else on screen is your text.
 
 **Tags the tab already has labels and units for** (a convenience, not a
 requirement — any other tag is still charted, labelled by its own tag):
@@ -320,8 +426,8 @@ the last numbers it has with their true age, and says what is being done:
 | `cordis.patch.yml` | **one** insert row, with placeholder defaults to replace |
 | `index.mjs` | host half: the two routes, the snapshot read, the bounded single-flight spawn |
 | `client.cjs` | browser half: the right-pane tab, the header action row trigger, and the hand-drawn SVG chart |
-| `test/host.test.mjs` | 26 tests — the deferred registration, the read path, the spawn bounds |
-| `test/client.test.mjs` | 22 tests — the slot wiring, the pure helpers, the freshness rules |
+| `test/host.test.mjs` | 28 tests — the deferred registration, the read path, the spawn bounds, the pass-through |
+| `test/client.test.mjs` | 54 tests — the slot wiring, the pure helpers, the freshness rules, the break markers and the frontier |
 | `test/live-smoke.mjs` | opt-in end-to-end check against a real project and a real command |
 
 ```
@@ -400,6 +506,35 @@ Each of these is a mistake some plugin in this harness has already paid for once
   next, and deletes every tag whose `data-plugin` equals an id when that entry is
   replaced or pruned — so a privately tagged sheet is deleted with another
   plugin, which strips `fill: none` from the SVG paths and they fill black.
+- **A break marker says what KIND of break it is, or says that it does not know.**
+  The kinds do different things to a curve — a corpus change explains a rise, an
+  instrument change makes the joint a level shift, an arithmetic change makes the
+  series incomparable across it — so a marker drawn as a bare line invites
+  exactly the comparison it should prevent. The kind is a word on the line and a
+  colour, an unknown kind keeps its own name, and a marker served without a kind
+  is labelled `UNKNOWN` rather than coloured like something it may not be.
+- **A marker's words are the snapshot's, never this plugin's.** The label, the
+  reason, the sentence for the kind and the evidence are carried through
+  verbatim; the tab chooses where a marker sits, how much of it fits on the
+  chart and how it is stacked, and never what it says. A paraphrase here would
+  be a second statement of one fact, free to disagree with the record.
+- **A marker that is not drawn is still reported.** Markers past the end of the
+  series or outside the window still read in the register, a marker with no
+  readable leg is counted and reported rather than dropped, and the frontier
+  says why its dashed line is not on the chart yet. A silent absence in a chart
+  is read as "nothing happened here".
+- **The frontier is drawn as an expectation.** It is a projection from the
+  producer's own budget, in its own dashed style and its own lane, labelled
+  `expected around leg N` — and when the producer says the transition is
+  imminent the wording moves to `AT LEG N`, because there is nothing left to
+  predict. The tab adds one caveat of its own: the leg is a direction and not a
+  magnitude, and the producer may end a phase early.
+- **`snapshot_version` stayed at 1 while the new keys arrived.** The contract
+  version is a claim that a reader can read the body, and `breaks` and
+  `frontier` are additive: an older reader serves them and simply draws less,
+  while a bumped version would make every deployed reader refuse the snapshot
+  outright. The host is a pass-through and a test pins that it does not reshape
+  or drop a key it does not know.
 - **An action goes in an action row, never in `shell.overlay`.** That seat is a
   frame-wide floating layer for badges, toasts and status pills, and it is
   click-through on purpose, so a BUTTON registered there is in the wrong place
