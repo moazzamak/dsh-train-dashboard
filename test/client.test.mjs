@@ -446,6 +446,15 @@ test('formatValue shortens millions and never renders NaN', () => {
   assert.equal(t.formatValue(Infinity, 2), '—')
 })
 
+test('a rate in the tens of thousands reads in thousands', () => {
+  // A leg's units per second is the leg's own volume over its wall clock, which
+  // lands between about 45k and 82k on this run. Rendered at `digits: 0` that is
+  // "65538", five digits to parse; the tier is what makes it a glance.
+  assert.equal(t.formatValue(65538, 1), '65.5k')
+  assert.equal(t.formatValue(4917, 1), '4917.0', 'below ten thousand keeps its own scale')
+  assert.equal(t.formatValue(0, 1), '0.0')
+})
+
 test('polylinePath is a path and handles the single-point case', () => {
   const project = (value) => value * 2
   assert.equal(t.polylinePath([[1, 2], [3, 4]], project, project), 'M2.00,4.00 L6.00,8.00')

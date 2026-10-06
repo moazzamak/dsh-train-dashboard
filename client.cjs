@@ -455,7 +455,7 @@ window.__ModuleLoader__.load({
      */
     const INTERESTING = [
       { tag: 'train/bpb_legval', label: 'leg-val bpb', unit: 'bpb', digits: 4 },
-      { tag: 'train/units_per_second', label: 'units/s', unit: 'u/s', digits: 0 },
+      { tag: 'train/units_per_second', label: 'units/s', unit: 'u/s', digits: 1 },
       { tag: 'memory/vram_peak_gib', label: 'VRAM peak', unit: 'GiB', digits: 2 },
       { tag: 'eval/exam_accuracy', label: 'exam accuracy', unit: '', digits: 4 },
       // The curve's own bits per byte, kept ONLY for a snapshot whose producer
@@ -687,12 +687,23 @@ window.__ModuleLoader__.load({
       return ticks
     }
 
-    /** Format one value for a KPI tile or an axis label. */
+    /**
+     * Format one value for a KPI tile or an axis label.
+     *
+     * The scale tiers matter for throughput: a leg's units per second is tens of
+     * thousands, and `digits: 0` on that renders `65538` where `65.5k` is what a
+     * reader takes in at a glance. The `M` tier was already here for the bpb-era
+     * numbers; `k` is its counterpart for a rate.
+     */
     function formatValue(value, digits) {
       if (!Number.isFinite(value)) return '—'
       const places = Number.isFinite(digits) ? digits : 3
-      if (value !== 0 && Math.abs(value) >= 1e6) {
+      const magnitude = Math.abs(value)
+      if (value !== 0 && magnitude >= 1e6) {
         return `${(value / 1e6).toFixed(1)}M`
+      }
+      if (value !== 0 && magnitude >= 1e4) {
+        return `${(value / 1e3).toFixed(1)}k`
       }
       return value.toFixed(places)
     }
