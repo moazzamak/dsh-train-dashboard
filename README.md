@@ -59,8 +59,9 @@ shown` — and the chart's accessible name carries the same numbers, because a
 range that exists only as a dragged rectangle is a range a screen reader cannot
 report.
 
-There are two ways to open the tab: a chart glyph in the frame's overlay row
-(next to the application menus), and the pane's "+" guide menu.
+There are two ways to open the tab: a chart glyph in the session header's action
+row (the `conversation.session.header.actions` seat, beside the shipped jobs and
+subagent controls at the top of the session), and the pane's "+" guide menu.
 
 ## How it gets its data
 
@@ -318,7 +319,7 @@ the last numbers it has with their true age, and says what is being done:
 | `package.json` | the manifest: `dsh.bundle.patch`, `dsh.client`, and the `./client` export |
 | `cordis.patch.yml` | **one** insert row, with placeholder defaults to replace |
 | `index.mjs` | host half: the two routes, the snapshot read, the bounded single-flight spawn |
-| `client.cjs` | browser half: the right-pane tab, the frame trigger, and the hand-drawn SVG chart |
+| `client.cjs` | browser half: the right-pane tab, the header action row trigger, and the hand-drawn SVG chart |
 | `test/host.test.mjs` | 26 tests — the deferred registration, the read path, the spawn bounds |
 | `test/client.test.mjs` | 22 tests — the slot wiring, the pure helpers, the freshness rules |
 | `test/live-smoke.mjs` | opt-in end-to-end check against a real project and a real command |
@@ -399,6 +400,17 @@ Each of these is a mistake some plugin in this harness has already paid for once
   next, and deletes every tag whose `data-plugin` equals an id when that entry is
   replaced or pruned — so a privately tagged sheet is deleted with another
   plugin, which strips `fill: none` from the SVG paths and they fill black.
+- **An action goes in an action row, never in `shell.overlay`.** That seat is a
+  frame-wide floating layer for badges, toasts and status pills, and it is
+  click-through on purpose, so a BUTTON registered there is in the wrong place
+  (the window's top-left, beside the application menus and the sidebar's reopen
+  control) and unclickable unless it opts back into pointer events. The trigger
+  belongs to `conversation.session.header.actions`, the title-adjacent row the
+  shipped jobs, subagent, agent-preset and agent-team controls use, and it copies
+  their metrics — borderless, transparent, at least 28px, tertiary label colour
+  at rest and secondary on hover — so the row reads as one set of controls. The
+  test asserts the trigger is in that row and that nothing of this plugin is
+  registered in the overlay.
 
 ## Licence
 

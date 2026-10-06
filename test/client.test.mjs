@@ -219,12 +219,21 @@ test('every slot registration names its slot', () => {
   }
 })
 
-test('the trigger lives in the frame overlay and the services it uses are declared', () => {
+test('the trigger registers in the session header action row, not the overlay layer', () => {
   const ctx = fakeContext()
   client.apply(ctx)
 
-  const trigger = ctx.__slots.find((entry) => entry.slotName === 'shell.overlay')
-  assert.ok(trigger, 'the frame trigger was not registered')
+  const trigger = ctx.__slots.find((entry) => entry.slotName === 'conversation.session.header.actions')
+  assert.ok(trigger, 'the header trigger was not registered')
+
+  // `shell.overlay` is a frame-wide floating layer for badges, toasts and status
+  // pills, and it is click-through by design. A BUTTON registered there is drawn
+  // in the window's top-left, beside the application menus and the sidebar's
+  // reopen control, and it cannot be clicked without opting back into pointer
+  // events. Reported from the running app, and this is the assertion that keeps
+  // it out.
+  assert.equal(ctx.__slots.find((entry) => entry.slotName === 'shell.overlay'), undefined,
+    'the trigger must not sit in the click-through overlay layer')
 
   for (const service of ['slots', 'sidebarRight', 'sidebarRightTabs', 'layout']) {
     assert.ok(client.inject.includes(service),
@@ -265,20 +274,24 @@ test('a second apply does not stack a second stylesheet', () => {
   assert.equal(sheets.length, 1, `expected one sheet, found ${sheets.length}`)
 })
 
-test('the trigger renders the wrapper its positioning CSS targets', () => {
+test('the trigger renders the wrapper its own stylesheet targets', () => {
   const ctx = fakeContext()
   client.apply(ctx)
 
-  const trigger = ctx.__slots.find((entry) => entry.slotName === 'shell.overlay')
+  const trigger = ctx.__slots.find((entry) => entry.slotName === 'conversation.session.header.actions')
+  assert.ok(trigger, 'the header trigger was not registered')
   const tree = trigger.component({ sidebarRight: ctx.sidebarRight, layout: ctx.layout })
 
   // `.dshtd-trigger` is the element the stylesheet styles; a component that
   // returns only the button leaves that rule with nothing to apply to, and the
-  // button then lands in the frame's control row as a stray icon.
+  // button then lands in the action row as a bare browser control.
   assert.equal(elementsWithClass(tree, 'dshtd-trigger').length, 1,
-    'the trigger does not render its wrapper, so its own CSS cannot position it')
+    'the trigger does not render its wrapper, so its own CSS cannot lay it out')
   assert.equal(elementsWithClass(tree, 'dshtd-trigger-button').length, 1,
     'the trigger does not render its button')
+  const button = elementsWithClass(tree, 'dshtd-trigger-button')[0]
+  assert.equal(button.props['aria-label'], 'Training dashboard',
+    'an icon-only control in a toolbar row needs a name a screen reader can read')
 })
 
 test('the client and host halves agree on the route', () => {

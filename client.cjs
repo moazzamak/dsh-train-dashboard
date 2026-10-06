@@ -7,8 +7,9 @@
  * use (`sidebarRightTabs`), so it gets a strip chip, a title, and the pane's
  * own chrome. Two ways to open it:
  *
- *   - a chart glyph pinned to the TOP-RIGHT of the frame (a `shell.overlay`
- *     entry, above every column), which opens the tab in one click;
+ *   - a chart glyph in the session header's ACTION ROW (the
+ *     `conversation.session.header.actions` seat, beside the shipped jobs and
+ *     subagent controls), which opens the tab in one click;
  *   - the pane's "+" guide menu lists "Training dashboard".
  *
  * WHAT IT SHOWS. A KPI header (latest step, the headline series, step wall
@@ -63,6 +64,20 @@ window.__ModuleLoader__.load({
     /** The tab DEFINITION's id, which is also the key its body registers under. */
     const TYPE_ID = 'dsh-train-dashboard.panel'
 
+    /**
+     * The seat the one-click trigger registers in: the session header's
+     * title-adjacent action row, where the shipped jobs, subagent, agent-preset
+     * and agent-team controls live.
+     *
+     * It is deliberately NOT `shell.overlay`. That seat is a frame-wide
+     * floating layer for badges, toasts and status pills, and the layer is
+     * click-through by design, so a BUTTON registered there is both in the
+     * wrong place (the window's top-left, beside the application menus and the
+     * sidebar's reopen control) and unclickable unless it opts back into
+     * pointer events. An action belongs in an action row.
+     */
+    const TRIGGER_SLOT = 'conversation.session.header.actions'
+
     /** How often the small state route is polled, in milliseconds. */
     const POLL_MS = 5000
 
@@ -110,22 +125,21 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
-/* The trigger lives in the frame's own overlay seat, in the window's control
-   row. It is NOT position:fixed at the top right: that row's right end belongs
-   to the window controls (minimise/maximise/close), so a fixed trigger is drawn
-   underneath them and cannot be clicked. Sit in the seat instead, as a normal
-   icon button of the row. */
+/* The trigger is one entry in the session header's action row, beside the
+   shipped jobs and subagent controls, so its metrics are theirs: a borderless
+   transparent button of at least 28px, tertiary label colour at rest and
+   secondary on hover, which is what makes the row read as one set of controls
+   rather than a foreign object dropped into it. */
 .${CLASS.trigger} { display: inline-flex; align-items: center; }
 .${CLASS.triggerButton} {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; padding: 0; border-radius: 8px; cursor: pointer;
-  border: 1px solid var(--dsw-alias-border-l2, #3a3a3a);
-  background: var(--dsw-alias-bg-layer-1, #1d1d1d);
-  color: var(--dsw-alias-label-secondary, #b0b0b0);
+  min-width: 28px; min-height: 28px; padding: 3px 4px; cursor: pointer;
+  border: 0; border-radius: var(--dsw-radius-sm, 6px); background: 0 0;
+  color: var(--dsw-alias-label-tertiary, #8a8a8a);
 }
-.${CLASS.triggerButton}:hover {
-  background: var(--dsw-alias-bg-layer-2, #262626);
-  color: var(--dsw-alias-label-primary, #f0f0f0);
+.${CLASS.triggerButton}:hover, .${CLASS.triggerButton}:focus-visible {
+  background: var(--dsw-alias-fill-l1, rgba(255, 255, 255, 0.06));
+  color: var(--dsw-alias-label-secondary, #b0b0b0);
 }
 .${CLASS.panel} {
   display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto;
@@ -1206,10 +1220,10 @@ window.__ModuleLoader__.load({
       // registration without it throws `slot "undefined" is not declared`
       // while `apply` runs, which the desktop application treats as a failed
       // startup.
-      ctx.effect(() => ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-        name: 'shell.overlay',
+      ctx.effect(() => ctx.slots.inject(TRIGGER_SLOT, () => ctx.slots.register({
+        name: TRIGGER_SLOT,
         id: 'train-dashboard-trigger',
-        order: 79,
+        order: 55,
         label: 'Training dashboard',
       }, () => React.createElement(TriggerButton, {
         sidebarRight: ctx.sidebarRight,
