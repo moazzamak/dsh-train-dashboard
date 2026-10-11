@@ -191,6 +191,65 @@ window.__ModuleLoader__.load({
       footnote: 'dshtd-footnote',
     }
 
+    /**
+     * THE GEOMETRY LIVES HERE, ABOVE THE STYLESHEET, AND THAT PLACEMENT IS LOAD-BEARING.
+     *
+     * These were declared eight hundred lines further down, beside the rest of the chart's constants,
+     * which is the natural home for them. The sheet could not read them there: `const CSS` is a
+     * TEMPLATE LITERAL evaluated where it stands, and a constant declared after it is in its temporal
+     * dead zone - interpolating one threw "Cannot access 'RAIL' before initialization" the moment the
+     * bundle loaded. The first fix was to write the numbers into the sheet as literals, which then
+     * needed a comment promising a test would keep them in step; moving the declarations is the fix
+     * that needs no promise, because there is only one number.
+     *
+     * The rail's own size is the case that made this matter: a sheet that cannot read RAIL's width had
+     * to hardcode it, and the hardcoded width is what the rail is DRAWN at.
+     */
+
+    /**
+     * The room the LEFT margin needs, in chart units.
+     *
+     * Four columns share it, from the far edge inward: the axis' rotated unit
+     * title, the floating CURRENT VALUE of each line (its text, then its rail),
+     * and the primary axis' tick labels against the plot. The reading has a
+     * column of its own rather than a row in the numbers' column, because on the
+     * right it shared theirs and the two were mistaken for one another.
+     *
+     * Measured at this frame's own font: the title takes 16, the reading's text
+     * up to about 44 ending at the rail, the rail 2 more, and a five-character
+     * tick label 28 against the plot. The rest is the gaps, which are what stop
+     * the numbers and the readings reading as one column of figures.
+     */
+    const PAD_LEFT = 130
+
+    /**
+     * The frame, and the strip under it.
+     *
+     * `padLeft` is `PAD_LEFT` and not a literal, because the left margin's width
+     * is decided by the four columns that share it - see PAD_LEFT - and two
+     * numbers for one margin is how they drift apart.
+     */
+    const CHART = { width: 720, height: 240, padLeft: PAD_LEFT, padRight: 14, padTop: 12, padBottom: 26 }
+    /** The strip under the chart: one overview of the whole run and the window on it. */
+    const OVERVIEW = { height: 30, padTop: 4, padBottom: 4 }
+    /**
+     * The RAIL: the value axis' own overview, standing to the LEFT of the frame.
+     *
+     * THE VERTICAL AXIS GETS THE HORIZONTAL AXIS' OVERVIEW RATHER THAN A BUTTON PER DIRECTION, which is
+     * the user's correction of 11 October 2026: "instead of having +y -y buttons just show a vertical
+     * window to the left of the graph that I can drag-select exactly like the x-axis zoom feature".
+     * The strip below the chart is the pattern and this is it turned on its side - the whole extent with
+     * the window drawn on it, click to move and drag to select - so a reader who has used one has used
+     * the other.
+     *
+     * `gap` is the space between the rail and the y axis' tick labels; without it the rail butts against
+     * the labels and the two read as one column of marks.
+     *
+     * `height` is `CHART.height` because the rail stands BESIDE the frame and the two must be the same
+     * height for a value to be read across a level line from one to the other.
+     */
+    const RAIL = { width: 26, height: CHART.height, padLeft: 3, padRight: 3, gap: 6 }
+
     const CSS = `
 /* The trigger is one entry in the session header's action row, beside the
    shipped jobs and subagent controls, so its metrics are theirs: a borderless
@@ -520,8 +579,21 @@ window.__ModuleLoader__.load({
    "Cannot access 'RAIL' before initialization": this stylesheet is built while the module's own
    constants are still in their temporal dead zone, because it is installed before the chart's
    geometry is read. The two numbers agree and a test compares them, so the literal cannot drift. */
-.${CLASS.railFrame} { display: flex; align-items: flex-start; gap: 6px; }
-.${CLASS.rail} { touch-action: none; user-select: none; cursor: crosshair; flex: 0 0 auto; }
+.${CLASS.railFrame} { display: flex; align-items: flex-start; gap: ${RAIL.gap}px; }
+/* THE RAIL MUST BE GIVEN ITS WIDTH, and the first version was not, which is why it took the screen.
+   A rule above sets a width of 100% on the CHART, for the reason that rule gives - the frame should
+   fill its lane - and as a sibling in this flex row the rail inherited nothing to stop it, so a
+   26-unit strip was asked to be a full lane wide and the browser scaled its 26:240 aspect ratio up to
+   match: a bar hundreds of pixels across, with the chart pushed off screen behind it.
+   THE FIGURES ARE THE VIEWBOX UNITS - RAIL.width and RAIL.height themselves, which is why the geometry
+   is declared above this sheet - so one CSS pixel is one viewBox unit and the strip is drawn at the
+   size its own coordinates describe. A flex basis of 0 0 auto stops the row stretching it, and a
+   minimum width of 0 stops the flex basis growing past the width. */
+.${CLASS.rail} {
+  touch-action: none; user-select: none; cursor: crosshair;
+  flex: 0 0 auto; min-width: 0;
+  width: ${RAIL.width}px; height: ${RAIL.height}px;
+}
 .${CLASS.railWindow} {
   fill: var(--dsw-alias-label-tertiary, #8a8a8a); fill-opacity: 0.22;
   stroke: var(--dsw-alias-label-secondary, #b0b0b0); stroke-width: 1;
@@ -1142,22 +1214,6 @@ window.__ModuleLoader__.load({
     /** The width reserved at the outer edge of an axis for its rotated unit. */
     const AXIS_UNIT_WIDTH = 16
 
-    /**
-     * The room the LEFT margin needs, in chart units.
-     *
-     * Four columns share it, from the far edge inward: the axis' rotated unit
-     * title, the floating CURRENT VALUE of each line (its text, then its rail),
-     * and the primary axis' tick labels against the plot. The reading has a
-     * column of its own rather than a row in the numbers' column, because on the
-     * right it shared theirs and the two were mistaken for one another.
-     *
-     * Measured at this frame's own font: the title takes 16, the reading's text
-     * up to about 44 ending at the rail, the rail 2 more, and a five-character
-     * tick label 28 against the plot. The rest is the gaps, which are what stop
-     * the numbers and the readings reading as one column of figures.
-     */
-    const PAD_LEFT = 130
-
     /** The width of the band a current-value reading occupies. */
     const CURRENT_VALUE_WIDTH = 50
 
@@ -1177,31 +1233,6 @@ window.__ModuleLoader__.load({
      */
     const CURRENT_VALUE_OFFSET = 16
     const CURRENT_VALUE_MIN_SEPARATION = 13
-
-    /**
-     * The frame, and the strip under it.
-     *
-     * `padLeft` is `PAD_LEFT` and not a literal, because the left margin's width
-     * is decided by the four columns that share it - see PAD_LEFT - and two
-     * numbers for one margin is how they drift apart.
-     */
-    const CHART = { width: 720, height: 240, padLeft: PAD_LEFT, padRight: 14, padTop: 12, padBottom: 26 }
-    /** The strip under the chart: one overview of the whole run and the window on it. */
-    const OVERVIEW = { height: 30, padTop: 4, padBottom: 4 }
-    /**
-     * The RAIL: the value axis' own overview, standing to the LEFT of the frame.
-     *
-     * THE VERTICAL AXIS GETS THE HORIZONTAL AXIS' OVERVIEW RATHER THAN A BUTTON PER DIRECTION, which is
-     * the user's correction of 11 October 2026: "instead of having +y -y buttons just show a vertical
-     * window to the left of the graph that I can drag-select exactly like the x-axis zoom feature".
-     * The strip below the chart is the pattern and this is it turned on its side - the whole extent with
-     * the window drawn on it, click to move and drag to select - so a reader who has used one has used
-     * the other.
-     *
-     * `gap` is the space between the rail and the y axis' tick labels; without it the rail butts against
-     * the labels and the two read as one column of marks.
-     */
-    const RAIL = { width: 26, height: CHART.height, padLeft: 3, padRight: 3, gap: 6 }
 
     /** What the x axis counts. Every series in a training snapshot is keyed by step. */
     const X_AXIS_LABEL = 'step'
@@ -4449,6 +4480,12 @@ window.__ModuleLoader__.load({
     // The pure helpers, exposed so a test can pin them without a DOM. They are
     // the parts that can be wrong in a way the rendered page cannot show.
     module.exports.__test = {
+      // THE EMITTED STYLESHEET, so a test can read what the browser will actually be given rather than
+      // what the source appears to say. It is needed because the rail's size is a CSS figure that the
+      // geometry constants are interpolated into, and the failure that made that matter - a rail with
+      // no width, which the browser scaled up to fill the lane and which took the screen - was
+      // invisible to every test that only looked at the tree.
+      CSS,
       seriesIndex,
       availableSeries,
       isTraceTag,

@@ -735,6 +735,40 @@ test('the window controls are labelled buttons and the chart takes focus', () =>
     'the reader needs the whole run to see where the window sits in it')
 })
 
+test('the rail is given its own width, which is what keeps it off the screen', () => {
+  // REPORTED FROM THE RUNNING APP, 11 October 2026: "I see a HUGE bar taking up the whole screen and I
+  // need to scroll down to be able to see anything else." The rail had no width, and a stylesheet rule
+  // sets `width: 100%` on the CHART so the frame fills its lane - which the rail, as a flex sibling,
+  // inherited nothing to resist. The browser then scaled its 26:240 viewBox aspect ratio up to the lane
+  // width: a bar hundreds of pixels across, with the chart pushed off screen behind it.
+  //
+  // THIS TEST IS THE ONE THAT WOULD HAVE CAUGHT IT. Every other assertion here looks at the element
+  // TREE, and the tree was correct: the svg was there, at the right place, with the right children. The
+  // defect lived entirely in the stylesheet, so the test reads the stylesheet.
+  const css = String(t.CSS)
+  const rule = /\.dshtd-rail\s*\{([^}]*)\}/.exec(css)
+  assert.ok(rule, 'the rail must have a rule of its own in the sheet')
+  const body = rule[1]
+  // A SIZE IN THE SHEET, IN THE RAIL'S OWN VIEWBOX UNITS: without an explicit width the element takes
+  // the lane's, and the aspect ratio does the rest.
+  assert.match(body, /width:\s*26px/,
+    `the rail must be given its width or the lane's is used; rule was:${body}`)
+  assert.match(body, /height:\s*240px/,
+    `the rail must be given its height, matching the frame's; rule was:${body}`)
+  // AND IT MUST NOT TAKE THE CHART'S OWN FILL RULE. `width: 100%` anywhere in the rail's rule is the
+  // exact defect, so it is asserted as an absence as well as a presence above.
+  assert.doesNotMatch(body, /width:\s*100%/,
+    'the rail must never be told to fill its lane')
+  // THE NUMBERS COME FROM THE CONSTANT and are not spelled twice: the sheet is built by interpolating
+  // RAIL, and this asserts the interpolation survived into the text the browser receives.
+  const rail = t.RAIL
+  assert.match(body, new RegExp(`width:\\s*${rail.width}px`))
+  assert.match(body, new RegExp(`height:\\s*${rail.height}px`))
+  // The row's own gap is interpolated the same way, for the same reason.
+  assert.match(css, new RegExp(`dshtd-rail-frame\\s*\\{[^}]*gap:\\s*${rail.gap}px`),
+    'the rail row must be spaced by the constant and not by a literal')
+})
+
 test('the rail draws the window at the right end of an inverted axis', () => {
   // THE RAIL IS THE x-OVERVIEW TURNED ON ITS SIDE, so the one thing it must not get wrong is the
   // inversion: SVG's y grows downward while the value axis grows upward. A rail that drew the window
