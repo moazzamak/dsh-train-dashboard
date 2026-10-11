@@ -165,9 +165,12 @@ window.__ModuleLoader__.load({
       windowButton: 'dshtd-window-button',
       windowReadout: 'dshtd-window-readout',
       windowNote: 'dshtd-window-note',
-      //: The vertical axis' controls sit in the same row as the horizontal ones, behind a rule that
-      //: says the row is now about the other axis.
-      windowDivider: 'dshtd-window-divider',
+      //: The rail: the value axis' own overview, standing to the left of the frame, with the window
+      //: drawn on it and a brush while the reader drags.
+      rail: 'dshtd-rail',
+      railFrame: 'dshtd-rail-frame',
+      railWindow: 'dshtd-rail-window',
+      railBrush: 'dshtd-rail-brush',
       brush: 'dshtd-brush',
       brushEdge: 'dshtd-brush-edge',
       overview: 'dshtd-overview',
@@ -509,13 +512,23 @@ window.__ModuleLoader__.load({
   color: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 10.5px;
   font-variant-numeric: tabular-nums;
 }
-/* THE RULE BETWEEN THE TWO AXES' CONTROLS. One row carries six buttons and a readout - three for the
-   leg axis and three for the value axis - and without a mark between them the row reads as one set.
-   The rule says the row changes axis here; the labels carry the rest, since the second group's read
-   "-y", "+y" and "y auto" and the first group's do not. */
-.${CLASS.windowDivider} {
-  width: 1px; height: 16px; margin: 0 2px;
-  background: var(--dsw-alias-border-l2, #3a3a3a);
+/* THE RAIL: the value axis' overview, to the LEFT of the frame.
+   The strip under the chart is the pattern and this is it turned on its side, so it borrows that
+   strip's ink and its cursor rather than inventing a second visual language for the same object: a
+   spine down the axis' middle, the window drawn on it, and a brush while the reader drags.
+   THE GAP IS A LITERAL AND NOT THE RAIL CONSTANT'S FIELD, which was the first version and threw
+   "Cannot access 'RAIL' before initialization": this stylesheet is built while the module's own
+   constants are still in their temporal dead zone, because it is installed before the chart's
+   geometry is read. The two numbers agree and a test compares them, so the literal cannot drift. */
+.${CLASS.railFrame} { display: flex; align-items: flex-start; gap: 6px; }
+.${CLASS.rail} { touch-action: none; user-select: none; cursor: crosshair; flex: 0 0 auto; }
+.${CLASS.railWindow} {
+  fill: var(--dsw-alias-label-tertiary, #8a8a8a); fill-opacity: 0.22;
+  stroke: var(--dsw-alias-label-secondary, #b0b0b0); stroke-width: 1;
+}
+.${CLASS.railBrush} {
+  fill: var(--dsw-alias-label-secondary, #b0b0b0); fill-opacity: 0.28;
+  stroke: var(--dsw-alias-label-secondary, #b0b0b0); stroke-width: 1;
 }
 /* The chart takes pointer drags for the window, so the browser must not claim
    them for scrolling or text selection. */
@@ -1175,6 +1188,20 @@ window.__ModuleLoader__.load({
     const CHART = { width: 720, height: 240, padLeft: PAD_LEFT, padRight: 14, padTop: 12, padBottom: 26 }
     /** The strip under the chart: one overview of the whole run and the window on it. */
     const OVERVIEW = { height: 30, padTop: 4, padBottom: 4 }
+    /**
+     * The RAIL: the value axis' own overview, standing to the LEFT of the frame.
+     *
+     * THE VERTICAL AXIS GETS THE HORIZONTAL AXIS' OVERVIEW RATHER THAN A BUTTON PER DIRECTION, which is
+     * the user's correction of 11 October 2026: "instead of having +y -y buttons just show a vertical
+     * window to the left of the graph that I can drag-select exactly like the x-axis zoom feature".
+     * The strip below the chart is the pattern and this is it turned on its side - the whole extent with
+     * the window drawn on it, click to move and drag to select - so a reader who has used one has used
+     * the other.
+     *
+     * `gap` is the space between the rail and the y axis' tick labels; without it the rail butts against
+     * the labels and the two read as one column of marks.
+     */
+    const RAIL = { width: 26, height: CHART.height, padLeft: 3, padRight: 3, gap: 6 }
 
     /** What the x axis counts. Every series in a training snapshot is keyed by step. */
     const X_AXIS_LABEL = 'step'
@@ -1331,11 +1358,23 @@ window.__ModuleLoader__.load({
       return plot.lo + fraction * (plot.hi - plot.lo)
     }
 
+    /**
+     * The window two pixels select, under a given pixel-to-value mapping, ordered.
+     *
+     * `brushRange` BELOW IS THIS FUNCTION, and the vertical axis is this function too. It was two
+     * lines of `valueAt` against an x plot, which is why the vertical axis could not reuse it without
+     * a copy; taking the mapping as an argument is what makes one function serve both rails and keeps
+     * a fix to either from being a fix to one of them.
+     */
+    function brushRangeAt(fromPx, toPx, at) {
+      const a = at(fromPx)
+      const b = at(toPx)
+      return a <= b ? { lo: a, hi: b } : { lo: b, hi: a }
+    }
+
     /** The window two x pixels select, ordered. */
     function brushRange(fromPx, toPx, plot) {
-      const a = valueAt(fromPx, plot)
-      const b = valueAt(toPx, plot)
-      return a <= b ? { lo: a, hi: b } : { lo: b, hi: a }
+      return brushRangeAt(fromPx, toPx, (px) => valueAt(px, plot))
     }
 
     /**
@@ -1396,6 +1435,44 @@ window.__ModuleLoader__.load({
         ? `${unit} ${lo}–${hi} · all ${total} shown`
         : `${unit} ${lo}–${hi} · ${Math.round(range.hi - range.lo)} of ${total} shown`
     }
+
+    /**
+     * The rail's window rectangle, in the rail's own viewBox coordinates.
+     *
+     * THE INVERSION IS THE WHOLE FUNCTION. SVG's y grows downward while the value axis grows upward, so
+     * the window's TOP edge is its `hi`. Getting that backwards puts the window at the wrong end of the
+     * rail while the chart's axis stays where it was, which reads as a rail that ignores the reader
+     * rather than as an inversion - so it is computed in one place and pinned by a test.
+     *
+     * @returns `{ y, height }` in viewBox pixels, height floored at 1 so a fully-zoomed window is still
+     *   a visible line rather than a zero-height rect that draws nothing at all.
+     */
+    function railWindowPixels(range, extent, innerHeight, top = CHART.padTop) {
+      const span = extent.hi - extent.lo
+      const project = (value) => top + innerHeight - ((value - extent.lo) / span) * innerHeight
+      const yHi = project(range.hi)
+      const yLo = project(range.lo)
+      return { y: Math.min(yHi, yLo), height: Math.max(1, Math.abs(yLo - yHi)) }
+    }
+
+    /**
+     * The value axis' own readout: which two values the frame's top and bottom hold.
+     *
+     * NOT `rangeLabel`, because these are not counts. A leg number is an integer and rounding it is
+     * free; a bits-per-byte value lives between 2.14 and 2.15 on the run this was written for, so
+     * rounding it to an integer would print the same window at every zoom level - "2 to 2" is not a
+     * window. The figures come from the series' own `formatValue` with extra digits, exactly as the
+     * chart's tick labels do, so a readout and the ticks beside it cannot disagree about precision.
+     */
+    function valueWindowLabel(range, digits = 3) {
+      if (range === null || range === undefined) return 'the whole extent'
+      // `+ 3` is the same allowance `axisTickLabels` makes when it needs to tell two near-identical
+      // ticks apart: three more decimals than the series asks for is enough that a window whose ends
+      // differ are printed as differing.
+      const show = (value) => formatValue(value, digits + 3)
+      return `${show(range.lo)} to ${show(range.hi)}`
+    }
+
 
     // ----------------------------------------------------------------------
     // Break markers and the frontier.
@@ -2846,17 +2923,13 @@ window.__ModuleLoader__.load({
       const zoomIn = (anchor) => zoomBy(ZOOM_FACTOR, anchor)
       const zoomOut = (anchor) => zoomBy(1 / ZOOM_FACTOR, anchor)
 
-      // THE VERTICAL CONTROLS ARE THE SAME THREE LINES AGAINST THE OTHER WINDOW. `zoomRange` takes a
-      // range and an anchor and knows nothing about which axis it is on, so these are `zoomIn` and
-      // `zoomOut` with `values` in place of `range` and a vertical anchor in place of a leg - not a
-      // second implementation. A pan is `panRange`, likewise unchanged: it moves a range by a fraction
-      // of its own span, which is as true of a value window as of a leg window.
-      const zoomYBy = (factor, anchor) => { showYWindow(zoomRange(values, factor, anchor)) }
-      const zoomYIn = (anchor) => zoomYBy(ZOOM_FACTOR, anchor)
-      const zoomYOut = (anchor) => zoomYBy(1 / ZOOM_FACTOR, anchor)
-      const panY = (fraction) => { showYWindow(panRange(values, fraction)) }
-      /** The middle of the vertical window, which is where a button press zooms about. */
-      const yCentre = () => ((values === null ? 0 : values.lo) + (values === null ? 1 : values.hi)) / 2
+      // THE VALUE AXIS HAS NO BUTTONS AND NO ZOOM FUNCTIONS OF ITS OWN ANY MORE. It had
+      // `zoomYIn`/`zoomYOut`/`panY` for the five buttons that used to sit in the row; the rail beside
+      // the frame replaced them, and it goes through `showYWindow` directly - the same path the x
+      // strip under the chart uses through `showWindow`. What remains here is `yCentre`, which the
+      // Shift-keys still need: a rail is drag-only, and a reader on a keyboard cannot drag.
+      /** The middle of the vertical window, which is where a keystroke zooms about. */
+      const yCentre = () => (values === null ? 0.5 : (values.lo + values.hi) / 2)
 
       // The wheel listener is bound once, so it reads the live window from a ref
       // instead of from the render that installed it.
@@ -2934,17 +3007,25 @@ window.__ModuleLoader__.load({
         else if (event.key === '1' || (event.shiftKey && event.key === ')')) {
           event.preventDefault(); showYWindow(null)
         }
+        // The Shift-keys go straight to `showYWindow` with the same `zoomRange` and `panRange` the x
+        // keys use, and not through per-direction wrappers: the wrappers existed for the buttons and
+        // went with them. A rail is drag-only, so these are the only way a keyboard user reaches the
+        // value axis at all.
         else if (event.shiftKey && (event.key === '+' || event.key === '=' || event.key === '*')) {
-          event.preventDefault(); zoomYIn(yCentre())
+          event.preventDefault()
+          if (values !== null) showYWindow(zoomRange(values, ZOOM_FACTOR, yCentre()))
         }
         else if (event.shiftKey && (event.key === '-' || event.key === '_')) {
-          event.preventDefault(); zoomYOut(yCentre())
+          event.preventDefault()
+          if (values !== null) showYWindow(zoomRange(values, 1 / ZOOM_FACTOR, yCentre()))
         }
         else if (event.key === 'ArrowUp' && event.shiftKey) {
-          event.preventDefault(); panY(PAN_FRACTION)
+          event.preventDefault()
+          if (values !== null) showYWindow(panRange(values, PAN_FRACTION))
         }
         else if (event.key === 'ArrowDown' && event.shiftKey) {
-          event.preventDefault(); panY(-PAN_FRACTION)
+          event.preventDefault()
+          if (values !== null) showYWindow(panRange(values, -PAN_FRACTION))
         }
         else if (event.key === 'ArrowLeft') { event.preventDefault(); showWindow(panRange(range, -PAN_FRACTION)) }
         else if (event.key === 'ArrowRight') { event.preventDefault(); showWindow(panRange(range, PAN_FRACTION)) }
@@ -3382,42 +3463,12 @@ window.__ModuleLoader__.load({
           title: 'Show the whole run ( 0 )', 'aria-label': 'Reset to the whole run',
           onClick: () => { showWindow(null) },
         }, 'Reset'),
-        // THE VERTICAL CONTROLS ARE THE HORIZONTAL ROW AGAIN, ONE AXIS OVER. The first version of this
-        // was a slider carrying a scale FACTOR, which does not work: a factor multiplies a base the
-        // component recomputes every render, so the same stored number means a different axis each time
-        // the data or the x window moves, and the control and the picture disagree about what was asked
-        // for. The user's correction was exact - "make it reuse the x axis zoom feature's mechanism but
-        // in the other axis" - and it is also the simpler thing: `zoomRange`, `panRange` and
-        // `clampRange` never mention the x data, so these four buttons, the Shift-keys and the wheel
-        // below drive the value axis through the same functions the top row drives the leg axis.
-        React.createElement('span', { className: CLASS.windowDivider, 'aria-hidden': 'true' }),
-        React.createElement('button', {
-          type: 'button', className: CLASS.windowButton, disabled: !(yView !== null),
-          title: 'Zoom the value axis out ( Shift + - )', 'aria-label': 'Zoom the value axis out',
-          onClick: () => { zoomYOut(yCentre()) },
-        }, '−y'),
-        React.createElement('button', {
-          type: 'button', className: CLASS.windowButton,
-          disabled: values === null || (values.hi - values.lo)
-            <= (autoValues.hi - autoValues.lo) * Y_MIN_WINDOW_FRACTION * 1.01,
-          title: 'Zoom the value axis in ( Shift + + )', 'aria-label': 'Zoom the value axis in',
-          onClick: () => { zoomYIn(yCentre()) },
-        }, '+y'),
-        React.createElement('button', {
-          type: 'button', className: CLASS.windowButton, disabled: values === null,
-          title: 'Slide the value axis up ( Shift + Up )', 'aria-label': 'Pan the value axis up',
-          onClick: () => { panY(PAN_FRACTION) },
-        }, '↑y'),
-        React.createElement('button', {
-          type: 'button', className: CLASS.windowButton, disabled: values === null,
-          title: 'Slide the value axis down ( Shift + Down )', 'aria-label': 'Pan the value axis down',
-          onClick: () => { panY(-PAN_FRACTION) },
-        }, '↓y'),
-        React.createElement('button', {
-          type: 'button', className: CLASS.windowButton, disabled: yView === null,
-          title: 'Size the value axis to the current arc ( 1 )', 'aria-label': 'Reset the value axis',
-          onClick: () => { showYWindow(null) },
-        }, 'y auto'),
+        // THE VALUE AXIS' CONTROLS ARE NOT IN THIS ROW ANY MORE. They were five buttons here - `-y`,
+        // `+y`, `↑y`, `↓y` and `y auto` - and the user replaced them on 11 October 2026: "instead of
+        // having +y -y buttons just show a vertical window to the left of the graph that I can
+        // drag-select exactly like the x-axis zoom feature". The rail beside the frame is that window,
+        // with the same two gestures the strip under the chart has: drag to select a range, click to
+        // slide the window to a place. `1` stays for the keyboard, because a rail is drag-only.
         React.createElement('span', {
           className: CLASS.windowReadout, 'aria-live': 'polite',
         }, rangeLabel(range, bounds, ghostAt !== null)))
@@ -3456,6 +3507,98 @@ window.__ModuleLoader__.load({
             : ` This run rolled back at leg ${ghostAt}, so both passes are drawn from`
               + ' their own first leg and the older one is ghosted.'}${overlaySentence}`,
       }, ...children)
+
+      // THE RAIL: the value axis' own overview, standing to the LEFT of the frame.
+      //
+      // It is the strip under the chart TURNED ON ITS SIDE, and deliberately the same object in every
+      // respect but the axis: the whole extent is drawn with the window on it so the window's shape does
+      // not change as the reader zooms, a drag selects a range, and a click slides the window to a
+      // place while keeping its height. The user asked for exactly that - "a vertical window to the
+      // left of the graph that I can drag-select exactly like the x-axis zoom feature" - so the two
+      // share `brushRangeAt` and differ only in the pixel-to-value mapping they hand it.
+      //
+      // ITS SCALE IS THE AUTO EXTENT AND NOT THE DRAWN ONE, which is the whole point of an overview: if
+      // it rescaled to the window, the window's edges would sit at its ends for ever and the reader
+      // could never see how much of the extent they are looking at. `autoValues` is the extent, which
+      // is also what the window is clamped against.
+      const railExtent = autoValues === null ? { lo: 0, hi: 1 } : autoValues
+      const railInner = RAIL.width - RAIL.padLeft - RAIL.padRight
+      const railInnerH = CHART.height - CHART.padTop - CHART.padBottom
+      const railRef = React.useRef(null)
+      const railBrushRef = React.useRef(null)
+      /** The y pixel of one event, in the rail's own coordinates rather than the chart's. */
+      const railPixelFromEvent = (event) => {
+        const element = railRef.current
+        if (element === null) return RAIL.padLeft
+        const rect = element.getBoundingClientRect()
+        if (rect.height === 0) return CHART.padTop
+        const raw = ((event.clientY - rect.top) / rect.height) * RAIL.height
+        const bottom = CHART.height - CHART.padBottom
+        return Math.min(Math.max(raw, CHART.padTop), bottom)
+      }
+      const railAt = (py) => valueAtY(py, railExtent)
+      // The brush the rail's own pointer-up reads. `setBrush` is asynchronous, so the handler cannot
+      // read the state it just set; every brush surface in this component keeps a ref that is written
+      // on each render, and the rail is no exception.
+      railBrushRef.current = brush !== null && brush.rail === true ? brush : null
+      const rail = liveChain.length < 2 ? null : React.createElement('svg', {
+        ref: railRef,
+        className: CLASS.rail,
+        viewBox: `0 0 ${RAIL.width} ${RAIL.height}`,
+        role: 'img',
+        'aria-label': `The value axis' whole extent, with the window on it: ${valueWindowLabel(values, spec.digits)}`,
+        onPointerDown: (event) => {
+          if (event.button !== 0 || railRef.current === null) return
+          const at = railPixelFromEvent(event)
+          railRef.current.setPointerCapture?.(event.pointerId)
+          setBrush({ from: at, to: at, rail: true })
+        },
+        onPointerMove: (event) => {
+          if (railRef.current === null) return
+          const at = railPixelFromEvent(event)
+          setBrush((current) => (current === null || current.rail !== true
+            ? current : { from: current.from, to: at, rail: true }))
+        },
+        onPointerUp: (event) => {
+          railRef.current?.releasePointerCapture?.(event.pointerId)
+          const current = railBrushRef.current
+          setBrush(null)
+          if (current === null) return
+          if (Math.abs(current.to - current.from) < MIN_BRUSH_PIXELS) {
+            // A click, not a drag: keep the window's HEIGHT and move it to where the click landed -
+            // the same gesture the strip under the chart has, one axis over.
+            const half = (values.hi - values.lo) / 2
+            const centre = railAt(current.to)
+            showYWindow({ lo: centre - half, hi: centre + half })
+            return
+          }
+          showYWindow(brushRangeAt(current.from, current.to, railAt))
+        },
+      },
+      // THE WINDOW ON THE RAIL, drawn between the extent's ends. The rectangle comes from
+      // `railWindowPixels`, which is where the y inversion lives.
+      //
+      // THERE IS NO SPINE DOWN THE RAIL, and its absence is deliberate: at auto the window covers the
+      // whole extent, so a line marking the extent would sit exactly under the window's own edges and
+      // be invisible - a mark that only appears once the reader zooms is a mark that cannot be used to
+      // judge the zoom. The window's edges ARE the extent when they are at its ends, and that is the
+      // reading wanted.
+      React.createElement('rect', {
+        key: 'rail-window', className: CLASS.railWindow,
+        x: RAIL.padLeft, width: railInner,
+        y: railWindowPixels(values, railExtent, railInnerH).y,
+        height: railWindowPixels(values, railExtent, railInnerH).height,
+      }),
+      // AND THE BRUSH, drawn while the reader is dragging.
+      brush !== null && brush.rail === true
+        && Math.abs(brush.to - brush.from) >= 1
+        ? React.createElement('rect', {
+          key: 'rail-brush', className: CLASS.railBrush,
+          x: RAIL.padLeft, width: railInner,
+          y: Math.min(brush.from, brush.to),
+          height: Math.max(1, Math.abs(brush.to - brush.from)),
+        })
+        : null)
 
       // The strip is the whole run at a stable scale, with the window drawn on
       // it: the reader can see where they are in the run and jump anywhere,
@@ -3579,7 +3722,13 @@ window.__ModuleLoader__.load({
         'the two lines carry different units and are drawn on different scales'))
 
       return React.createElement(React.Fragment, null,
-        windowRow, chart, legend, overview,
+        windowRow,
+        // THE RAIL AND THE FRAME SIDE BY SIDE. `align-items: flex-start` and the rail's fixed width
+        // keep the rail's top edge on the chart's, so a reader comparing a value against the frame
+        // reads across a level line rather than estimating an offset. The rail is a sibling of the
+        // chart and not a child of it: it must not clip, and it must not take the chart's own drags.
+        React.createElement('div', { className: CLASS.railFrame }, rail, chart),
+        legend, overview,
         breakRegister(breaks, {
           range, bounds, chainX, liveX: liveChain.length > 0
             ? liveChain[liveChain.length - 1][0] : Math.round(bounds.hi),
@@ -4328,6 +4477,12 @@ window.__ModuleLoader__.load({
       yTag,
       valueAtY,
       Y_MIN_WINDOW_FRACTION,
+      // THE RAIL'S PIECES: the generic brush the horizontal strip and the vertical rail both go
+      // through, its readout, and its geometry.
+      brushRangeAt,
+      valueWindowLabel,
+      RAIL,
+      railWindowPixels,
       resolveSelection,
       splitOffered,
       disclosureForced,

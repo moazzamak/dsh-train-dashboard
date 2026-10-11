@@ -700,30 +700,28 @@ test('the window controls are labelled buttons and the chart takes focus', () =>
   })
 
   const buttons = elementsWithClass(tree, 'dshtd-window-button')
-  // EIGHT SINCE 11 OCTOBER 2026, and the count is worth stating because the first version of this
-  // assertion said six: three for the leg axis - zoom out, zoom in, Reset - and FIVE for the value
-  // axis, which the user asked for: `-y`, `+y`, `↑y`, `↓y` and `y auto`. The two pan buttons are easy
-  // to forget when reading the row, which is exactly why the assertion names them.
-  assert.equal(buttons.length, 8, 'three for the leg axis and five for the value axis')
-  const labels = buttons.map((b) => b.props['aria-label'])
-  for (const wanted of ['Zoom out', 'Zoom in', 'Reset to the whole run',
-    'Zoom the value axis out', 'Zoom the value axis in',
-    'Pan the value axis up', 'Pan the value axis down', 'Reset the value axis']) {
-    assert.ok(labels.includes(wanted), `the row must carry ${wanted}`)
-  }
+  // BACK TO THREE, 11 October 2026. They were eight for an hour: the value axis' five buttons - `-y`,
+  // `+y`, `↑y`, `↓y`, `y auto` - were added and then removed the same day, because the user replaced
+  // them with the rail: "instead of having +y -y buttons just show a vertical window to the left of
+  // the graph that I can drag-select exactly like the x-axis zoom feature". So the row is the leg
+  // axis' own three again, and the value axis is reached by dragging the rail or by the Shift-keys.
+  assert.equal(buttons.length, 3, 'zoom out, zoom in, and Reset for the leg axis')
   for (const button of buttons) {
     assert.equal(typeof button.props['aria-label'], 'string',
       'an icon-only control without a label is unreadable to a screen reader')
   }
-  // The divider that says the row changes axis, which is what keeps eight buttons from reading as one
-  // undifferentiated set.
-  assert.equal(elementsWithClass(tree, 'dshtd-window-divider').length, 1,
-    'the row must say where it changes axis')
-  // AND NO SLIDER: the first version of the value-axis control was a range input carrying a scale
-  // factor, and it is gone. Asserted as an absence so a future change cannot quietly reintroduce the
-  // factor mechanism beside the window one.
+  // THE RAIL IS BESIDE THE FRAME, not in the control row, and it carries the window's own
+  // geometry: a spine for the extent, the window drawn on it, and a brush while dragging.
+  assert.equal(elementsWithClass(tree, 'dshtd-rail').length, 1,
+    'the value axis must have its overview to the left of the frame')
+  assert.equal(elementsWithClass(tree, 'dshtd-rail-window').length, 1,
+    'the rail must draw the window on it, which is what makes it an overview and not a scrollbar')
+  const railFrame = elementsWithClass(tree, 'dshtd-rail-frame')
+  assert.equal(railFrame.length, 1, 'the rail and the chart must be laid out side by side')
+  // AND NO BUTTONS FOR THE VALUE AXIS, asserted as an absence so the row cannot quietly grow them
+  // back beside the rail, which would be two controls for one window.
   assert.equal(elementsWithClass(tree, 'dshtd-scale-slider').length, 0,
-    'the factor slider was replaced by the window mechanism and must not come back')
+    'the factor slider is gone and must not come back')
 
   const chart = elementsWithClass(tree, 'dshtd-chart')[0]
   assert.ok(chart, 'the frame must be drawn')
@@ -733,6 +731,68 @@ test('the window controls are labelled buttons and the chart takes focus', () =>
     'the label must carry the numbers the picture carries')
   assert.equal(elementsWithClass(tree, 'dshtd-overview').length, 1,
     'the reader needs the whole run to see where the window sits in it')
+})
+
+test('the rail draws the window at the right end of an inverted axis', () => {
+  // THE RAIL IS THE x-OVERVIEW TURNED ON ITS SIDE, so the one thing it must not get wrong is the
+  // inversion: SVG's y grows downward while the value axis grows upward. A rail that drew the window
+  // at the wrong end would leave the chart's axis where it was, which reads as a rail that ignores the
+  // reader rather than as an inversion - so the arithmetic is pinned rather than eyeballed.
+  const extent = { lo: 0, hi: 100 }
+  const inner = 200
+  const top = t.CHART.padTop
+  // the whole extent fills the rail exactly
+  const whole = t.railWindowPixels(extent, extent, inner)
+  assert.equal(whole.y, top, 'a window equal to the extent must start at the top')
+  assert.equal(whole.height, inner, 'and fill the rail')
+  // A WINDOW AT THE TOP OF THE VALUES SITS AT THE TOP OF THE STRIP. This is the assertion the
+  // inversion turns on: {80,100} is the HIGH end of the axis, so its y must be the SMALLER number.
+  const high = t.railWindowPixels({ lo: 80, hi: 100 }, extent, inner)
+  assert.equal(high.y, top, 'the top of the values is the top of the strip')
+  assert.equal(high.height, inner * 0.2, 'a fifth of the extent is a fifth of the rail')
+  // and the low end at the bottom
+  const low = t.railWindowPixels({ lo: 0, hi: 20 }, extent, inner)
+  assert.equal(low.y, top + inner * 0.8, 'the bottom of the values is the bottom of the strip')
+  assert.equal(low.height, inner * 0.2)
+  // the middle
+  const mid = t.railWindowPixels({ lo: 40, hi: 60 }, extent, inner)
+  assert.equal(mid.y, top + inner * 0.4)
+  // A FULLY-ZOOMED WINDOW IS STILL DRAWN: a zero-height rect renders as nothing at all, so the floor
+  // of one pixel is what keeps "I am zoomed all the way in" from looking like "there is no window".
+  const pin = t.railWindowPixels({ lo: 50, hi: 50 }, extent, inner)
+  assert.equal(pin.height, 1, 'a zero-span window must still be a visible line')
+})
+
+test('the rail and the strip under the chart share one brush function', () => {
+  // THE TWO RAILS ARE ONE FUNCTION. `brushRangeAt` takes the pixel-to-value mapping as an argument,
+  // which is what let the vertical axis reuse the horizontal one instead of copying it; a copy is how
+  // two rails start disagreeing about whether a backwards drag is a valid selection.
+  const at = (px) => px / 2 // 0..200 pixels maps to 0..100 values
+  // a forward drag
+  assert.deepEqual(t.brushRangeAt(20, 80, at), { lo: 10, hi: 40 })
+  // A BACKWARDS DRAG IS THE SAME WINDOW, ordered: dragging up the rail and dragging down it mean the
+  // same selection, and a brush that returned {40,10} would hand a lo > hi window to the clamp.
+  assert.deepEqual(t.brushRangeAt(80, 20, at), { lo: 10, hi: 40 })
+  // a zero-width drag is a point, not an error
+  assert.deepEqual(t.brushRangeAt(50, 50, at), { lo: 25, hi: 25 })
+  // AND `brushRange` IS THIS FUNCTION, not a second copy of the same two lines
+  const plot = { left: 0, right: 200, lo: 0, hi: 100 }
+  assert.deepEqual(t.brushRange(20, 80, plot), t.brushRangeAt(20, 80, (px) => t.valueAt(px, plot)))
+})
+
+test('the value window readout tells two nearby values apart', () => {
+  // A WINDOW READOUT MUST PRINT A WINDOW. The series this was written for lives between about 2.14 and
+  // 2.15, so a readout rounded to the series' own digits would print the same pair at every zoom
+  // level - which is worse than no readout, because it looks like a control that does nothing.
+  // `valueWindowLabel` adds the digits that separate the ends.
+  const narrow = t.valueWindowLabel({ lo: 2.1454, hi: 2.1492 }, 3)
+  const ends = narrow.split(' to ')
+  assert.equal(ends.length, 2, `a window readout must name both ends, got ${narrow}`)
+  assert.notEqual(ends[0], ends[1],
+    `the two ends of a real window must print differently, got ${narrow}`)
+  // auto is named rather than printed as a pair of numbers
+  assert.equal(t.valueWindowLabel(null), 'the whole extent')
+  assert.equal(t.valueWindowLabel(undefined), 'the whole extent')
 })
 
 test('the value axis reuses the x zoom mechanism and not a parallel one', () => {
