@@ -700,21 +700,30 @@ test('the window controls are labelled buttons and the chart takes focus', () =>
   })
 
   const buttons = elementsWithClass(tree, 'dshtd-window-button')
-  // FOUR SINCE 11 OCTOBER 2026: zoom out, zoom in, Reset for the x window, and `Y auto` for the Y
-  // ruler added at the user's request. The ruler's own slider is a fifth control and is not a button,
-  // so it is asserted separately below rather than counted here.
-  assert.equal(buttons.length, 4, 'zoom out, zoom in, Reset, and Y auto')
+  // EIGHT SINCE 11 OCTOBER 2026, and the count is worth stating because the first version of this
+  // assertion said six: three for the leg axis - zoom out, zoom in, Reset - and FIVE for the value
+  // axis, which the user asked for: `-y`, `+y`, `↑y`, `↓y` and `y auto`. The two pan buttons are easy
+  // to forget when reading the row, which is exactly why the assertion names them.
+  assert.equal(buttons.length, 8, 'three for the leg axis and five for the value axis')
+  const labels = buttons.map((b) => b.props['aria-label'])
+  for (const wanted of ['Zoom out', 'Zoom in', 'Reset to the whole run',
+    'Zoom the value axis out', 'Zoom the value axis in',
+    'Pan the value axis up', 'Pan the value axis down', 'Reset the value axis']) {
+    assert.ok(labels.includes(wanted), `the row must carry ${wanted}`)
+  }
   for (const button of buttons) {
     assert.equal(typeof button.props['aria-label'], 'string',
       'an icon-only control without a label is unreadable to a screen reader')
   }
-  // The ruler's slider must carry a label too: it is the one control here whose meaning is not in its
-  // text, and a range input with no accessible name is announced as an unlabelled slider.
-  const sliders = elementsWithClass(tree, 'dshtd-scale-slider')
-  assert.equal(sliders.length, 1, 'the Y ruler must be drawn')
-  assert.equal(typeof sliders[0].props['aria-label'], 'string',
-    'the ruler is a range input and needs an accessible name')
-  assert.equal(sliders[0].props.type, 'range')
+  // The divider that says the row changes axis, which is what keeps eight buttons from reading as one
+  // undifferentiated set.
+  assert.equal(elementsWithClass(tree, 'dshtd-window-divider').length, 1,
+    'the row must say where it changes axis')
+  // AND NO SLIDER: the first version of the value-axis control was a range input carrying a scale
+  // factor, and it is gone. Asserted as an absence so a future change cannot quietly reintroduce the
+  // factor mechanism beside the window one.
+  assert.equal(elementsWithClass(tree, 'dshtd-scale-slider').length, 0,
+    'the factor slider was replaced by the window mechanism and must not come back')
 
   const chart = elementsWithClass(tree, 'dshtd-chart')[0]
   assert.ok(chart, 'the frame must be drawn')
@@ -724,6 +733,78 @@ test('the window controls are labelled buttons and the chart takes focus', () =>
     'the label must carry the numbers the picture carries')
   assert.equal(elementsWithClass(tree, 'dshtd-overview').length, 1,
     'the reader needs the whole run to see where the window sits in it')
+})
+
+test('the value axis reuses the x zoom mechanism and not a parallel one', () => {
+  // THE USER'S CORRECTION, 11 October 2026: "the ruler isnt working correctly. make it reuse the x
+  // axis zoom feature's mechanism but in the other axis." The first version was a slider carrying a
+  // scale FACTOR, which does not work: a factor multiplies a base the component recomputes every
+  // render, so the same stored number means a different axis each time the data or the x window moves.
+  //
+  // THE MECHANISM IS REUSED AS CODE AND NOT AS A COPY, and that is what this asserts: the vertical
+  // axis goes through `zoomRange`, `panRange` and `clampRange` themselves - the same functions the
+  // leg axis uses - so a bug fixed in one is fixed in both, and there is no second implementation to
+  // drift. Each is exercised here against a VALUE window to show it never depended on legs.
+  const auto = { lo: 2.0, hi: 3.0 }
+  // zoom: a factor below one narrows about the anchor
+  assert.deepEqual(t.zoomRange(auto, 0.5, 2.5), { lo: 2.25, hi: 2.75 })
+  // zoom anchored at an edge holds that edge, which is what makes a wheel over the curve feel right
+  assert.deepEqual(t.zoomRange(auto, 0.5, 2.0), { lo: 2.0, hi: 2.5 })
+  // pan: a fraction of the window's own span, sign included
+  assert.deepEqual(t.panRange(auto, 0.25), { lo: 2.25, hi: 3.25 })
+  assert.deepEqual(t.panRange(auto, -0.25), { lo: 1.75, hi: 2.75 })
+  // clamp: a window that already fits is left alone - clampRange does NOT centre it, it SHIFTS one
+  // that would fall outside. A first version of this line expected the centre to be preserved and was
+  // simply wrong about the function, which is worth recording because a reader who assumes centring
+  // will read a panning bug into correct behaviour.
+  assert.deepEqual(t.clampRange({ lo: 2.4, hi: 2.6 }, auto, 0.1), { lo: 2.4, hi: 2.6 })
+  // a window that hangs off the top is slid back in, keeping its span
+  assert.deepEqual(t.clampRange({ lo: 2.9, hi: 3.4 }, auto, 0), { lo: 2.5, hi: 3.0 })
+  // and one hanging off the bottom likewise
+  assert.deepEqual(t.clampRange({ lo: 1.5, hi: 2.2 }, auto, 0), { lo: 2.0, hi: 2.7 })
+  // a window wider than the extent comes back at the extent, not outside it
+  const wide = t.clampRange({ lo: 0, hi: 10 }, auto, 0)
+  assert.ok(wide.lo >= auto.lo && wide.hi <= auto.hi,
+    `a clamp must keep the window inside auto, got ${JSON.stringify(wide)}`)
+  // AND THE FLOOR IS THE ONE THE CALLER NAMES, which is why one clamp serves both axes: the leg axis
+  // passes a fraction of the RUN, the value axis a fraction of the AUTO EXTENT. A zero-span window
+  // must be widened to the floor rather than collapsing the axis to a line.
+  const narrow = t.clampRange({ lo: 2.5, hi: 2.5 }, auto, 0.5)
+  assert.ok(narrow.hi - narrow.lo >= 0.5 - 1e-9,
+    `the floor must hold, got a span of ${narrow.hi - narrow.lo}`)
+  assert.equal(narrow.hi - narrow.lo, 0.5, 'a zero-span window is widened TO the floor')
+})
+
+test('the value axis remembers its own window under its own key', () => {
+  // ONE STORE, TWO WINDOWS, NO COLLISION. The vertical window travels beside the horizontal one with
+  // a `/y` suffix, so restoring one cannot restore the other by accident - which is exactly what the
+  // shared key would do if the tag had no suffix.
+  assert.equal(t.yTag('phase/wiki_en/ppl_legval'), 'phase/wiki_en/ppl_legval/y')
+  assert.equal(t.rememberedYWindow('tag/a'), null, 'auto is null, the same convention as the x window')
+  t.rememberYWindow('tag/a', { lo: 1, hi: 2 })
+  assert.deepEqual(t.rememberedYWindow('tag/a'), { lo: 1, hi: 2 })
+  // the x window for the same tag is untouched, and vice versa
+  t.rememberWindow('tag/a', { lo: 10, hi: 20 })
+  assert.deepEqual(t.rememberedWindow('tag/a'), { lo: 10, hi: 20 })
+  assert.deepEqual(t.rememberedYWindow('tag/a'), { lo: 1, hi: 2 })
+  // per series
+  assert.equal(t.rememberedYWindow('tag/b'), null)
+  // and null forgets, so reset and never-touched are one state rather than two that look alike
+  t.rememberYWindow('tag/a', null)
+  assert.equal(t.rememberedYWindow('tag/a'), null)
+})
+
+test('the value under a y pixel is the window read upside down', () => {
+  // The vertical axis is inverted against the screen: padTop holds the window's TOP, so the smallest
+  // pixel is the LARGEST value. Getting this backwards is the classic way to make a vertical zoom
+  // feel like it runs away from the cursor, which is one of the things "isnt working correctly" can
+  // mean - so it is pinned rather than assumed.
+  const range = { lo: 2.0, hi: 4.0 }
+  const top = t.CHART.padTop
+  const bottom = t.CHART.height - t.CHART.padBottom
+  assert.equal(t.valueAtY(top, range), 4.0, 'the top pixel is the window hi')
+  assert.equal(t.valueAtY(bottom, range), 2.0, 'the bottom pixel is the window lo')
+  assert.equal(t.valueAtY((top + bottom) / 2, range), 3.0, 'the middle is the middle')
 })
 
 test('the numbers in the readout are the numbers on screen', () => {
@@ -766,55 +847,6 @@ test('the axis is targeted at the live chain and not at the discarded one', () =
   // than squash everything else
   assert.ok(both.hi > liveOnly.hi * 2,
     'the discarded arc reaches far past the live extent, which is why it must not set it')
-})
-
-test('the Y ruler scales about the centre and auto is exactly itself', () => {
-  const range = { lo: 2.0, hi: 3.0 }
-  // 1 IS AUTO, and auto must be the same OBJECT identity or an identical value:
-  // the axis the live chain set, untouched, so "never touched the ruler" and
-  // "pressed reset" are one state rather than two that merely look alike.
-  assert.deepEqual(t.scaleRange(range, 1), range)
-  // A null extent has no centre to scale about and must pass through.
-  assert.equal(t.scaleRange(null, 4), null)
-  // Wider, about the centre: the span multiplies and the middle stays put.
-  assert.deepEqual(t.scaleRange(range, 2), { lo: 1.5, hi: 3.5 })
-  // Narrower, likewise.
-  assert.deepEqual(t.scaleRange(range, 0.5), { lo: 2.25, hi: 2.75 })
-  // A 30x widening - the case the ruler was built for - keeps the centre.
-  const wide = t.scaleRange(range, 30)
-  assert.equal((wide.lo + wide.hi) / 2, 2.5, 'the centre must not move when the ruler does')
-  assert.equal(wide.hi - wide.lo, 30, 'the span is the factor times the auto span')
-  // Nonsense factors fall back to auto rather than collapsing the axis to a line:
-  // a factor of 0 would divide by zero on the way to projectY.
-  for (const bad of [0, -1, Number.NaN, null, undefined, 'x']) {
-    assert.deepEqual(t.scaleRange(range, bad), range, `factor ${String(bad)} must read as auto`)
-  }
-})
-
-test('the ruler remembers per series and forgets at auto', () => {
-  // Reset must be the same state as never having touched it, which is what makes
-  // `rememberedScale` return 1 rather than storing a 1.
-  assert.equal(t.rememberedScale('tag/a'), 1)
-  t.rememberScale('tag/a', 30)
-  assert.equal(t.rememberedScale('tag/a'), 30)
-  // per series, so widening one chart does not move another's axis
-  assert.equal(t.rememberedScale('tag/b'), 1)
-  // and auto forgets rather than storing, so the two states are indistinguishable
-  t.rememberScale('tag/a', 1)
-  assert.equal(t.rememberedScale('tag/a'), 1)
-  t.rememberScale('tag/a', 8)
-  t.rememberScale('tag/a', null)
-  assert.equal(t.rememberedScale('tag/a'), 1, 'a null factor is auto, not an error')
-})
-
-test('the ruler is bounded so it can neither collapse nor hide the data', () => {
-  // A factor of 0 would put every value at one pixel and divide by zero; a factor
-  // of a thousand would put them all inside one. The control's own ends are what
-  // the clamp uses, so the slider and the setter cannot disagree.
-  assert.ok(t.SCALE_MIN > 0, 'the ruler must not reach a zero span')
-  assert.ok(t.SCALE_MAX >= 200,
-    'the ruler must reach far enough to show the discarded arc, whose values are about 2,000x')
-  assert.ok(t.SCALE_MIN < 1 && t.SCALE_MAX > 1, 'auto must be strictly inside the range')
 })
 
 // ---------------------------------------------------------------------------

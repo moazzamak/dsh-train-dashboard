@@ -165,10 +165,9 @@ window.__ModuleLoader__.load({
       windowButton: 'dshtd-window-button',
       windowReadout: 'dshtd-window-readout',
       windowNote: 'dshtd-window-note',
-      //: The Y ruler: a labelled slider, its readout, and the rule it is drawn against.
-      scaleRuler: 'dshtd-scale-ruler',
-      scaleSlider: 'dshtd-scale-slider',
-      scaleReadout: 'dshtd-scale-readout',
+      //: The vertical axis' controls sit in the same row as the horizontal ones, behind a rule that
+      //: says the row is now about the other axis.
+      windowDivider: 'dshtd-window-divider',
       brush: 'dshtd-brush',
       brushEdge: 'dshtd-brush-edge',
       overview: 'dshtd-overview',
@@ -510,26 +509,13 @@ window.__ModuleLoader__.load({
   color: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 10.5px;
   font-variant-numeric: tabular-nums;
 }
-/* THE Y RULER. It sits in the control row beside the x window's buttons and reads as one
-   instrument with them, so it borrows their border and background rather than introducing a
-   second visual language for the same kind of control. The slider itself is left at the
-   platform's own size for the thumb, because a hand-sized target that a reader can hit is worth
-   more here than a hairline that matches the type. */
-.${CLASS.scaleRuler} {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 1px 8px 1px 6px; border-radius: 6px;
-  border: 1px solid var(--dsw-alias-border-l2, #3a3a3a);
-  background: var(--dsw-alias-bg-layer-1, #1d1d1d);
-  cursor: pointer;
-}
-.${CLASS.scaleSlider} {
-  width: 96px; margin: 0; cursor: pointer;
-  accent-color: var(--dsw-alias-label-secondary, #b0b0b0);
-}
-.${CLASS.scaleReadout} {
-  min-width: 34px; text-align: right;
-  color: var(--dsw-alias-label-secondary, #b0b0b0); font-size: 10.5px;
-  font-variant-numeric: tabular-nums;
+/* THE RULE BETWEEN THE TWO AXES' CONTROLS. One row carries six buttons and a readout - three for the
+   leg axis and three for the value axis - and without a mark between them the row reads as one set.
+   The rule says the row changes axis here; the labels carry the rest, since the second group's read
+   "-y", "+y" and "y auto" and the first group's do not. */
+.${CLASS.windowDivider} {
+  width: 1px; height: 16px; margin: 0 2px;
+  background: var(--dsw-alias-border-l2, #3a3a3a);
 }
 /* The chart takes pointer drags for the window, so the browser must not claim
    them for scrolling or text selection. */
@@ -829,9 +815,6 @@ window.__ModuleLoader__.load({
      */
     const chosenSeriesBySession = new Map()
     const windowByTag = new Map()
-    //: The Y ruler's factor per series, beside the x window's own store so the two survive a remount
-    //: together and Reset can forget either without touching the other.
-    const scaleByTag = new Map()
 
     /**
      * The marker categories each session last had switched off, and whether it
@@ -908,26 +891,27 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * The Y ruler: a factor on the vertical window, per series, 1 meaning auto.
+     * The key the VERTICAL window is stored under for one series.
      *
-     * WHY IT IS A FACTOR AND NOT A RANGE. The vertical window's honest default MOVES - it follows the
-     * samples inside the current x window, and it is taken from the live chain alone so the discarded
-     * arc cannot set it. A remembered absolute range would therefore go stale the moment the reader
-     * panned or the run advanced, and would silently pin the axis to a window the data has left. A
-     * FACTOR on whatever the axis would have been keeps the reader's intent - "twice as tall", "half
-     * as tall" - while the centre stays where the data puts it.
-     *
-     * 1 is auto and is the same state as never having touched the ruler, which is what makes Reset and
-     * "freshly loaded" one state rather than two that look alike.
+     * ONE STORE, TWO WINDOWS, AND NO COLLISION. The vertical window travels in the same map as the
+     * horizontal one because both are the same kind of thing - a range the reader chose, restored on
+     * remount - and a separate map would be a second place for the same behaviour to drift. The suffix
+     * is what keeps them apart: a series tag cannot itself end in `/y` and still be a tag, because a
+     * tag's last segment names the metric.
      */
-    function rememberedScale(tag) {
-      return scaleByTag.get(tag) ?? 1
+    function yTag(tag) {
+      return `${tag}/y`
     }
 
-    /** Remember, or forget with 1 or null, how tall one series' axis was left. */
-    function rememberScale(tag, factor) {
-      if (factor === null || factor === undefined || factor === 1) scaleByTag.delete(tag)
-      else scaleByTag.set(tag, factor)
+    /** The vertical window one series was left at, or null for auto. */
+    function rememberedYWindow(tag) {
+      return windowByTag.get(yTag(tag)) ?? null
+    }
+
+    /** Remember, or forget with a null window, the vertical window one series was left at. */
+    function rememberYWindow(tag, range) {
+      if (range === null || range === undefined) windowByTag.delete(yTag(tag))
+      else windowByTag.set(yTag(tag), range)
     }
 
     /**
@@ -1203,20 +1187,17 @@ window.__ModuleLoader__.load({
     /** How far one arrow key pans, as a fraction of the window. */
     const PAN_FRACTION = 0.25
     /**
-     * The Y ruler's span: the shortest and tallest vertical window its slider offers.
+     * The VERTICAL window's own floor: how narrow it may become, as a fraction of the auto extent.
      *
-     * The default is 1, which is auto - the axis the live chain's own bounds set - so the slider's
-     * centre is auto and each end is a deliberate departure from it. `SCALE_MAX` of 400 is chosen for
-     * the case that prompted the ruler: the discarded arc's values reach about 2,000 times the live
-     * arc's, so a reader who wants to see the whole spike needs a factor in the hundreds, and the exact
-     * end is not important as long as it is comfortably past that. `SCALE_MIN` of 0.05 puts the axis on
-     * a twentieth of the live span, which is inside the plateau where twenty legs move a tenth of a
-     * percent.
+     * THE X AXIS' `MIN_WINDOW_FRACTION` IS NOT REUSED, and the reason is the units. That one is a
+     * fraction of the run's LENGTH, so 0.002 of a 500-leg run is a one-leg window. The vertical axis
+     * has no equivalent absolute floor - a value's meaningful resolution depends entirely on the
+     * series - so this is the same idea expressed only in the ratio that does transfer: the window may
+     * not be narrower than a fraction of what auto would have shown. Clamping to the AUTO EXTENT rather
+     * than to a data bound matters too: auto already carries the padding, so a reader who zooms fully
+     * in still sees the padded frame rather than a line.
      */
-    const SCALE_MIN = 0.05
-    const SCALE_MAX = 400
-    /** One press of the ruler's own step buttons, as a factor. */
-    const SCALE_STEP = 1.25
+    const Y_MIN_WINDOW_FRACTION = 0.01
     /** Below this many pixels a drag is a click, not a selection. */
     const MIN_BRUSH_PIXELS = 6
     /**
@@ -1321,28 +1302,6 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Widen or narrow a Y extent about its own centre, by the ruler's factor.
-     *
-     * `1` returns the extent unchanged, which is auto; a factor below one narrows and above one widens,
-     * so the ruler reads the same way round as the x zoom's factor and the arrow beside it. The centre
-     * is held, because the reader's intent when they say "taller" is about the span and not about which
-     * end moves - and holding the centre is what keeps the curve where their eye already is.
-     *
-     * A null extent is passed through, because "no points" has no centre to scale about.
-     * @param range - the auto extent, or null.
-     * @param factor - the ruler's factor; 1 means auto.
-     * @returns the scaled extent, or the input when there is nothing to scale.
-     */
-    function scaleRange(range, factor) {
-      if (range === null || range === undefined) return range
-      const f = Number.isFinite(factor) && factor > 0 ? factor : 1
-      if (f === 1) return range
-      const centre = (range.lo + range.hi) / 2
-      const half = ((range.hi - range.lo) / 2) * f
-      return { lo: centre - half, hi: centre + half }
-    }
-
-    /**
      * The frame's x mapping: which data values its left and right edges hold.
      *
      * `padRight` is a parameter because the frame WIDENS when a second line is
@@ -1377,6 +1336,35 @@ window.__ModuleLoader__.load({
       const a = valueAt(fromPx, plot)
       const b = valueAt(toPx, plot)
       return a <= b ? { lo: a, hi: b } : { lo: b, hi: a }
+    }
+
+    /**
+     * The VALUE under one y pixel, for a given vertical window - `valueAt` one axis over.
+     *
+     * The vertical axis is INVERTED against the screen: `CHART.padTop` is the window's TOP and holds
+     * its `hi`. That inversion is the only thing this does that `valueAt` does not, and it lives here
+     * rather than in each caller so the wheel and anything added later cannot each get it wrong in
+     * their own way.
+     */
+    function valueAtY(py, range) {
+      const top = CHART.padTop
+      const height = CHART.height - CHART.padTop - CHART.padBottom
+      const fraction = (py - top) / height
+      return range.hi - fraction * (range.hi - range.lo)
+    }
+
+    /**
+     * The y pixel of one event, in the drawn frame's own coordinates.
+     *
+     * `chartPixelFromEvent` clamps to the plot's columns; this clamps to its rows, and they are
+     * separate because one clamp cannot serve both axes without lying about one of them.
+     */
+    function chartPixelFromEventY(event, element) {
+      const rect = element.getBoundingClientRect()
+      if (rect.height === 0) return CHART.padTop
+      const raw = ((event.clientY - rect.top) / rect.height) * CHART.height
+      const bottom = CHART.height - CHART.padBottom
+      return Math.min(Math.max(raw, CHART.padTop), bottom)
     }
 
     /**
@@ -2642,18 +2630,21 @@ window.__ModuleLoader__.load({
       // is restored on the next mount, per series, for the same reason the series
       // choice is: this component is remounted by the pane, not by the reader.
       const [view, setView] = React.useState(() => rememberedWindow(spec.tag))
-      //: The Y ruler's factor: 1 is auto, and auto is the axis the live chain's own bounds set. Held in
-      //: state AND in the module store, like the x window, because this component is remounted by the
-      //: pane rather than by the reader - a ruler that forgot itself on a poll would be worse than none.
+      //: The VERTICAL WINDOW, held exactly as the x window is and not as a factor on it.
       //:
-      //: NORMALISED AT THE POINT IT IS READ, and that is not paranoia: this project's own client test
-      //: harness stubs `React.useState` and hands back the state VALUE, which for a state initialised
-      //: from a function is `null` rather than that function's result. Every use of the factor below
-      //: therefore goes through `yScale`, so a harness stub, a snapshot missing the field, or a stored
-      //: value that is not a number all render as auto rather than throwing inside the chart.
-      const [scaleFactorRaw, setScaleFactor] = React.useState(() => rememberedScale(spec.tag))
-      const scaleFactor = Number.isFinite(scaleFactorRaw) && scaleFactorRaw > 0
-        ? scaleFactorRaw : 1
+      //: WHY A WINDOW AND NOT A SCALE FACTOR, which is what the first version of this used. A factor
+      //: has to be multiplied against a base that the component RECOMPUTES on every render - the live
+      //: chain's extent inside the current x window - so the same stored factor means a different
+      //: axis each time the data or the x window moves. The reader drags the ruler, the axis jumps,
+      //: and the control and the picture disagree about what was asked for. A window in the values'
+      //: own units has no such coupling: it says which two values the frame's top and bottom hold,
+      //: and it stays that statement until it is changed.
+      //:
+      //: IT ALSO LETS THE VERTICAL AXIS USE THE HORIZONTAL ONE'S OWN MECHANISM, which is what the user
+      //: asked for: `zoomRange`, `panRange` and `clampRange` never mention the x data, so the buttons,
+      //: the keys, the wheel and the drag below are the same code as the top-of-chart controls, aimed
+      //: at a second window. `null` is auto, which is the same convention the x window uses.
+      const [yView, setYView] = React.useState(() => rememberedWindow(yTag(spec.tag)))
       const [brush, setBrush] = React.useState(null)
       const hostRef = React.useRef(null)
       const brushRef = React.useRef(null)
@@ -2749,11 +2740,20 @@ window.__ModuleLoader__.load({
       // not the ghost is switched on, so hiding the ghost cannot move the axis. That property used to
       // come from including the older chain and now comes from excluding it, which is the stronger
       // form of it.
+      // THE VERTICAL AXIS READS EXACTLY AS THE HORIZONTAL ONE DOES, which is the point of the pairing:
+      //
+      //     x:  bounds = the run's legs            range = view === null ? bounds : view
+      //     y:  auto   = the live chain's extent    values = yView === null ? auto : yView
+      //
+      // `auto` is the value the axis takes when the reader has asked for nothing, and it is what the
+      // vertical controls clamp against and what Reset returns to. Naming it separately from `values`
+      // is what lets the two controls be independent: `values` is what is DRAWN, `auto` is what "auto"
+      // means, and the second has to stay available while the first has been overridden.
       const liveScalePoints = insideLive.length > 0
         ? insideLive
         : pointsToDraw(liveChain, range)
-      const liveValues = valueRange(liveScalePoints)
-      const values = scaleRange(liveValues, scaleFactor)
+      const autoValues = valueRange(liveScalePoints)
+      const values = yView === null ? autoValues : yView
       // The right axis is scaled to the WHOLE SIZE SERIES, and not to the
       // samples inside the window, which is the one place this axis departs from
       // the rule the main axis follows.
@@ -2811,22 +2811,28 @@ window.__ModuleLoader__.load({
       }, [bounds, spec.tag])
 
       /**
-       * Set the Y ruler, clamped to the range the control offers; 1 is auto.
+       * Set the VERTICAL window: the x window's own mechanism, aimed at the values.
        *
-       * CLAMPED TO THE CONTROL'S OWN RANGE RATHER THAN TO THE DATA, because the ruler's factor is a
-       * statement about the axis' height and not about the values: a factor of 0 would collapse the
-       * axis to a line and divide by zero on the way, and a factor of a thousand would put every value
-       * inside one pixel. The bounds are the same ones the slider is built from, so the two cannot
-       * disagree about what the ruler can say.
+       * THIS IS `showWindow` ONE AXIS OVER, deliberately line for line: the same clamp against an
+       * auto extent, the same collapse-to-null when the window covers the whole extent, and the same
+       * remember-before-apply. `bounds` is the automatic vertical extent here where the x version's is
+       * the run's leg range, and `clampRange` needed no change at all - it never mentions the data, so
+       * the floor it enforces comes from the bounds it is handed. That is why the vertical axis could
+       * reuse the horizontal mechanism instead of growing a second one.
+       *
+       * `Y_MIN_WINDOW_FRACTION` of the AUTO extent is the floor: a window narrower than that is inside
+       * the blur of the values themselves, and unbounded zoom on a flat plateau would magnify
+       * rounding into apparent signal.
        */
-      const showScale = React.useCallback((next) => {
-        const wanted = Number(next)
-        const applied = !Number.isFinite(wanted) ? 1
-          : Math.min(SCALE_MAX, Math.max(SCALE_MIN, wanted))
-        const settled = applied === 1 ? 1 : applied
-        rememberScale(spec.tag, settled)
-        setScaleFactor(settled)
-      }, [spec.tag])
+      const showYWindow = React.useCallback((next) => {
+        if (autoValues === null) return
+        const floor = (autoValues.hi - autoValues.lo) * Y_MIN_WINDOW_FRACTION
+        const settled = next === null ? null : clampRange(next, autoValues, floor)
+        const applied = settled === null
+          || (settled.lo <= autoValues.lo && settled.hi >= autoValues.hi) ? null : settled
+        rememberYWindow(spec.tag, applied)
+        setYView(applied)
+      }, [autoValues, spec.tag])
 
       const zoomBy = React.useCallback((factor, anchor) => {
         showWindow(zoomRange(range, factor, anchor))
@@ -2840,10 +2846,23 @@ window.__ModuleLoader__.load({
       const zoomIn = (anchor) => zoomBy(ZOOM_FACTOR, anchor)
       const zoomOut = (anchor) => zoomBy(1 / ZOOM_FACTOR, anchor)
 
+      // THE VERTICAL CONTROLS ARE THE SAME THREE LINES AGAINST THE OTHER WINDOW. `zoomRange` takes a
+      // range and an anchor and knows nothing about which axis it is on, so these are `zoomIn` and
+      // `zoomOut` with `values` in place of `range` and a vertical anchor in place of a leg - not a
+      // second implementation. A pan is `panRange`, likewise unchanged: it moves a range by a fraction
+      // of its own span, which is as true of a value window as of a leg window.
+      const zoomYBy = (factor, anchor) => { showYWindow(zoomRange(values, factor, anchor)) }
+      const zoomYIn = (anchor) => zoomYBy(ZOOM_FACTOR, anchor)
+      const zoomYOut = (anchor) => zoomYBy(1 / ZOOM_FACTOR, anchor)
+      const panY = (fraction) => { showYWindow(panRange(values, fraction)) }
+      /** The middle of the vertical window, which is where a button press zooms about. */
+      const yCentre = () => ((values === null ? 0 : values.lo) + (values === null ? 1 : values.hi)) / 2
+
       // The wheel listener is bound once, so it reads the live window from a ref
       // instead of from the render that installed it.
       const live = React.useRef(null)
-      live.current = { range, bounds, plot }
+      live.current = { range, bounds, plot, values, autoValues, spec,
+        showX: showWindow, showY: showYWindow }
       React.useEffect(() => {
         const host = hostRef.current
         if (host === null) return undefined
@@ -2853,13 +2872,25 @@ window.__ModuleLoader__.load({
           event.preventDefault()
           const current = live.current
           if (current === null) return
-          const anchor = valueAt(chartPixelFromEvent(event, host), current.plot)
           const factor = event.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR
-          showWindow(zoomRange(current.range, factor, anchor))
+          // WHICH AXIS THE WHEEL DRIVES IS DECIDED BY WHERE THE CURSOR IS, and the two zones are the
+          // ones the frame already draws: the row of y labels down the left edge, and the bottom strip
+          // of x labels. Shift forces the vertical axis from anywhere, so a reader who has aimed at a
+          // point on the curve can zoom about THAT VALUE rather than about the axis' middle.
+          const py = chartPixelFromEventY(event, host)
+          const px = chartPixelFromEvent(event, host, current.plot)
+          const onYAxis = event.shiftKey || px <= CHART.padLeft || py >= CHART.height - CHART.padBottom
+          if (onYAxis && current.values !== null) {
+            const anchor = valueAtY(py, current.values)
+            current.showY(zoomRange(current.values, factor, anchor))
+            return
+          }
+          const anchor = valueAt(px, current.plot)
+          current.showX(zoomRange(current.range, factor, anchor))
         }
         host.addEventListener('wheel', onWheel, { passive: false })
         return () => { host.removeEventListener('wheel', onWheel) }
-      }, [showWindow])
+      }, [])
 
       const onPointerDown = (event) => {
         if (event.button !== 0) return
@@ -2888,10 +2919,33 @@ window.__ModuleLoader__.load({
         if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomIn(centre) }
         else if (event.key === '-' || event.key === '_') { event.preventDefault(); zoomOut(centre) }
         else if (event.key === '0' || event.key === 'Escape') { event.preventDefault(); showWindow(null) }
-        // `1` IS AUTO FOR THE Y RULER, and it is a separate key from the window's `0` because they are
-        // separate controls: a reader who has zoomed the x window and widened the y axis wants to give
-        // one of them back without losing the other, which one shared reset could not express.
-        else if (event.key === '1') { event.preventDefault(); showScale(1) }
+        // THE VERTICAL CONTROLS ARE THE HORIZONTAL KEYS WITH SHIFT HELD, which is what makes the two
+        // axes one instrument rather than two sets of bindings to learn:
+        //
+        //     + / -            zoom the x window
+        //     Shift + / -      zoom the value axis
+        //     Left / Right     pan the x window
+        //     Shift Up / Down  pan the value axis
+        //     `0` or Escape    x back to the whole run
+        //     `1` or Shift+0   values back to auto
+        //
+        // Shift+ArrowUp/Down is also the convention a reader already has for a vertical axis, so the
+        // binding is derived rather than invented.
+        else if (event.key === '1' || (event.shiftKey && event.key === ')')) {
+          event.preventDefault(); showYWindow(null)
+        }
+        else if (event.shiftKey && (event.key === '+' || event.key === '=' || event.key === '*')) {
+          event.preventDefault(); zoomYIn(yCentre())
+        }
+        else if (event.shiftKey && (event.key === '-' || event.key === '_')) {
+          event.preventDefault(); zoomYOut(yCentre())
+        }
+        else if (event.key === 'ArrowUp' && event.shiftKey) {
+          event.preventDefault(); panY(PAN_FRACTION)
+        }
+        else if (event.key === 'ArrowDown' && event.shiftKey) {
+          event.preventDefault(); panY(-PAN_FRACTION)
+        }
         else if (event.key === 'ArrowLeft') { event.preventDefault(); showWindow(panRange(range, -PAN_FRACTION)) }
         else if (event.key === 'ArrowRight') { event.preventDefault(); showWindow(panRange(range, PAN_FRACTION)) }
       }
@@ -3328,42 +3382,45 @@ window.__ModuleLoader__.load({
           title: 'Show the whole run ( 0 )', 'aria-label': 'Reset to the whole run',
           onClick: () => { showWindow(null) },
         }, 'Reset'),
-        // THE Y RULER. The x axis has had buttons, keys and a wheel since the window landed; the
-        // vertical one had nothing, and the axis is now targeted at the live chain alone, so a reader
-        // who wants to see how far the discarded arc went has no way to ask. The slider is the ruler:
-        // its centre is auto and each end is a deliberate departure, and it is the only control here
-        // that is not a button, because a factor has a natural continuum and a pair of buttons would
-        // make reaching 200 a chore.
-        React.createElement('label', {
-          className: CLASS.scaleRuler,
-          title: 'Y scale: 1 is automatic, sized to the current arc. Slide up to see how far the '
-            + 'discarded arc went, or down to spread the plateau.',
-        },
-        React.createElement('span', { className: CLASS.hint }, 'Y×'),
-        React.createElement('input', {
-          type: 'range',
-          className: CLASS.scaleSlider,
-          min: String(SCALE_MIN), max: String(SCALE_MAX), step: '0.01',
-          // THE SLIDER IS LOGARITHMIC IN EFFECT AND LINEAR IN FACT, by mapping the factor through
-          // log10: a linear slider from 0.05 to 400 would spend nine tenths of its travel above 40,
-          // where nothing a reader wants lives, and put auto (1) almost at the left end. Read as
-          // log10, auto sits at 42 percent of the travel and each decade gets equal room.
-          value: String(Math.log10(scaleFactor)),
-          'aria-label': 'Y scale factor, logarithmic; 1 is automatic',
-          onChange: (event) => { showScale(10 ** Number(event.target.value)) },
-        }),
-        React.createElement('span', {
-          className: CLASS.scaleReadout, 'aria-live': 'polite',
-        }, scaleFactor === 1 ? 'auto' : `×${scaleFactor < 1
-          ? scaleFactor.toFixed(3) : scaleFactor.toFixed(1)}`),
+        // THE VERTICAL CONTROLS ARE THE HORIZONTAL ROW AGAIN, ONE AXIS OVER. The first version of this
+        // was a slider carrying a scale FACTOR, which does not work: a factor multiplies a base the
+        // component recomputes every render, so the same stored number means a different axis each time
+        // the data or the x window moves, and the control and the picture disagree about what was asked
+        // for. The user's correction was exact - "make it reuse the x axis zoom feature's mechanism but
+        // in the other axis" - and it is also the simpler thing: `zoomRange`, `panRange` and
+        // `clampRange` never mention the x data, so these four buttons, the Shift-keys and the wheel
+        // below drive the value axis through the same functions the top row drives the leg axis.
+        React.createElement('span', { className: CLASS.windowDivider, 'aria-hidden': 'true' }),
         React.createElement('button', {
-          type: 'button', className: CLASS.windowButton, disabled: scaleFactor === 1,
-          title: 'Back to the automatic Y scale ( 1 )', 'aria-label': 'Reset the Y scale',
-          onClick: () => { showScale(1) },
-        }, 'Y auto'),
+          type: 'button', className: CLASS.windowButton, disabled: !(yView !== null),
+          title: 'Zoom the value axis out ( Shift + - )', 'aria-label': 'Zoom the value axis out',
+          onClick: () => { zoomYOut(yCentre()) },
+        }, '−y'),
+        React.createElement('button', {
+          type: 'button', className: CLASS.windowButton,
+          disabled: values === null || (values.hi - values.lo)
+            <= (autoValues.hi - autoValues.lo) * Y_MIN_WINDOW_FRACTION * 1.01,
+          title: 'Zoom the value axis in ( Shift + + )', 'aria-label': 'Zoom the value axis in',
+          onClick: () => { zoomYIn(yCentre()) },
+        }, '+y'),
+        React.createElement('button', {
+          type: 'button', className: CLASS.windowButton, disabled: values === null,
+          title: 'Slide the value axis up ( Shift + Up )', 'aria-label': 'Pan the value axis up',
+          onClick: () => { panY(PAN_FRACTION) },
+        }, '↑y'),
+        React.createElement('button', {
+          type: 'button', className: CLASS.windowButton, disabled: values === null,
+          title: 'Slide the value axis down ( Shift + Down )', 'aria-label': 'Pan the value axis down',
+          onClick: () => { panY(-PAN_FRACTION) },
+        }, '↓y'),
+        React.createElement('button', {
+          type: 'button', className: CLASS.windowButton, disabled: yView === null,
+          title: 'Size the value axis to the current arc ( 1 )', 'aria-label': 'Reset the value axis',
+          onClick: () => { showYWindow(null) },
+        }, 'y auto'),
         React.createElement('span', {
           className: CLASS.windowReadout, 'aria-live': 'polite',
-        }, rangeLabel(range, bounds, ghostAt !== null))))
+        }, rangeLabel(range, bounds, ghostAt !== null)))
 
       // `overlaySegments.length`/`second.label` are part of what the picture
       // says, so they are part of what its accessible name says: a screen reader
@@ -4262,13 +4319,15 @@ window.__ModuleLoader__.load({
       pointsInRange,
       pointsToDraw,
       valueRange,
-      // THE Y RULER'S TWO PIECES, exported so a test can drive them without a DOM: `scaleRange` is what
-      // the ruler does to the axis, and `rememberedScale`/`rememberScale` are its memory.
-      scaleRange,
-      rememberedScale,
-      rememberScale,
-      SCALE_MIN,
-      SCALE_MAX,
+      // THE VERTICAL WINDOW'S PIECES, exported so a test can drive them without a DOM. The zoom and
+      // pan helpers above are deliberately NOT re-exported under new names: the vertical axis uses
+      // `zoomRange` and `panRange` themselves, and a second name for one function is how two
+      // implementations start.
+      rememberedYWindow,
+      rememberYWindow,
+      yTag,
+      valueAtY,
+      Y_MIN_WINDOW_FRACTION,
       resolveSelection,
       splitOffered,
       disclosureForced,
