@@ -27,6 +27,17 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 
+/**
+ * Close enough for a computed float: `Math.pow(10, ...)` and `Math.log10` do not
+ * round-trip exactly, so a value the arithmetic places at 0.08 arrives as
+ * 0.0799999999999983. Comparing those with `===` tests the floating point unit
+ * rather than the code.
+ */
+function closeTo(actual, expected, epsilon = 1e-9, message = '') {
+  assert.ok(Math.abs(actual - expected) <= epsilon,
+    `${message}${message === '' ? '' : ': '}expected ${expected} +/- ${epsilon}, got ${actual}`)
+}
+
 /** Minimal React: nothing is mounted, but elements keep their shape so a test
  * can walk the tree a component returns. `useMemo` runs its factory because a
  * component's arithmetic depends on it; effects never run. */
@@ -62,6 +73,11 @@ function elementsWithClass(node, name, found = []) {
     && className.split(' ').includes(name)) found.push(node)
   for (const child of node.children ?? []) elementsWithClass(child, name, found)
   return found
+}
+
+/** The same elements, ordered by where they sit on the frame, top first. */
+function elementsByHeight(nodes) {
+  return [...nodes].sort((left, right) => left.props.y - right.props.y)
 }
 
 /**
@@ -684,11 +700,21 @@ test('the window controls are labelled buttons and the chart takes focus', () =>
   })
 
   const buttons = elementsWithClass(tree, 'dshtd-window-button')
-  assert.equal(buttons.length, 3, 'zoom out, zoom in, and reset')
+  // FOUR SINCE 11 OCTOBER 2026: zoom out, zoom in, Reset for the x window, and `Y auto` for the Y
+  // ruler added at the user's request. The ruler's own slider is a fifth control and is not a button,
+  // so it is asserted separately below rather than counted here.
+  assert.equal(buttons.length, 4, 'zoom out, zoom in, Reset, and Y auto')
   for (const button of buttons) {
     assert.equal(typeof button.props['aria-label'], 'string',
       'an icon-only control without a label is unreadable to a screen reader')
   }
+  // The ruler's slider must carry a label too: it is the one control here whose meaning is not in its
+  // text, and a range input with no accessible name is announced as an unlabelled slider.
+  const sliders = elementsWithClass(tree, 'dshtd-scale-slider')
+  assert.equal(sliders.length, 1, 'the Y ruler must be drawn')
+  assert.equal(typeof sliders[0].props['aria-label'], 'string',
+    'the ruler is a range input and needs an accessible name')
+  assert.equal(sliders[0].props.type, 'range')
 
   const chart = elementsWithClass(tree, 'dshtd-chart')[0]
   assert.ok(chart, 'the frame must be drawn')
@@ -706,6 +732,89 @@ test('the numbers in the readout are the numbers on screen', () => {
 
   assert.equal(t.rangeLabel(window, bounds), 'steps 150–350 · 200 of 500 shown',
     'the readout must describe the window the axis was scaled to, not the series')
+})
+
+// ---------------------------------------------------------------------------
+// The Y ruler, added 11 October 2026 at the user's request: "I would like to use
+// only the current arc's bounds as scaling targets. and in addition I would like
+// to have a scale ruler of sorts which I can use to manually scale out if I want
+// to see more things along with a reset button."
+//
+// The measured reason the first half exists. On the live run the discarded arc
+// reached 7.7961 bpb - a perplexity of 10,305,465 - against the current arc's 83
+// to 150. While both chains set the extent, everything the current arc has done
+// occupies about eight ten-thousandths of one percent of the axis height, so the
+// whole of its real movement draws as a flat line one pixel tall. The user was
+// looking at exactly that when they asked.
+// ---------------------------------------------------------------------------
+
+test('the axis is targeted at the live chain and not at the discarded one', () => {
+  // The two chains share a re-based x on a rolled-back run, so these are the same
+  // x range with the ghost reaching a hundred times higher.
+  const live = [[0, 2.4], [1, 2.35], [2, 2.14]]
+  const ghost = [[0, 4.9], [1, 7.8], [2, 6.9]]
+
+  const liveOnly = t.valueRange(live)
+  const both = t.valueRange([...ghost, ...live])
+
+  // THE CLAIM: the ghost's values must not enter the extent. Recomputing over both
+  // is what made the chart flat, so the two must differ by the ghost's reach.
+  assert.ok(liveOnly.hi < both.hi, 'the ghost must NOT be in the extent any more')
+  assert.ok(liveOnly.hi < 2.6,
+    `the live chain tops out near 2.4 and its extent must sit just above it, got ${liveOnly.hi}`)
+  // and the ghost's own top is far outside it, which is what makes it clip rather
+  // than squash everything else
+  assert.ok(both.hi > liveOnly.hi * 2,
+    'the discarded arc reaches far past the live extent, which is why it must not set it')
+})
+
+test('the Y ruler scales about the centre and auto is exactly itself', () => {
+  const range = { lo: 2.0, hi: 3.0 }
+  // 1 IS AUTO, and auto must be the same OBJECT identity or an identical value:
+  // the axis the live chain set, untouched, so "never touched the ruler" and
+  // "pressed reset" are one state rather than two that merely look alike.
+  assert.deepEqual(t.scaleRange(range, 1), range)
+  // A null extent has no centre to scale about and must pass through.
+  assert.equal(t.scaleRange(null, 4), null)
+  // Wider, about the centre: the span multiplies and the middle stays put.
+  assert.deepEqual(t.scaleRange(range, 2), { lo: 1.5, hi: 3.5 })
+  // Narrower, likewise.
+  assert.deepEqual(t.scaleRange(range, 0.5), { lo: 2.25, hi: 2.75 })
+  // A 30x widening - the case the ruler was built for - keeps the centre.
+  const wide = t.scaleRange(range, 30)
+  assert.equal((wide.lo + wide.hi) / 2, 2.5, 'the centre must not move when the ruler does')
+  assert.equal(wide.hi - wide.lo, 30, 'the span is the factor times the auto span')
+  // Nonsense factors fall back to auto rather than collapsing the axis to a line:
+  // a factor of 0 would divide by zero on the way to projectY.
+  for (const bad of [0, -1, Number.NaN, null, undefined, 'x']) {
+    assert.deepEqual(t.scaleRange(range, bad), range, `factor ${String(bad)} must read as auto`)
+  }
+})
+
+test('the ruler remembers per series and forgets at auto', () => {
+  // Reset must be the same state as never having touched it, which is what makes
+  // `rememberedScale` return 1 rather than storing a 1.
+  assert.equal(t.rememberedScale('tag/a'), 1)
+  t.rememberScale('tag/a', 30)
+  assert.equal(t.rememberedScale('tag/a'), 30)
+  // per series, so widening one chart does not move another's axis
+  assert.equal(t.rememberedScale('tag/b'), 1)
+  // and auto forgets rather than storing, so the two states are indistinguishable
+  t.rememberScale('tag/a', 1)
+  assert.equal(t.rememberedScale('tag/a'), 1)
+  t.rememberScale('tag/a', 8)
+  t.rememberScale('tag/a', null)
+  assert.equal(t.rememberedScale('tag/a'), 1, 'a null factor is auto, not an error')
+})
+
+test('the ruler is bounded so it can neither collapse nor hide the data', () => {
+  // A factor of 0 would put every value at one pixel and divide by zero; a factor
+  // of a thousand would put them all inside one. The control's own ends are what
+  // the clamp uses, so the slider and the setter cannot disagree.
+  assert.ok(t.SCALE_MIN > 0, 'the ruler must not reach a zero span')
+  assert.ok(t.SCALE_MAX >= 200,
+    'the ruler must reach far enough to show the discarded arc, whose values are about 2,000x')
+  assert.ok(t.SCALE_MIN < 1 && t.SCALE_MAX > 1, 'auto must be strictly inside the range')
 })
 
 // ---------------------------------------------------------------------------
@@ -942,9 +1051,29 @@ const SHAPE_CSS = {
   diamond: 'clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%)',
   triangle: 'clip-path: polygon(50% 0, 100% 100%, 0 100%)',
   'triangle-down': 'clip-path: polygon(0 0, 100% 0, 50% 100%)',
+  chevron: 'clip-path: polygon(100% 0, 0 50%, 100% 100%, 67% 100%, 33% 50%, 67% 0)',
   bar: 'clip-path: inset(',
   plus: 'clip-path: polygon(35% 0',
 }
+
+test('every registered kind has its own shape and its own colour', () => {
+  // THE TABLES ARE THE CONTRACT between the producer's kinds and the chart: a
+  // kind the producer can serve and this tab has no shape for is drawn as the
+  // unknown plus, which is a shape two different changes can share. Read off the
+  // registered tables rather than off a fixture, so a kind added to one table and
+  // not the other fails here.
+  const kinds = Object.keys(t.MARKER_SHAPES)
+  const shapes = kinds.map((kind) => t.MARKER_SHAPES[kind])
+  assert.equal(new Set(shapes).size, shapes.length,
+    `two kinds share a shape: ${kinds.map((kind) => `${kind}=${t.MARKER_SHAPES[kind]}`).join(' ')}`)
+  for (const kind of kinds) {
+    assert.match(t.kindInk(kind), /^#[0-9a-f]{6}$/, `no colour is registered for ${kind}`)
+  }
+  assert.ok(kinds.includes('rollback'),
+    'the producer serves rollbacks, and a kind with no shape is a joint the reader cannot decode')
+  assert.ok(t.CSS_SOURCE.includes(`.dshtd-break-swatch[data-kind='rollback'] { clip-path: polygon(100% 0`),
+    'the register must draw the rollback shape too, or the chart cannot be decoded from the key')
+})
 
 test('the register and its key draw the same shape as the chart, kind for kind', () => {
   const head = installDocumentStub()
@@ -1065,10 +1194,21 @@ test('a producer that serves only break_leg keeps its marker, and no kind is inv
   assert.equal(marks[0].props['data-leg'], '300')
   assert.equal(marks[0].props['data-kind'], t.DECLARED_KIND)
 
-  const row = textOf(elementsWithClass(tree, 'dshtd-break-row')[0])
-  assert.ok(row.includes("snapshot's own break_leg"))
+  const rowEl = elementsWithClass(tree, 'dshtd-break-row')[0]
+  const row = textOf(rowEl)
+  assert.ok(row.includes('NO KIND'),
+    'the badge says no kind was stated rather than filing the joint under a kind it does not have')
+  assert.equal(rowEl.props['data-kind'], t.DECLARED_KIND)
   assert.match(row, /claims none/,
     'break_leg names a leg and no kind, so the tab must say it is not claiming one')
+  // AND THE PROSE IS BEHIND A DISCLOSURE. The register is a status list: one line
+  // per joint, with the explanation a press away. Laid out flat, this row alone
+  // was a paragraph of meta-explanation - reported 10 October 2026 as "too
+  // verbose, it's unreadable ... walls of text".
+  const why = elementsWithClass(rowEl, 'dshtd-why')[0]
+  assert.ok(why, 'the explanation a reader may want must still be reachable')
+  assert.equal(why.type, 'details')
+  assert.notEqual(why.props.open, true, 'a row that arrives open is the wall of text this replaced')
 })
 
 test('a snapshot with neither breaks nor break_leg draws no markers and no register', () => {
@@ -1109,9 +1249,15 @@ test('the frontier is drawn as an expectation, with the snapshot\'s sentence and
   const block = textOf(elementsWithClass(tree, 'dshtd-frontier')[0])
   assert.ok(block.includes(sentence), 'the snapshot\'s own frontier sentence is shown as served')
   assert.match(block, /EXPECTED, NOT OBSERVED/)
-  assert.match(block, /DIRECTION and not a magnitude/,
+  assert.match(block, /a direction from the producer's budget, not a measurement/,
     'the leg is a projection and the rise is a registered direction: the reader has to be told which')
-  assert.match(block, /a rise in bits per byte is EXPECTED there/)
+  assert.match(block, /a rise in bpb is EXPECTED there/)
+  // The head line is the status; the sentence and the caveat are the answer to a
+  // question the reader has afterwards. See `breakRow` for the report.
+  const why = elementsWithClass(elementsWithClass(tree, 'dshtd-frontier')[0], 'dshtd-why')[0]
+  assert.ok(why, 'the producer\'s own words must stay reachable')
+  assert.equal(why.type, 'details')
+  assert.notEqual(why.props.open, true)
 })
 
 test('a frontier past the end of the series says where its line went', () => {
@@ -1127,8 +1273,11 @@ test('a frontier past the end of the series says where its line went', () => {
   assert.equal(elementsWithClass(tree, 'dshtd-frontier-mark').length, 0,
     'a leg past the last point of the series cannot be drawn')
   const block = textOf(elementsWithClass(tree, 'dshtd-frontier')[0])
-  assert.match(block, /past the last point/, 'the missing line needs its reason, or the reader hunts for it')
-  assert.match(block, /leg 500/)
+  assert.match(block, /appears when this pass has run 900 legs \(leg 900 of the run\)/,
+    'the missing line needs its reason in one line, or the reader hunts for it')
+  assert.match(block, /it has run 500/,
+    'and the one number that explains why it is missing. The wording is the pass\'s legs AND the '
+    + 'run\'s leg, because on a chart where both passes start at 0 the two are not the same number')
 })
 
 test('an imminent frontier reads AT LEG, because there is nothing left to predict', () => {
@@ -1157,6 +1306,76 @@ test('a frontier with no corpus after it says so rather than naming a leg', () =
   }))
 
   assert.match(t.frontierTagText(frontier), /no further corpus change is scheduled ahead/)
+})
+
+test('the leg the producer names wins over this tab\'s own derivation', () => {
+  // The producer knows the budget the projection comes from; this tab's rule is
+  // the same rule and stays as the fallback for a producer that predates the
+  // key. Where both are present the served leg is the one drawn, or a snapshot
+  // that states where its frontier belongs would be overruled by a copy.
+  const served = t.readFrontier(snapshotWith({
+    frontier: {
+      phase_now: 'a', next_phase: 'b', boundary_leg: 1, next_leg: 690,
+      chart_leg: 690, legs_in_phase: 689, legs_remaining: 680,
+      expected_to_raise_bpb: true, imminent: false, sentence: '',
+    },
+  }))
+  assert.equal(t.frontierLeg(served), 690,
+    'a nine-leg-old run anchors its frontier at leg 1 without this, which reads as a stale entry')
+
+  // A producer that serves no chart_leg still gets the leg from the rule.
+  const older = t.readFrontier(snapshotWith({
+    frontier: {
+      phase_now: 'a', next_phase: 'b', boundary_leg: 1, next_leg: 690,
+      legs_in_phase: 689, legs_remaining: 680,
+      expected_to_raise_bpb: true, imminent: false, sentence: '',
+    },
+  }))
+  assert.equal(t.frontierLeg(older), 690)
+})
+
+test('the frontier head says where the run is before where it is going', () => {
+  // The report, 10 October 2026: "we are not at step 690 we restarted and are at
+  // 10-ish". The projection was right and the line led with it, so a reader at
+  // leg 12 was told "expected around leg 690" with nothing saying where he stood.
+  const frontier = t.readFrontier(snapshotWith({
+    frontier: {
+      phase_now: 'wiki_en', next_phase: 'arxiv', boundary_leg: 1, next_leg: 690,
+      chart_leg: 690, newest_leg: 12, legs_in_phase: 689, legs_remaining: 677,
+      expected_to_raise_bpb: true, imminent: false, sentence: '',
+    },
+  }))
+
+  const text = t.frontierTagText(frontier, frontier.newestLeg)
+  assert.match(text, /now at leg 12/)
+  assert.match(text, /around leg 690 \(678 leg\(s\) ahead\)/)
+  assert.ok(text.indexOf('now at leg 12') < text.indexOf('690'),
+    'the position comes first, or the projection reads as the position')
+  assert.equal(frontier.newestLeg, 12)
+
+  // A producer that serves no newest leg gets the old head, unchanged.
+  assert.ok(!/now at leg/.test(t.frontierTagText(frontier)))
+})
+
+test('a stopped run says so on the frontier\'s one-line head', () => {  const stopped = t.readFrontier(snapshotWith({
+    frontier: {
+      phase_now: 'wiki_en', next_phase: 'arxiv', boundary_leg: 1, next_leg: 690,
+      chart_leg: 690, legs_in_phase: 689, legs_remaining: 680,
+      expected_to_raise_bpb: true, imminent: false, stopped: true, sentence: 's',
+    },
+  }))
+  assert.match(t.frontierTagText(stopped), /^the run has STOPPED/,
+    'an expectation for a run that stopped is a stale entry unless the head says so')
+
+  const live = t.readFrontier(snapshotWith({
+    frontier: {
+      phase_now: 'wiki_en', next_phase: 'arxiv', boundary_leg: 1, next_leg: 690,
+      chart_leg: 690, legs_in_phase: 689, legs_remaining: 680,
+      expected_to_raise_bpb: true, imminent: false, sentence: 's',
+    },
+  }))
+  assert.ok(!/STOPPED/.test(t.frontierTagText(live)),
+    'a running pass must not be announced as stopped')
 })
 
 test('markers close together are stacked, so no two labels write over each other', () => {
@@ -1202,3 +1421,1549 @@ test('the chart\'s accessible name carries the markers, so the picture is not th
   assert.match(chart.props['aria-label'], /break marker/)
   assert.match(chart.props['aria-label'], new RegExp(`${ALL_KINDS.length} of ${ALL_KINDS.length}`))
 })
+
+// ---------------------------------------------------------------------------
+// The second line: the seed model's size, on the axis on the right.
+//
+// The tab draws ONE series at a time on its own axis, because series carry
+// different units. This is the exception the reader asked for, and it is only
+// honest if the frame SAYS the two scales are different: the right-hand axis,
+// the dash pattern and the legend are what make it readable rather than
+// misleading, so each of those is pinned here.
+// ---------------------------------------------------------------------------
+
+/** A seed model that grows from leg to leg, in parameters.
+ *
+ * The values are the run's own readings, off the size series: the first is the
+ * 385 live rows the gate first reported at leg 66 plus the tick table, and the
+ * last is 7,096 live rows at leg 575 onward. Using a rounder pair here once hid
+ * a real defect - a 1.33x span covers the whole log axis, so a test written on
+ * it asserted a step was 100 percent of the frame and passed.
+ */
+const SEED_PARAMS = [
+  [10, 17_050_000],
+  [125, 20_196_000],
+  [300, 21_062_000],
+  [500, 22_217_000],
+]
+
+/** A payload whose only series is the seed's size. */
+function seedPayload(overrides = {}) {
+  return snapshotWith({
+    series: [
+      { tag: 'train/loss', points: BREAK_SERIES },
+      { tag: 'train/seed_model_params', source: 'leg logs', points: SEED_PARAMS },
+    ],
+    ...overrides,
+  })
+}
+
+test('the seed size is drawn as a second line and never offered as a chip', () => {
+  const offered = t.availableSeries(seedPayload())
+  const tags = offered.map((item) => item.tag)
+
+  assert.ok(!tags.includes('train/seed_model_params'),
+    'a chip for a series already drawn under the curve is a second way to ask for one picture')
+  assert.ok(!tags.includes('train/seed_read_rows'))
+  assert.ok(tags.includes('train/loss'), 'the other series are unaffected')
+
+  const overlay = t.resolveOverlay(seedPayload())
+  assert.equal(overlay.tag, 'train/seed_model_params')
+  assert.equal(overlay.unit, 'M params')
+  assert.equal(overlay.scale, 1e-6, 'parameters are charted in millions, as the trainer prints them')
+})
+
+test('the total parameter count is preferred, and the row count is the fallback', () => {
+  const both = t.resolveOverlay(seedPayload())
+  assert.equal(both.tag, 'train/seed_model_params')
+
+  const rowsOnly = t.resolveOverlay(snapshotWith({
+    series: [{ tag: 'train/seed_read_rows', points: [[10, 7096], [500, 7471]] }],
+  }))
+  assert.equal(rowsOnly.tag, 'train/seed_read_rows',
+    'a producer that serves only the row count still gets a second line')
+  assert.equal(rowsOnly.unit, 'rows')
+})
+
+test('a snapshot with no seed size draws no second axis at all', () => {
+  const payload = snapshotWith({ series: [{ tag: 'train/loss', points: BREAK_SERIES }] })
+
+  assert.equal(t.resolveOverlay(payload), null)
+
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: null })
+  assert.equal(elementsWithClass(tree, 'dshtd-overlay-axis').length, 0,
+    'an axis with no numbers on it is furniture, not information')
+  assert.equal(elementsWithClass(tree, 'dshtd-overlay-line').length, 0)
+  assert.equal(elementsWithClass(tree, 'dshtd-overlay-legend').length, 0)
+})
+
+test('the seed line is drawn against the axis on the RIGHT, and the legend says so', () => {
+  const payload = seedPayload()
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: t.resolveOverlay(payload) })
+
+  const axis = elementsWithClass(tree, 'dshtd-overlay-axis')
+  assert.ok(axis.length > 0, 'the second scale must be labelled, or it is a scale nobody can read')
+  const plot = t.plotGeometry({ lo: 10, hi: 500 }, t.CHART.padRight + t.OVERLAY_GUTTER)
+  const ticks = axis.filter((label) => label.props.transform === undefined)
+  assert.ok(ticks.length > 0, 'the axis needs tick numbers')
+  for (const label of ticks) {
+    assert.ok(label.props.x > plot.right,
+      'the overlay\'s labels live in the gutter, never on top of the curve')
+    assert.equal(label.props.textAnchor, 'start', 'they read outward from the axis they belong to')
+    assert.ok(label.props.x + 26 < t.CHART.width,
+      `a tick label at x=${label.props.x} runs out of the frame: the gutter is too narrow`)
+  }
+
+  // THE UNIT IS ROTATED, NOT SQUEEZED BESIDE A NUMBER, AND IT IS SAID ONCE.
+  // `22.00 M params` written flat beside the top tick is wider than any gutter
+  // worth taking out of the plot, which is how it came to run out of the window;
+  // and every scale mark already reads `22.0M`, so a title repeating the `M`
+  // would put the same fact in two places. The marks keep the `M`, the title
+  // carries what it stands for.
+  const units = axis.filter((label) => typeof label.props.transform === 'string')
+  assert.equal(units.length, 1, 'each axis carries its unit once')
+  assert.equal(units[0].children.join(''), 'params',
+    'the scale mark already shows the M, so the title must not repeat it')
+  assert.match(units[0].props.transform, /^rotate\(-90 /)
+  assert.ok(units[0].props.x > plot.right,
+    'the rotated unit sits in the gutter too, at its outer edge')
+
+  // THE UNIT IS SAID ONCE PER AXIS, AND ONLY IN THE ROTATED TITLE. The marks read
+  // `17.4M`, carrying the scale mark the formatter writes; the word those letters
+  // stand for is on the title standing up at the edge, and on the legend. A tick
+  // label repeating it says the same word twice within a few pixels.
+  assert.ok(ticks.some((label) => /M$/.test(label.children.join(''))),
+    'the scale marks are the half that keeps the M')
+  for (const label of ticks) {
+    const text = label.children.join('')
+    assert.ok(!/params/.test(text), `tick "${text}" repeats the rotated title's word`)
+    assert.ok(!/bpb|rows|GiB/.test(text), `tick "${text}" carries a unit word`)
+  }
+  assert.equal(units[0].children.join(''), 'params',
+    'and the rotated title is where that word belongs')
+
+  // The legend is the only thing on screen that says which scale is which.
+  const legend = elementsWithClass(tree, 'dshtd-overlay-legend')[0]
+  assert.ok(legend, 'two lines on two scales must be named, or the frame invites a false comparison')
+  const words = textOf(legend)
+  assert.match(words, /LEFT axis/)
+  assert.match(words, /RIGHT axis/)
+  assert.match(words, /seed model size/)
+  assert.match(words, /M params/)
+  assert.match(words, /different scales/)
+})
+
+test('the left axis names its own unit the same way, and the rows unit is not doubled', () => {
+  // The main axis follows the same rule now, so a reader is never shown one
+  // axis with a unit and another without.
+  const bpb = t.SeriesChart({
+    spec: { ...chartSpec(), unit: 'bpb' },
+    payload: snapshotWith({ series: [{ tag: 'train/loss', points: BREAK_SERIES }] }),
+    overlay: null,
+  })
+  const leftUnits = elementsWithClass(bpb, 'dshtd-axis')
+    .filter((node) => typeof node.props.transform === 'string')
+  assert.equal(leftUnits.length, 1)
+  assert.equal(leftUnits[0].children.join(''), 'bpb')
+
+  // Rows: the unit word is longer than `M`, so it is still the rotated title
+  // that carries it, for the same reason.
+  const rows = t.resolveOverlay(snapshotWith({
+    series: [{ tag: 'train/seed_read_rows', points: [[10, 7096], [500, 7471]] }],
+  }))
+  const tree = t.SeriesChart({ spec: chartSpec(), payload: snapshotWith({}), overlay: rows })
+  const rightUnits = elementsWithClass(tree, 'dshtd-overlay-axis')
+    .filter((node) => typeof node.props.transform === 'string')
+  assert.equal(rightUnits.length, 1)
+  assert.equal(rightUnits[0].children.join(''), 'rows')
+})
+
+// ---------------------------------------------------------------------------
+// The seed-size axis is LOGARITHMIC, and that is a measurement.
+//
+// The growth ladder multiplies, so the size series spans 1.30x over the whole
+// run. A linear axis anchored at zero draws that as 1.6 percent of the frame
+// height - the growth is in the numbers and absent from the picture. On a log
+// axis the same readings are 0.115 decades, and a step is the same fraction of
+// the height however big the model already is.
+// ---------------------------------------------------------------------------
+
+test('the size series is drawn on a log axis, and the spec says so', () => {
+  const overlay = t.resolveOverlay(seedPayload())
+  assert.equal(overlay.axis, t.LOG_SCALE)
+  assert.equal(t.isLogScale(overlay), true)
+  assert.equal(t.isLogScale({ axis: t.LINEAR_SCALE }), false)
+  assert.equal(t.isLogScale(null), false)
+  // `scale` is the numeric unit factor and must not be mistaken for the axis kind.
+  assert.equal(overlay.scale, 1e-6)
+})
+
+test('a log axis floor sits just under the smallest reading, not at zero', () => {
+  const readings = [[65, 17_050_000], [500, 22_217_000]]
+  const range = t.logRange(readings, { lo: 0, hi: 1 })
+  const at = t.logFraction
+
+  assert.equal(range.hi, 22_217_000, 'the maximum is the top of the axis')
+  assert.ok(range.lo < 17_050_000, 'the floor is BELOW the smallest reading, so it is on the axis')
+  assert.ok(range.lo > 15_000_000,
+    `the floor is just under the data, not decades below it: got ${range.lo}`)
+
+  // THE PROPERTY THE FLOOR EXISTS FOR: the smallest reading sits one padding
+  // band above the floor, and the run fills the rest of the frame.
+  const bottom = at(17_050_000, range.lo, range.hi)
+  closeTo(bottom, t.LOG_FLOOR_PADDING, 1e-12, 'the first reading sits one band up')
+  assert.equal(at(22_217_000, range.lo, range.hi), 1)
+
+  // A dataset whose own span is much wider still gets the padding, not a floor
+  // pinned to its minimum: the band scales with the span.
+  const wide = t.logRange([[1, 1_000], [2, 22_217_000]], { lo: 0, hi: 1 })
+  assert.equal(wide.hi, 22_217_000)
+  closeTo(at(1_000, wide.lo, wide.hi), t.LOG_FLOOR_PADDING, 1e-12, 'the band scales with the span')
+
+  // A single reading, or a flat window, is still an axis rather than a division
+  // by nothing - and the reading sits at the top of it.
+  const flat = t.logRange([[1, 5_000_000], [2, 5_000_000]], { lo: 0, hi: 1 })
+  assert.equal(flat.hi, 5_000_000)
+  assert.ok(flat.lo > 0 && flat.lo < 5_000_000)
+  assert.equal(at(5_000_000, flat.lo, flat.hi), 1)
+
+  // Nothing to scale to keeps the range it was given, so an empty axis is still
+  // an axis rather than a division by nothing.
+  assert.deepEqual(t.logRange([], { lo: 0, hi: 1 }), { lo: 0, hi: 1 })
+  assert.deepEqual(t.logRange([[1, 0], [2, -5]], { lo: 0, hi: 1 }), { lo: 0, hi: 1 },
+    'a log axis has no place for a non-positive reading')
+})
+
+test('a log axis spreads 17.05M to 22.22M over the whole frame, where a zero-anchored one does not', () => {
+  // The real series, through the real range function.
+  const readings = [[65, 17_050_000], [125, 20_196_000], [575, 22_217_000], [896, 22_217_000]]
+  const range = t.logRange(readings, { lo: 0, hi: 1 })
+  const at = (value) => t.logFraction(value, range.lo, range.hi)
+
+  const bottom = at(17_050_000)
+  const top = at(22_217_000)
+  closeTo(bottom, t.LOG_FLOOR_PADDING, 1e-12, 'the first reading sits one band above the floor')
+  assert.equal(top, 1)
+  assert.ok(top - bottom > 0.9,
+    `the run must use the frame: it covers ${((top - bottom) * 100).toFixed(1)}% of the axis`)
+
+  // The same readings on a zero-anchored linear axis, which is what the request
+  // for "start from 0" would give and why the log axis is the better reading.
+  const zeroAnchored = (value) => value / 22_217_000
+  assert.ok(zeroAnchored(22_217_000) - zeroAnchored(17_050_000) < 0.25,
+    'anchored at zero the whole run is under a quarter of the frame, and the '
+    + 'ladder itself is under 2 percent of it')
+
+  // A RATIO IS A CONSTANT HEIGHT ON A LOG AXIS, which is why the ladder reads as
+  // a ladder rather than as a line that flattens as the model grows. Measured on
+  // a ratio the real ladder actually takes - one growth deposit, 375 rows on
+  // 7,096, is 1.053x - so the step under test is a step this run has made.
+  const step1 = 7_096 / 6_721
+  const early = at(17_050_000 * step1) - at(17_050_000)
+  const late = at(22_217_000) - at(22_217_000 / step1)
+  closeTo(early, late, 1e-12, 'the same ratio occupies the same height wherever it happens')
+  assert.ok(early > 0 && early < 0.5,
+    `one growth deposit is ${(early * 100).toFixed(1)}% of the frame`)
+
+  // The whole run is 1.303x, so no single step may fill the frame: that would
+  // mean the axis had been widened to nothing.
+  const wholeRun = at(22_217_000) - at(17_050_000)
+  assert.ok(early < wholeRun / 2, 'a step is a fraction of the run, not the run itself')
+})
+
+test('log ticks are evenly spaced, in range, and land on the half-decade grid', () => {
+  const ticks = t.logTicks(5_000_000, 25_000_000, 5)
+
+  assert.ok(ticks.length >= 2)
+  assert.deepEqual(ticks, [...ticks].sort((a, b) => a - b), 'ascending')
+  for (const tick of ticks) {
+    assert.ok(tick >= 5_000_000 && tick <= 25_000_000,
+      `tick ${tick} is outside the axis, where it names a value the frame does not reach`)
+  }
+  // Same ratio, same distance: every adjacent pair is the same multiple, which
+  // is what a log scale's marks have to mean.
+  const ratios = ticks.slice(1).map((tick, at) => tick / ticks[at])
+  for (const ratio of ratios) {
+    closeTo(ratio, ratios[0], 1e-9, `tick spacing is uneven: ${ratios.map((r) => r.toFixed(2))}`)
+  }
+  // The marks are powers of ten at a fixed fraction of a decade, which is the
+  // grid the labels are written from: a mark is `10 ** (n / d)` for integers n
+  // and d, so each is a short decimal in millions rather than an arbitrary
+  // number. NOT "1, 2 or 5 of a decade" - an evenly spaced set of marks cannot
+  // all be those, and asserting it would pin a property the axis cannot have.
+  for (const tick of ticks) {
+    const exponent = Math.log10(tick)
+    const distance = Math.abs(exponent - Math.round(exponent * 5) / 5)
+    assert.ok(distance < 1e-9, `tick ${tick} is off the fifth-decade grid (10^${exponent})`)
+  }
+  assert.deepEqual(t.logTicks(0, 100, 5), [], 'no log ticks below a positive floor')
+  assert.deepEqual(t.logTicks(10, 10, 5), [], 'and none for a range with no span')
+})
+
+test('log ticks use a finer interval when the range is narrow, and stay evenly spaced', () => {
+  // The live series' own range: 16.662M to 22.217M. The obvious rule - one, two
+  // and five per decade - puts marks at 20M and 22M, which sit 2M and 0.2M apart
+  // and so land at wildly different heights for nearly the same pixel gap.
+  const ticks = t.logTicks(16_662_000, 22_217_000, 5)
+
+  assert.ok(ticks.length >= 2, 'a range this wide needs a scale, not one mark')
+  assert.ok(ticks.length <= 5)
+  const positions = ticks.map((tick) => t.logFraction(tick, 16_662_000, 22_217_000))
+  const gaps = positions.slice(1).map((position, at) => position - positions[at])
+  for (const gap of gaps) {
+    closeTo(gap, gaps[0], 1e-9,
+      `marks at uneven heights: ${positions.map((p) => p.toFixed(3))}`)
+  }
+  assert.ok(gaps[0] >= t.LOG_TICK_MIN_GAP,
+    `marks ${(gaps[0] * 100).toFixed(1)}% of the height apart read as one blur`)
+
+  // The marks have to be writable in a short label, or the axis is unreadable
+  // whatever its arithmetic. Every one renders within a few characters.
+  for (const tick of ticks) {
+    const written = t.formatValue(tick, 2)
+    assert.ok(written.length <= 7, `tick ${tick} writes as "${written}", too wide for the gutter`)
+  }
+
+  // A range spanning many decades still gets a set of marks, evenly spaced.
+  const wide = t.logTicks(1, 1_000_000_000, 5)
+  assert.ok(wide.length >= 2)
+  assert.deepEqual(wide, [...wide].sort((a, b) => a - b))
+  const wideGaps = wide.slice(1).map((tick, at) => t.logFraction(tick, 1, 1e9)
+    - t.logFraction(wide[at], 1, 1e9))
+  for (const gap of wideGaps) closeTo(gap, wideGaps[0], 1e-9, 'evenly spaced across decades')
+  assert.ok(wideGaps[0] >= t.LOG_TICK_MIN_GAP,
+    'a many-decade axis must still keep its marks apart')
+})
+
+test('the legend names both lines and both scales, and nothing more', () => {
+  const payload = seedPayload()
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: t.resolveOverlay(payload) })
+
+  const legend = elementsWithClass(tree, 'dshtd-overlay-legend')[0]
+  assert.ok(legend, 'two lines on two scales must be named, or the frame invites a false comparison')
+  const words = textOf(legend)
+  assert.match(words, /loss/, 'the left-hand line is named')
+  assert.match(words, /LEFT axis/)
+  assert.match(words, /seed model size/)
+  assert.match(words, /M params/, 'with its unit')
+  assert.match(words, /RIGHT axis/, 'and the side its scale sits on')
+
+  // A caption explaining what a log axis is was tried here and removed: the
+  // marks carry it (17M, 19M, 21M on a narrow span do not read as a linear
+  // scale), and the two axis names above are what a reader cannot infer.
+  assert.equal(elementsWithClass(tree, 'dshtd-overlay-scale').length, 0,
+    'the scale lecture is gone; the axis must stand on its marks')
+  assert.ok(!/RATIOS/.test(words))
+})
+
+test('a value a log axis cannot hold is a gap, never a point at the floor', () => {
+  // `train/seed_read_rows` really does start at zero, and on a log axis that is
+  // negative infinity. Folding it to the bottom of the frame would draw a zero
+  // on a scale that cannot contain one.
+  assert.equal(t.logFraction(0, 1e6, 1e7), null)
+  assert.equal(t.logFraction(-5, 1e6, 1e7), null)
+  assert.equal(t.logFraction(1e6, 0, 1e7), null, 'a floor of zero is not a log axis')
+  assert.equal(t.logFraction(1e6, 1e6, 1e6), null, 'a range with no span has no fractions')
+  assert.equal(t.logFraction(1e6, 1e6, 1e7), 0)
+
+  const overlay = {
+    label: 'the read live rows', unit: 'rows', digits: 0, scale: 1, axis: t.LOG_SCALE,
+    series: { tag: 'train/seed_read_rows', points: [[10, 0], [200, 4471], [300, 7096]] },
+  }
+  const tree = t.SeriesChart({ spec: chartSpec(), payload: seedPayload(), overlay })
+  const paths = elementsWithClass(tree, 'dshtd-overlay-line')
+
+  for (const path of paths) {
+    assert.ok(!/NaN|Infinity|undefined/.test(path.props.d),
+      `the path carries a value the axis cannot hold: ${path.props.d}`)
+  }
+})
+
+test('a zoomed window drops the primary curve but never the size line\u2019s floor', () => {
+  // Pressed through the component rather than the helpers, because the defect
+  // lived in the wiring: the range was taken from the window, so a reader
+  // zoomed into the late run had the size line's beginning fall below the axis
+  // and vanish, while the tab reported every reading as drawn.
+  const points = []
+  for (let leg = 65; leg <= 500; leg += 1) {
+    points.push([leg, leg < 300 ? 17_050_000 : leg < 400 ? 20_196_000 : 22_217_000])
+  }
+  const overlay = { series: { tag: 'train/seed_model_params', points }, axis: t.LOG_SCALE }
+  const payload = snapshotWith({
+    series: [{ tag: 'train/loss', points: points.map(([leg]) => [leg, 1]) }, overlay.series],
+  })
+  const spec = {
+    tag: 'train/loss', label: 'loss', unit: '', digits: 3,
+    series: payload.series[0],
+  }
+
+  // The reader left the chart zoomed to the newest 200 legs, which is how the
+  // component restores a window when the pane remounts it.
+  t.rememberWindow('train/loss', { lo: 300, hi: 500 })
+  try {
+    const view = mountHooks(t.SeriesChart, { spec, payload, overlay })
+    const tree = withDispatchedHooks(view.dispatcher, () => view.render())
+
+    const axis = elementsWithClass(tree, 'dshtd-overlay-axis')
+    assert.ok(axis.length > 0, 'the size axis is still drawn inside the window')
+    const ticks = axis.filter((node) => node.props.transform === undefined)
+    const values = ticks.map((node) => Number(node.children.join('').replace(/[^\d.]/g, '')))
+    assert.ok(Math.min(...values) < 20,
+      `a windowed floor would put the marks at ${values.join(', ')}, all above the run's `
+      + 'first reading, so the beginning could not be drawn')
+
+    // And the line drawn in that window still carries the early, low readings:
+    // the x window frames the picture, the size axis does not follow it.
+    const path = elementsWithClass(tree, 'dshtd-overlay-line')[0]
+    assert.ok(path, 'the size line is drawn')
+    assert.ok(!/NaN|Infinity|undefined/.test(path.props.d), path.props.d)
+  } finally {
+    t.rememberWindow('train/loss', null)
+  }
+})
+
+test('the frame draws ONE set of horizontal lines, and both axes label every one of them', () => {
+  // The two-axis frame used to draw TWO grids over one another, at two different
+  // spacings, with half of each line belonging to no label. It is one set now,
+  // and every line carries a value from both scales - which is what makes the
+  // two curves comparable at a glance rather than merely co-located.
+  const seed = [[65, 17.05e6], [125, 20.196e6], [575, 22.217e6], [896, 22.217e6]]
+  const spec = {
+    tag: 'train/loss', label: 'loss', unit: 'bpb', digits: 3,
+    series: { tag: 'train/loss', points: [[1, 2.30], [300, 2.25], [600, 2.20], [896, 2.15]] },
+  }
+  const payload = snapshotWith({
+    series: [spec.series, { tag: 'train/seed_model_params', points: seed }],
+  })
+  const tree = t.SeriesChart({ spec, payload, overlay: t.resolveOverlay(payload) })
+
+  const lines = elementsWithClass(tree, 'dshtd-gridline')
+  assert.ok(lines.length >= 3, `the frame needs a grid: ${lines.length} lines`)
+  assert.equal(elementsWithClass(tree, 'dshtd-overlay-gridline').length, 0,
+    'there must be no second grid drawn over the first')
+
+  // A label sits 3 units below its line, on both sides. One per line, no more:
+  // an unlabelled line is a scale mark a reader has to guess at, and a label
+  // with no line is a number floating in the plot.
+  const lineYs = lines.map((line) => line.props.y1)
+  const tickLabels = (className) => elementsWithClass(tree, className)
+    .filter((node) => node.props.transform === undefined
+      && Math.abs(node.props.y - 232) > 1)
+  for (const side of ['dshtd-axis', 'dshtd-overlay-axis']) {
+    const labels = tickLabels(side)
+    assert.equal(labels.length, lineYs.length,
+      `${side} carries ${labels.length} labels for ${lineYs.length} lines`)
+    for (const lineY of lineYs) {
+      assert.ok(labels.some((node) => Math.abs(node.props.y - (lineY + 3)) < 0.01),
+        `${side} has no label on the line at y=${lineY}`)
+    }
+  }
+
+  // And the values on the two sides are two scales' readings of the SAME lines.
+  // Read in screen order - the highest line first - both sides DESCEND, because
+  // chart-space y grows downward while the values grow upward.
+  const linesByHeight = [...lineYs].sort((a, b) => a - b)
+  const labelOn = (className, lineY) => tickLabels(className)
+    .find((node) => Math.abs(node.props.y - (lineY + 3)) < 0.01)
+  const leftReadings = linesByHeight.map((lineY) => Number(
+    labelOn('dshtd-axis', lineY).children.join('').replace(/[^\d.]/g, '')))
+  const rightReadings = linesByHeight.map((lineY) => labelOn('dshtd-overlay-axis', lineY)
+    .children.join(''))
+
+  assert.ok(leftReadings.every((value) => Number.isFinite(value)),
+    `every line has a left-hand reading: ${leftReadings.join(', ')}`)
+  assert.deepEqual(leftReadings, [...leftReadings].sort((a, b) => b - a),
+    `the left-hand readings fall down the frame as the values should: ${leftReadings.join(', ')}`)
+  // The overlay is the log one, so its readings fall the same way - and read
+  // from the SMALLEST up, the steps between them grow: 17.4, 19.1, 20.9 steps by
+  // 1.7 then 1.8. Each step is the same ratio, so each is a larger addition than
+  // the one below it, which is the exponential spacing the shared grid was for.
+  const nums = (label) => Number(/([\d.]+)/.exec(label)[1])
+  const overlayValues = rightReadings.map(nums)
+  assert.deepEqual(overlayValues, [...overlayValues].sort((a, b) => b - a),
+    `the right-hand readings fall too: ${rightReadings.join(', ')}`)
+  const rising = [...overlayValues].reverse()
+  const overlaySteps = rising.slice(1).map((value, at) => value - rising[at])
+  assert.ok(overlaySteps[overlaySteps.length - 1] > overlaySteps[0],
+    `the steps grow with the values: ${overlaySteps.join(', ')}`)
+  // And not one of those labels carries a unit word: the axis names it once, in
+  // the rotated title at the edge.
+  assert.ok(!rightReadings.some((label) => /params/.test(label)),
+    `a label repeats the rotated title: ${rightReadings.join(', ')}`)
+})
+
+test('the shared grid is spaced by the scale: exponential with a log axis, regular without', () => {
+  // The two-axis frame had two grids over one another, at two different
+  // spacings, with half of each line belonging to no label. It is one set now,
+  // and its spacing is the scale's: exponential with a log second line, regular
+  // without one.
+  const logLo = 16.662e6
+  const logHi = 22.217e6
+  const logProject = (value) => 214 - t.logFraction(value, logLo, logHi) * 202
+  const linearProject = (value) => 214 - ((value - 0) / (6 - 0)) * 202
+  const logMarks = t.logTicks(logLo, logHi, 5)
+  assert.ok(logMarks.length >= 3,
+    `this range has to carry at least three marks for the spacing to mean anything: ${logMarks}`)
+
+  const withLog = t.sharedGridlines(
+    t.niceTicks(1, 6, 4), logMarks, true, linearProject, logProject)
+  assert.ok(withLog.lines.length >= 3, 'a log second line gives the frame its marks')
+  for (const line of withLog.lines) {
+    assert.ok(Number.isFinite(line.y), 'every line has a position')
+    assert.ok(line.overlayValue > 0, 'and a value on the log axis')
+    assert.ok(Number.isFinite(line.primaryValue), 'and a value on the primary axis')
+  }
+  // THE SPACING IS THE SCALE'S, and on a log axis that means the gaps in VALUE
+  // are not equal. Equal distances on the frame are equal RATIOS in value, so
+  // the lines land at exponential intervals: 17.38M, 19.05M, 20.89M is steps of
+  // 1.67M then 1.84M, growing, at a constant height apart.
+  const values = withLog.lines.map((line) => line.overlayValue)
+  const valueGaps = values.slice(1).map((value, at) => value - values[at])
+  assert.ok(new Set(valueGaps.map((gap) => Math.round(gap / 1000))).size > 1,
+    `a log grid's values cannot be evenly spaced: ${valueGaps.map((g) => Math.round(g / 1e3)).join(', ')}k`)
+  const ratios = values.slice(1).map((value, at) => value / values[at])
+  for (const ratio of ratios) {
+    closeTo(ratio, ratios[0], 1e-9,
+      `the lines are a geometric series, so every step is the same ratio: `
+      + `${ratios.map((r) => r.toFixed(4)).join(', ')}`)
+  }
+  assert.ok(ratios[0] > 1, 'and it rises')
+
+  // WITHOUT a log axis the lines are the primary axis' own, evenly spaced.
+  const plain = t.sharedGridlines(
+    t.niceTicks(1, 6, 4), [], false, linearProject, null)
+  assert.deepEqual(plain.extra, [])
+  assert.deepEqual(plain.lines.map((line) => line.primaryValue), t.niceTicks(1, 6, 4))
+  const plainGaps = plain.lines.slice(1).map((line, at) => plain.lines[at].y - line.y)
+  for (const gap of plainGaps) closeTo(gap, plainGaps[0], 1e-9, 'regular intervals')
+  for (const line of plain.lines) {
+    assert.equal(line.overlayValue, null, 'and no overlay value on a line it has no mark on')
+  }
+})
+
+test('a shared line carries both scales, and the value is the inverse of the drawing', () => {
+  // The primary axis' value at a shared line is solved from its OWN projection,
+  // so a gridline's label cannot name a value the line is not on.
+  const project = (value) => 214 - ((value - 2.0) / (2.3 - 2.0)) * 202
+  assert.ok(t.inverseOf(project, project(2.15)) === null || true)
+
+  const values = [2.0, 2.1, 2.2, 2.3]
+  for (const value of values) {
+    const y = project(value)
+    const back = t.inverseOf(project, y)
+    closeTo(back, value, 1e-9, `inverseOf must undo the projection at ${value}`)
+  }
+  assert.equal(t.inverseOf(null, 100), null, 'no projection, no inverse')
+  assert.equal(t.inverseOf(project, NaN), null)
+})
+
+test('a shared grid never labels two lines with the same text, and carries no unit on a label', () => {
+  // The lines are shared, so a tick's value is wherever the line falls - not a
+  // round number the axis chose. At the series' own precision two of those can
+  // round alike, and a scale with the same number on two lines cannot be read.
+  const labels = t.axisTickLabels([2.101, 2.104, 2.107], { digits: 2, unit: '' })
+  assert.equal(new Set(labels).size, 3, `two lines share a label: ${labels.join(', ')}`)
+  assert.deepEqual(labels, ['2.101', '2.104', '2.107'])
+
+  // A set that is already distinct keeps the series' own precision.
+  assert.deepEqual(t.axisTickLabels([1.1, 1.2, 1.3], { digits: 2, unit: '' }),
+    ['1.10', '1.20', '1.30'])
+  assert.deepEqual(t.axisTickLabels([], { digits: 2, unit: '' }), [])
+
+  // NO UNIT ON A LABEL, whatever the spec carries: each axis names its unit once
+  // in the title rotated up its edge, and a label repeating it says the same
+  // word twice within a few pixels of itself.
+  const plain = t.axisTickLabels([2.163, 2.219, 2.275], { digits: 3, unit: 'bpb' })
+  assert.deepEqual(plain, ['2.163', '2.219', '2.275'])
+  assert.ok(!plain.some((label) => /bpb/.test(label)))
+  assert.deepEqual(t.axisTickLabels([17.4e6, 20.9e6], { digits: 2, unit: 'M params' }),
+    ['17.4M', '20.9M'],
+    'and the scale mark the formatter writes stays with the number')
+})
+
+// ---------------------------------------------------------------------------
+// The current value of each line, floating at the right.
+//
+// The KPI header carries the held-out reading already, but it sits above the
+// chart with several other tiles around it; a number written beside the height
+// its own line was drawn at is read together with that line, which is what a
+// reader steering by two curves needs.
+// ---------------------------------------------------------------------------
+
+test('each line gets its newest reading, written beside the height it is drawn at', () => {
+  const payload = seedPayload()
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: t.resolveOverlay(payload) })
+
+  const chips = elementsWithClass(tree, 'dshtd-current')
+  assert.equal(chips.length, 2, 'one label per line, and there are two lines')
+
+  const primary = chips.find((chip) => chip.props['data-series'] === 'primary')
+  const overlay = chips.find((chip) => chip.props['data-series'] === 'overlay')
+  assert.ok(primary, 'the selected series gets one')
+  assert.ok(overlay, 'and so does the seed-size line')
+
+  // The primary label reads the LAST point of the selected series, through the
+  // same formatter its axis uses.
+  const last = BREAK_SERIES[BREAK_SERIES.length - 1][1]
+  assert.equal(textOf(primary).trim(), t.formatValue(last, chartSpec().digits))
+
+  // The overlay label reads the last point of ITS series, in its own scale and
+  // precision - SEED_PARAMS tops out at 22.217M, which the formatter writes as
+  // `22.2M`.
+  assert.equal(textOf(overlay).trim(), '22.2M')
+})
+
+test('a floating value is written in its axis\u2019 own notation, not by scaling it twice', () => {
+  // The value formatter does its own scaling: it writes 22,217,000 as `22.2M`.
+  // Multiplying by the spec's `scale` first would give the bare `22.22` - a
+  // number whose reader has to guess the units, and which disagrees with the
+  // mark on the axis three units away from it.
+  const payload = seedPayload()
+  const overlay = t.resolveOverlay(payload)
+  assert.equal(overlay.scale, 1e-6, 'the spec carries a scale for the axis to apply')
+
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay })
+  const chip = elementsWithClass(tree, 'dshtd-current')
+    .find((node) => node.props['data-series'] === 'overlay')
+  const asAxisWritesIt = t.formatValue(SEED_PARAMS[SEED_PARAMS.length - 1][1], overlay.digits)
+  assert.equal(textOf(chip).trim(), asAxisWritesIt,
+    'the floating value and the axis marks share one formatter')
+  assert.match(asAxisWritesIt, /M$/, 'and that includes the scale mark')
+})
+
+test('the floating values carry no thousands separator, so they stay one token', () => {
+  // The formatter writes `65.5k`, not `65,538`, which is what lets a value sit
+  // in a 44-unit column without wrapping or being cut.
+  const payload = seedPayload()
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: t.resolveOverlay(payload) })
+  for (const chip of elementsWithClass(tree, 'dshtd-current')) {
+    assert.ok(!/,/.test(textOf(chip)), `a floating value carries a separator: "${textOf(chip)}"`)
+    assert.ok(textOf(chip).trim().length <= 7,
+      `"${textOf(chip)}" is too wide for the ${t.CURRENT_VALUE_WIDTH}-unit column`)
+  }
+})
+
+test('the current-value labels carry their own line\u2019s colour, and never a unit word', () => {
+  const payload = seedPayload()
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: t.resolveOverlay(payload) })
+  const chips = elementsWithClass(tree, 'dshtd-current')
+
+  // Colour is the one channel that ties a floating number to a line, so each
+  // label is drawn in its own line's class rather than one shared style.
+  const classes = chips.map((chip) => elementsWithClass(chip, 'dshtd-current-primary').length > 0
+    ? 'primary' : 'overlay')
+  assert.deepEqual([...classes].sort(), ['overlay', 'primary'])
+
+  // And the units are not repeated here either: the axes name them once each.
+  for (const chip of chips) {
+    assert.ok(!/params|bpb|rows/.test(textOf(chip)),
+      `a floating value repeats a unit: "${textOf(chip)}"`)
+  }
+})
+
+test('no current-value label is written for a line that is not on screen', () => {
+  // A label whose line is off the window would be a number attached to nothing.
+  // Rendered through the hook renderer rather than the plain stub, because the
+  // window is component state and the stub's `useState` returns the initializer
+  // function instead of calling it - so the stub cannot express a zoomed view.
+  const payload = seedPayload()
+  const spec = chartSpec()
+  const view = mountHooks(t.SeriesChart, { spec, payload, overlay: t.resolveOverlay(payload) })
+  const draw = () => withDispatchedHooks(view.dispatcher, () => view.render())
+
+  // Whole run: both lines have a point in view, so both get a value.
+  assert.equal(elementsWithClass(draw(), 'dshtd-current').length, 2)
+
+  // The reader drags to a stretch BEFORE both series begin - the seed series
+  // starts at leg 10 and the window ends at 5.
+  t.rememberWindow(spec.tag, { lo: 0, hi: 5 })
+  try {
+    const zoomed = mountHooks(t.SeriesChart, { spec, payload, overlay: t.resolveOverlay(payload) })
+    const tree = withDispatchedHooks(zoomed.dispatcher, () => zoomed.render())
+    assert.equal(elementsWithClass(tree, 'dshtd-current').length, 0,
+      'neither series has a point in this window, so neither gets a floating value')
+  } finally {
+    t.rememberWindow(spec.tag, null)
+  }
+
+  // And with the window back over the data, both labels return.
+  assert.equal(elementsWithClass(draw(), 'dshtd-current').length, 2)
+})
+
+test('two floating values never write over each other, and never leave the frame', () => {
+  // The size axis barely moves while a bpb curve swings, so the two newest
+  // readings often land at nearly the same height.
+  const close = t.currentValueLabels([{ kind: 'primary', y: 100 }, { kind: 'overlay', y: 103 }], 20, 200)
+  assert.equal(close.length, 2)
+  assert.ok(Math.abs(close[0].y - close[1].y) >= t.CURRENT_VALUE_MIN_SEPARATION,
+    `two labels ${Math.abs(close[0].y - close[1].y)} apart would overlap`)
+
+  // A line ending at the very top or bottom keeps its label inside the frame.
+  for (const y of [12, 214, 0, 999]) {
+    const placed = t.currentValueLabels([{ kind: 'primary', y }, { kind: 'overlay', y: 100 }], 20, 200)
+    for (const entry of placed) {
+      assert.ok(entry.y >= 20 && entry.y <= 200,
+        `a label at ${entry.y} has left the frame (wanted y=${y})`)
+    }
+  }
+
+  // A line with no position contributes no label, and the other still gets one.
+  const single = t.currentValueLabels([{ kind: 'primary', y: 50 }, null], 20, 200)
+  assert.equal(single.length, 1)
+  assert.equal(single[0].kind, 'primary')
+  assert.deepEqual(t.currentValueLabels([], 20, 200), [])
+  assert.deepEqual(t.currentValueLabels([null, undefined], 20, 200), [])
+})
+
+test('the floating values sit in the left margin, clear of the axis numbers', () => {
+  const payload = seedPayload()
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: t.resolveOverlay(payload) })
+  const plot = t.plotGeometry({ lo: 0, hi: 1 }, t.CHART.padRight + t.OVERLAY_GUTTER)
+
+  const rails = elementsWithClass(tree, 'dshtd-current-rail')
+  assert.equal(rails.length, 2, 'one rail per reading')
+  for (const rail of rails) {
+    assert.ok(rail.props.x < plot.left,
+      `the reading must be left of the plot edge (${rail.props.x} vs ${plot.left})`)
+    assert.ok(rail.props.x + rail.props.width < plot.left - 20,
+      'and clear of the axis numbers, which run right up to the plot edge')
+  }
+
+  // The reading's text ends at the rail, from the left of it.
+  const texts = elementsWithClass(tree, 'dshtd-current-primary')
+    .concat(elementsWithClass(tree, 'dshtd-current-overlay'))
+  assert.equal(texts.length, 2)
+  for (const text of texts) {
+    assert.equal(text.props.textAnchor, 'end', 'so a longer number grows leftward, into the margin')
+    assert.ok(text.props.x < t.CURRENT_VALUE_RAIL_X,
+      `the text must end left of its rail (${text.props.x} vs ${t.CURRENT_VALUE_RAIL_X})`)
+    assert.ok(text.props.x > t.AXIS_UNIT_WIDTH,
+      'and right of the rotated unit title at the far edge')
+  }
+})
+
+test('a floating value carries its colour itself, so it can never render black', () => {
+  // Reported from the running tab: the readings came out BLACK over a dark
+  // frame. The colour was in the stylesheet only, and an SVG `text` with no fill
+  // is black - so the moment the sheet was not applied the numbers vanished into
+  // the background. Each element now carries the same colour as an attribute,
+  // where no stylesheet can lose it, and the sheet keeps the theme token.
+  const payload = seedPayload()
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: t.resolveOverlay(payload) })
+
+  const primary = elementsWithClass(tree, 'dshtd-current-primary')[0]
+  const overlay = elementsWithClass(tree, 'dshtd-current-overlay')[0]
+  assert.equal(primary.props.fill, t.PRIMARY_INK,
+    'the primary reading carries its own ink')
+  assert.equal(overlay.props.fill, t.OVERLAY_INK,
+    'and so does the size reading')
+  assert.notEqual(primary.props.fill, overlay.props.fill,
+    'the two are told apart by colour as well as by height')
+
+  // The rails carry the same ink as their own reading, so a rail can never be
+  // drawn in one series' colour beside another series' number.
+  const rails = elementsWithClass(tree, 'dshtd-current-rail')
+  assert.equal(rails.length, 2)
+  assert.deepEqual([...new Set(rails.map((rail) => rail.props.fill))].sort(),
+    [t.PRIMARY_INK, t.OVERLAY_INK].sort(),
+    'the two rails carry one ink each, and they are the two lines\' colours')
+
+  // And the stylesheet still names the same colours, so it cannot drift into a
+  // different palette from the attributes.
+  assert.ok(t.CSS_SOURCE.includes(t.OVERLAY_INK),
+    'the stylesheet must name the same overlay ink the element writes')
+  assert.ok(t.CSS_SOURCE.includes(t.PRIMARY_INK),
+    'and the same primary ink')
+})
+
+test('the two rails cannot meet, however close the two readings are', () => {
+  // Two readings a unit apart would overlap without the separation, and their
+  // rails would bleed into one mark. The separation is what keeps them two.
+  const payload = seedPayload()
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: t.resolveOverlay(payload) })
+  const rails = elementsByHeight(elementsWithClass(tree, 'dshtd-current-rail'))
+
+  assert.equal(rails.length, 2)
+  const gap = rails[1].props.y - (rails[0].props.y + rails[0].props.height)
+  assert.ok(gap > 0, `the two rails overlap or touch (gap ${gap})`)
+  assert.ok(rails[1].props.y - rails[0].props.y >= t.CURRENT_VALUE_MIN_SEPARATION - 10,
+    'and they are a readable distance apart')
+})
+
+test('the size axis is scaled to the whole series, so panning never lifts the beginning off the floor', () => {
+  // The defect this pins, reported from the running tab: the axis was scaled to
+  // the samples IN THE WINDOW, and since the size only rises, panning right
+  // raised the floor until the run's first readings were below the axis and not
+  // drawn - a series that appears to begin later than it does, with nothing on
+  // screen saying a reading had been dropped.
+  //
+  // The series here is dense enough to resample the way the live one does: a
+  // flat early stretch, then steps. A sparse fixture is not enough to catch
+  // this, because the drop happens BETWEEN two readings.
+  const points = []
+  for (let leg = 65; leg <= 500; leg += 1) {
+    const value = leg < 300 ? 17_050_000
+      : leg < 400 ? 20_196_000
+        : leg < 450 ? 21_640_000 : 22_217_000
+    points.push([leg, value])
+  }
+  const overlay = { series: { tag: 'train/seed_model_params', points }, axis: t.LOG_SCALE }
+  const whole = t.logRange(points, null)
+
+  // A window showing only the newest part of the run. Scaling to that window is
+  // what used to happen, and it is what the floor must no longer be taken from.
+  const lateWindow = points.filter(([leg]) => leg >= 300)
+  const fromWindow = t.logRange(lateWindow, null)
+  assert.ok(fromWindow.lo > points[0][1],
+    `this is the trap: a late window's own floor (${(fromWindow.lo / 1e6).toFixed(2)}M) sits `
+    + `above the run's first reading (${(points[0][1] / 1e6).toFixed(2)}M)`)
+
+  const earliest = points[0][1]
+  assert.equal(t.logFraction(earliest, fromWindow.lo, fromWindow.hi), null,
+    'so under a windowed floor the first reading cannot be drawn at all')
+  assert.ok(t.logFraction(earliest, whole.lo, whole.hi) > 0,
+    'while the series-wide floor keeps it on the frame')
+
+  // The component reads the range from the WHOLE series, not from the window, so
+  // the same floor is in force however far the reader pans.
+  const tree = t.SeriesChart({
+    spec: chartSpec(),
+    payload: snapshotWith({
+      series: [{ tag: 'train/loss', points: BREAK_SERIES }, overlay.series],
+    }),
+    overlay,
+  })
+  const axis = elementsWithClass(tree, 'dshtd-overlay-axis')
+  assert.ok(axis.length > 0, 'the axis is drawn')
+  const drawn = elementsWithClass(tree, 'dshtd-overlay-line')
+  assert.ok(drawn.length > 0, 'and so is the line')
+  for (const path of drawn) {
+    assert.ok(!/NaN|Infinity|undefined/.test(path.props.d),
+      'the line must carry only values the axis can hold')
+  }
+})
+
+test('the two lines are resampled onto one x, and a gap is a gap', () => {
+  // The overlay covers legs 10..300 only, so the curve's own samples at 400 and
+  // 500 have NO size reading: carrying the last one forward would draw a line
+  // claiming the model was that size at legs nobody measured.
+  const overlay = { series: { points: [[10, 100], [300, 200]] } }
+  const segments = t.resampleOnto(overlay.series.points, BREAK_SERIES.map((point) => point[0]))
+
+  assert.equal(segments.length, 1, 'the covered run is one drawn segment')
+  assert.deepEqual(segments[0].map((point) => point[0]), [10, 100, 200, 300],
+    'the size line steps where IT has readings, in the curve\'s own x space')
+
+  const partial = t.resampleOnto([[100, 1], [200, 2]], [10, 100, 200, 500])
+  assert.deepEqual(partial.map((run) => run.map((point) => point[0])), [[100, 200]],
+    'x values outside the overlay are dropped, not clamped to its ends')
+})
+
+test('the size line reads between its own samples and stops at its own ends', () => {
+  assert.equal(t.valueAtX([[10, 0], [20, 10]], 15), 5, 'half way is half the value')
+  assert.equal(t.valueAtX([[10, 0], [20, 10]], 10), 0)
+  assert.equal(t.valueAtX([[10, 7]], 10), 7, 'one sample is a value, not a division by zero')
+  assert.equal(t.valueAtX([[10, 0], [20, 10]], 9), null, 'before the first reading is not the first value')
+  assert.equal(t.valueAtX([[10, 0], [20, 10]], 21), null, 'after the last reading is not the last value')
+  assert.equal(t.valueAtX([], 5), null)
+})
+
+test('the second line is part of the picture the accessible name describes', () => {
+  const payload = seedPayload()
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: t.resolveOverlay(payload) })
+  const label = elementsWithClass(tree, 'dshtd-chart')[0].props['aria-label']
+
+  assert.match(label, /seed model size/,
+    'a screen reader handed one curve and no mention of the other is told a different picture')
+  assert.match(label, /axis on the right/)
+})
+
+// ---------------------------------------------------------------------------
+// The marker categories the reader can switch off.
+//
+// The key under the chart is the switch, because it is the only place that can
+// say what turning a category off costs. The rule these pin is that NOTHING IS
+// HIDDEN SILENTLY: the chart, the strip and the register all lose the markers,
+// and every one of them still carries the count of what is being held back.
+// ---------------------------------------------------------------------------
+
+test('the categories on offer are the ones the snapshot actually carries', () => {
+  const payload = snapshotWith({ breaks: ALL_KINDS })
+  const categories = t.markerCategories(t.readBreakMarkers(payload).markers)
+
+  // The registered order, corpus first - see KIND_ORDER in the bundle - and not
+  // the order the markers happened to arrive in. A key that reorders itself as
+  // the run writes markers is a key the reader has to re-read every refresh.
+  assert.deepEqual(categories.map((entry) => entry.kind),
+    ['corpus', 'instrument', 'arithmetic', 'shape', 'restart'])
+  assert.deepEqual(categories.map((entry) => entry.kind),
+    t.KIND_ORDER.filter((kind) => categories.some((entry) => entry.kind === kind)))
+  assert.equal(categories.find((entry) => entry.kind === 'corpus').count, 1)
+  assert.ok(categories.every((entry) => entry.count === 1), 'each of the five kinds appears once')
+
+  assert.deepEqual(t.markerCategories([]), [],
+    'a switch for a category with no markers is a control that does nothing')
+})
+
+test('every category present gets a switch, including one the tab has never seen', () => {
+  const markers = t.readBreakMarkers(snapshotWith({
+    breaks: [servedMarker({ leg: 40, kind: 'quorum' })],
+  })).markers
+  const categories = t.markerCategories(markers)
+
+  assert.deepEqual(categories.map((entry) => entry.kind), ['quorum'],
+    'a kind this tab has never seen must be switchable too, under its own name')
+  assert.equal(categories[0].word, 'QUORUM')
+})
+
+test('an unknown kind is drawn by default, so a new kind is never hidden by default', () => {
+  assert.equal(t.kindIsShown([], 'quorum'), true)
+  assert.equal(t.kindIsShown(['corpus'], 'quorum'), true,
+    'the hidden list holds the kinds switched OFF, so anything else is on')
+  assert.equal(t.kindIsShown(['corpus'], 'corpus'), false)
+})
+
+test('switching a category off removes it from the chart, the strip and the register', () => {
+  const payload = snapshotWith({ breaks: ALL_KINDS })
+  const tree = t.SeriesChart({
+    spec: chartSpec(), payload, overlay: null, onToggleKind: null,
+    hiddenKinds: ['corpus', 'restart'],
+  })
+
+  const drawn = elementsWithClass(tree, 'dshtd-breakmark').map((mark) => mark.props['data-leg'])
+  assert.deepEqual(drawn, ['40', '120', '121'],
+    'the two hidden categories must be absent from the chart itself')
+
+  const ticks = elementsWithClass(tree, 'dshtd-break-tick').map((tick) => tick.props['data-leg'])
+  assert.deepEqual(ticks, drawn,
+    'the strip under the chart cannot show a joint the chart above it is not drawing')
+
+  const rows = elementsWithClass(tree, 'dshtd-break-row').map((row) => row.props['data-leg'])
+  assert.deepEqual(rows, drawn, 'and the register reads out exactly what is drawn')
+})
+
+test('the count of what is hidden is always on screen, so nothing vanishes silently', () => {
+  const payload = snapshotWith({ breaks: ALL_KINDS })
+  const all = t.SeriesChart({ spec: chartSpec(), payload, overlay: null })
+  const some = t.SeriesChart({
+    spec: chartSpec(), payload, overlay: null, hiddenKinds: ['corpus', 'restart'],
+  })
+
+  const headAll = textOf(elementsWithClass(all, 'dshtd-breaks-head')[0])
+  assert.match(headAll, /5 of 5 drawn/)
+  assert.ok(!/hidden by the switches/.test(headAll), 'nothing is hidden when nothing is switched off')
+
+  const headSome = textOf(elementsWithClass(some, 'dshtd-breaks-head')[0])
+  assert.match(headSome, /3 of 5 drawn/)
+  assert.match(headSome, /2 hidden by your switches/)
+
+  const register = textOf(elementsWithClass(some, 'dshtd-breaks')[0])
+  assert.match(register, /2 marker\(s\) hidden by your switches/,
+    'a chart missing its joints looks exactly like a run with no joints')
+
+  const chartLabel = elementsWithClass(some, 'dshtd-chart')[0].props['aria-label']
+  assert.match(chartLabel, /3 of 3 break markers/)
+  assert.match(chartLabel, /2 more hidden by the category switches/)
+})
+
+test('hiding every category still says the markers exist', () => {
+  const payload = snapshotWith({ breaks: ALL_KINDS })
+  const everything = t.markerCategories(t.readBreakMarkers(payload).markers).map((entry) => entry.kind)
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: null, hiddenKinds: everything })
+
+  assert.equal(elementsWithClass(tree, 'dshtd-breakmark').length, 0)
+  assert.match(textOf(elementsWithClass(tree, 'dshtd-breaks-head')[0]), /0 of 5 drawn/)
+  assert.equal(elementsWithClass(tree, 'dshtd-toggle').length, 5,
+    'every switch must remain on screen, or a reader who hid everything cannot get anything back')
+})
+
+test('the key is a set of labelled buttons, so the categories are reachable without a mouse', () => {
+  const tree = t.SeriesChart({ spec: chartSpec(), payload: snapshotWith({ breaks: ALL_KINDS }), overlay: null })
+  const toggles = elementsWithClass(tree, 'dshtd-toggle')
+
+  assert.equal(toggles.length, ALL_KINDS.length)
+  for (const toggle of toggles) {
+    assert.equal(toggle.type, 'button', 'a category reachable only by a gesture is not reachable')
+    assert.equal(typeof toggle.props.title, 'string')
+    assert.equal(toggle.props['aria-pressed'], 'true')
+    assert.equal(toggle.props['data-on'], 'true')
+    assert.ok(textOf(toggle).length > 0, 'a switch with no word on it is a mystery control')
+  }
+})
+
+test('a switched-off category keeps its shape and says it is off in words', () => {
+  const payload = snapshotWith({ breaks: ALL_KINDS })
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: null, hiddenKinds: ['corpus'] })
+  const off = elementsWithClass(tree, 'dshtd-toggle').find(
+    (toggle) => toggle.props['data-kind'] === 'corpus')
+
+  assert.equal(off.props['data-on'], 'false')
+  assert.equal(off.props['aria-pressed'], 'false')
+  // The shape survives: the chart's own shape table is what draws the swatch,
+  // so a kind encoded only as "dimmed" cannot happen here.
+  assert.ok(elementsWithClass(off, 'dshtd-marker-swatch').length === 1,
+    'the swatch keeps its shape when the category is off')
+  assert.match(off.props.title, /hidden by you/)
+  assert.match(off.props.title, /Press to draw them again/)
+})
+
+test('the frontier has its own switch, and switching it off is stated rather than silent', () => {
+  const payload = snapshotWith({
+    breaks: ALL_KINDS,
+    frontier: {
+      phase_now: 'a', next_phase: 'b', boundary_leg: 40, next_leg: 260,
+      legs_in_phase: 40, legs_remaining: 1, expected_to_raise_bpb: false,
+      imminent: false, sentence: 'FRONTIER: a to b at about leg 260.',
+    },
+  })
+  const shown = t.SeriesChart({ spec: chartSpec(), payload, overlay: null })
+  assert.ok(elementsWithClass(shown, 'dshtd-frontier-mark').length > 0)
+  assert.ok(elementsWithClass(shown, 'dshtd-frontier').length > 0)
+
+  const hidden = t.SeriesChart({ spec: chartSpec(), payload, overlay: null, hideFrontier: true })
+  assert.equal(elementsWithClass(hidden, 'dshtd-frontier-mark').length, 0,
+    'the dashed line must go when its switch is off')
+  assert.equal(elementsWithClass(hidden, 'dshtd-frontier').length, 0, 'and so must its block')
+
+  // The switch itself stays, so the reader can put it back.
+  const button = elementsWithClass(hidden, 'dshtd-toggle').find(
+    (toggle) => toggle.props['data-kind'] === 'frontier')
+  assert.ok(button, 'the frontier switch must not disappear with the thing it switches')
+  assert.equal(button.props['data-on'], 'false')
+  assert.match(button.props.title, /Press to draw it again/)
+})
+
+/**
+ * THE CHAIN A ROLLBACK THREW AWAY, reported by the user on 10 October 2026 as
+ * "grey/ghost out the recent chain's values in the chart and start populating the
+ * latest value from the target point in the graph so the x-axis remains
+ * consistent ... also add a selector for older run's values".
+ *
+ * The run rolled back to its START at leg 209 and carried on numbering from 210,
+ * so the leg axis is the only x there is: the discarded values stay on it, dimmed,
+ * and the live chain starts where the controller rewound to. The selector takes
+ * the ghost off the picture without moving the axis.
+ */
+const ROLLBACK_MARKER = servedMarker({
+  leg: 200, kind: 'rollback', label: 'rolled back to the run\'s start',
+  reason: 'the controller rolled the run back here.', meaning: 'the WEIGHTS were rewound',
+})
+
+test('the values before a rollback are ghosted on the same axis, not dropped', () => {
+  const tree = renderChart(snapshotWith({ breaks: [ROLLBACK_MARKER] }))
+
+  const ghost = elementsWithClass(tree, 'dshtd-ghost-line')
+  const live = elementsWithClass(tree, 'dshtd-line')
+  assert.equal(ghost.length, 1, 'the chain the rollback discarded must be drawn, and as a ghost')
+  assert.equal(live.length, 1, 'and the live chain must be drawn in full')
+  assert.equal(t.rollbackPoint(t.readBreakMarkers(snapshotWith({ breaks: [ROLLBACK_MARKER] })).markers), 200)
+
+  // The split is at the rollback's leg: the points up to and including it are the
+  // older chain, and everything after it is live.
+  const axis = elementsWithClass(tree, 'dshtd-axis')[0]
+  assert.ok(axis, 'the axis is what both chains are read against')
+  const split = t.splitOlder([[10, 1], [200, 2], [201, 3], [500, 4]], 200)
+  assert.deepEqual(split.older, [[10, 1], [200, 2]])
+  assert.deepEqual(split.live, [[201, 3], [500, 4]])
+})
+
+test('a run with no rollback has no ghost and no selector for one', () => {
+  const tree = renderChart(snapshotWith({ breaks: ALL_KINDS }))
+
+  assert.equal(elementsWithClass(tree, 'dshtd-ghost-line').length, 0)
+  assert.equal(elementsWithClass(tree, 'dshtd-toggle').filter(
+    (toggle) => toggle.props['data-kind'] === 'older-run').length, 0,
+  'a selector for a chain no rollback discarded is a control with nothing behind it')
+})
+
+test('the older run has its own selector, and it takes the values off the chart', () => {
+  const payload = snapshotWith({ breaks: [ROLLBACK_MARKER] })
+  const shown = t.SeriesChart({ spec: chartSpec(), payload, overlay: null })
+  const button = elementsWithClass(shown, 'dshtd-toggle').find(
+    (toggle) => toggle.props['data-kind'] === 'older-run')
+
+  assert.ok(button, 'the reader must be able to take the discarded chain off the picture')
+  assert.equal(button.props['data-on'], 'true', 'and it is on by default, dimmed rather than gone')
+  assert.equal(button.props['data-leg'], '200')
+  assert.match(button.props.title, /rolled the run back at leg 200/)
+  assert.equal(elementsWithClass(shown, 'dshtd-ghost-line').length, 1)
+
+  const hidden = t.SeriesChart({ spec: chartSpec(), payload, overlay: null, hideOlder: true })
+  assert.equal(elementsWithClass(hidden, 'dshtd-ghost-line').length, 0,
+    'switching it off takes the ghost off the chart')
+  assert.equal(elementsWithClass(hidden, 'dshtd-line').length, 1,
+    'and leaves the live chain exactly as it was')
+  // THE LIVE CHAIN IS THE SAME LINE EITHER WAY. A version that skipped the split
+  // when the ghost was switched off drew the DISCARDED values as the live line -
+  // one continuous curve across the rollback, which is the reading the ghost
+  // exists to prevent - and this is the assertion that catches it.
+  assert.equal(elementsWithClass(hidden, 'dshtd-line')[0].props.d,
+    elementsWithClass(shown, 'dshtd-line')[0].props.d,
+    'hiding the older values must not fold them back into the live chain')
+  const off = elementsWithClass(hidden, 'dshtd-toggle').find(
+    (toggle) => toggle.props['data-kind'] === 'older-run')
+  assert.equal(off.props['data-on'], 'false')
+  assert.match(off.props.title, /axis still covers them/,
+    'the reader is told the axis did not move, or hiding values looks like losing run')
+})
+
+test('the ghost survives switching the rollback MARKER category off', () => {
+  // Turning a category off is a request about the marker, not a claim that the
+  // values either side of the joint are one chain: a chart that answered it by
+  // drawing the discarded values as live would be worse than either.
+  const payload = snapshotWith({ breaks: [ROLLBACK_MARKER] })
+  const tree = t.SeriesChart({
+    spec: chartSpec(), payload, overlay: null, hiddenKinds: ['rollback'],
+  })
+
+  assert.equal(elementsWithClass(tree, 'dshtd-breakmark').length, 0, 'the marker itself is hidden')
+  assert.equal(elementsWithClass(tree, 'dshtd-ghost-line').length, 1,
+    'and the chain it threw away is still drawn as a ghost')
+})
+
+test('a rollback draws no line of its own: it is a change of origin, not a leg', () => {
+  // "the rollback marker is not useful with everything aligned to 0": drawn as a
+  // joint it landed at the far end of the OLDER chain (x=208 on a chart whose live
+  // chain starts at 0), marking nothing a reader can use, because the rollback is
+  // the reason both chains start at 0. What says it on the chart is the origin and
+  // the ghost; what says it in words is the register row.
+  const payload = snapshotWith({
+    breaks: [ROLLBACK_MARKER, servedMarker({ leg: 40, kind: 'corpus' })],
+  })
+  const tree = renderChart(payload)
+
+  const lines = elementsWithClass(tree, 'dshtd-breakmark')
+  assert.equal(lines.length, 1, 'one joint is a line on this chart, and it is not the rollback')
+  assert.equal(lines[0].props['data-kind'], 'corpus')
+  assert.equal(elementsWithClass(tree, 'dshtd-break-tick').length, 1,
+    'and the strip under the chart agrees with the chart above it')
+
+  // THE RECORD IS NOT WHAT WENT AWAY: the register still carries the row, with the
+  // label the producer wrote and the reason behind its own disclosure.
+  const rows = elementsWithClass(tree, 'dshtd-break-row')
+  assert.equal(rows.length, 2)
+  assert.ok(rows.some((row) => textOf(row).includes("rolled back to the run's start")))
+
+  // And its switch is honest about what it hides, or a reader who pressed it
+  // expecting the chart to change would think the switch was broken.
+  const toggle = elementsWithClass(tree, 'dshtd-toggle').find(
+    (entry) => entry.props['data-kind'] === 'rollback')
+  assert.ok(toggle, 'the rollback still has a category switch, for the record')
+  assert.match(toggle.props.title, /recorded in the register/)
+  assert.doesNotMatch(toggle.props.title, /marker\(s\) drawn/,
+    'it must not promise to take a line off a chart it is not drawn on')
+})
+
+test('the size line is ghosted on the same side of the rollback as the reading', () => {
+  const payload = snapshotWith({
+    breaks: [ROLLBACK_MARKER],
+    series: [{ tag: 'train/loss', points: BREAK_SERIES }],
+  })
+  const overlay = {
+    tag: 'train/seed_model_params', label: 'seed params', unit: 'params', digits: 1,
+    series: { tag: 'train/seed_model_params', source: 'fixture',
+      points: [[10, 19.9], [200, 20.2], [201, 19.9], [500, 21.0]] },
+  }
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay })
+
+  assert.equal(elementsWithClass(tree, 'dshtd-ghost-overlay').length, 1,
+    'the size went back to the seed too, so its older values are ghosted with the reading')
+  assert.ok(elementsWithClass(tree, 'dshtd-overlay-line').length >= 1)
+})
+
+test('a window holding only the hidden older run says so rather than "no points"', () => {
+  // Hiding the ghost is a statement about the picture, and the window can be left
+  // holding nothing but what was hidden. "No points in this window" would then be
+  // false, and it would send the reader hunting for a fault that is a switch.
+  // Through the hook renderer, because a zoomed view is component state: the plain
+  // stub's `useState` returns the initializer function instead of calling it.
+  const payload = snapshotWith({ breaks: [ROLLBACK_MARKER] })
+  const spec = chartSpec()
+
+  t.rememberWindow(spec.tag, { lo: 0, hi: 50 })
+  try {
+    const view = mountHooks(t.SeriesChart, {
+      spec, payload, overlay: null, hideOlder: true,
+    })
+    const tree = withDispatchedHooks(view.dispatcher, () => view.render())
+    const note = elementsWithClass(tree, 'dshtd-window-note')[0]
+    assert.ok(note, 'a window with nothing drawable in it must say so')
+    assert.match(textOf(note), /only the older run's values are in this window/,
+      'and it must name the switch that would draw them, not claim the window is empty')
+    assert.match(textOf(note), /OLDER RUN/)
+
+    const shown = mountHooks(t.SeriesChart, {
+      spec, payload, overlay: null, hideOlder: false,
+    })
+    const drawn = withDispatchedHooks(shown.dispatcher, () => shown.render())
+    assert.equal(elementsWithClass(drawn, 'dshtd-window-note').length, 0,
+      'with the ghost drawn the window is not empty and there is nothing to explain')
+    assert.equal(elementsWithClass(drawn, 'dshtd-ghost-line').length, 1,
+      'and the ghost is what makes it not empty')
+  } finally {
+    t.rememberWindow(spec.tag, null)
+  }
+})
+
+test('both passes start at x=0, so the live chain is not stranded at the far right', () => {
+  // The report, twice: "start populating the latest value from the target point in
+  // the graph so the x-axis remains consistent ... the new arc still shows up near
+  // the end of the graph ... it should start from x=0, with the older arc ghosted".
+  // The rollback is at leg 200, so the old pass ran 10..200 and the new one 201..:
+  // each is drawn from ITS OWN first leg, and the series here HAS a point at 201
+  // (the pass's first leg), which is what makes "starts at 0" observable.
+  const spec = {
+    ...chartSpec(),
+    series: { ...chartSpec().series, points: [[10, 1], [100, 2], [200, 3], [201, 4], [300, 5], [500, 6]] },
+  }
+  const payload = snapshotWith({ breaks: [ROLLBACK_MARKER] })
+  const tree = t.SeriesChart({ spec, payload, overlay: null })
+
+  const ghost = elementsWithClass(tree, 'dshtd-ghost-line')[0]
+  const live = elementsWithClass(tree, 'dshtd-line')[0]
+  assert.ok(ghost && live, 'both chains are on the chart')
+
+  const firstX = (path) => Number.parseFloat(String(path.props.d).slice(1).split(',')[0])
+  assert.equal(firstX(ghost), firstX(live),
+    'the two chains must share an origin: a new pass drawn from the run\'s first leg is a pass the '
+    + 'reader has to hunt for at the far right')
+  assert.equal(firstX(live), t.CHART.padLeft,
+    'and that shared origin is the LEFT edge of the plot, which is x=0')
+  assert.match(String(live.props.d), /M[\d.]+,[\d.]+ L/,
+    'the live chain is a line, not a single point: it has 201, 300 and 500 on it')
+
+  // The axis says so too: the readout names the re-based unit, starts at 0 and runs
+  // as long as the longer of the two passes (the new one, legs 201..500 = 300 legs).
+  const readout = textOf(elementsWithClass(tree, 'dshtd-window-readout')[0])
+  assert.match(readout, /legs from each pass's start 0[–-]299/, `the readout is ${readout}`)
+  assert.doesNotMatch(readout, /steps/,
+    'the axis cannot go on calling them steps when the numbers are distances from two different '
+    + 'first legs')
+})
+
+test('the register counts a marker by the x the chart draws it at', () => {
+  // On a chart where both passes start at 0, a marker on the LIVE chain sits at
+  // its distance from the rewind - leg 250 is x=49 - so a register that compared
+  // the leg to the window would call it out of a window it is plainly inside.
+  const payload = snapshotWith({
+    breaks: [ROLLBACK_MARKER, servedMarker({ leg: 250, kind: 'corpus' })],
+  })
+  const tree = renderChart(payload)
+  const head = textOf(elementsWithClass(tree, 'dshtd-breaks-head')[0])
+
+  assert.match(head, /2 of 2 drawn/, `the head is ${head}`)
+  assert.match(head, /2 in this window/,
+    'both markers are inside the whole-run window: one at the end of the old pass, one 49 legs '
+    + 'into the new one')
+})
+
+test('a run that has not rolled back keeps the leg number as its x', () => {
+  // The re-basing is a rollback's business and nothing else: a chart drawn against
+  // an axis that silently restarted at 0 would misnumber every run that has not.
+  const tree = t.SeriesChart({ spec: chartSpec(), payload: snapshotWith(), overlay: null })
+  const line = elementsWithClass(tree, 'dshtd-line')[0]
+  const firstX = Number.parseFloat(String(line.props.d).slice(1).split(',')[0])
+  assert.equal(firstX, t.CHART.padLeft, 'the first leg is still the left edge of the plot')
+  const readout = textOf(elementsWithClass(tree, 'dshtd-window-readout')[0])
+  assert.match(readout, /steps 10[–-]500/, `the readout is ${readout}`)
+})
+
+test('the frontier is placed in the live pass\'s own x', () => {
+  // Its leg is an absolute leg of the running pass, so on a re-based chart it
+  // belongs at its distance from the rewind - the same place a pass that had
+  // started there would put it.
+  const payload = snapshotWith({
+    breaks: [ROLLBACK_MARKER],
+    frontier: {
+      phase_now: 'a', next_phase: 'b', boundary_leg: 200, next_leg: 260,
+      chart_leg: 260, newest_leg: 250, legs_in_phase: 60, legs_remaining: 10,
+      expected_to_raise_bpb: true, imminent: false, sentence: 'FRONTIER: a to b.',
+    },
+  })
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: null })
+  const mark = elementsWithClass(tree, 'dshtd-frontier-mark')[0]
+
+  assert.ok(mark, 'leg 260 is inside the live pass, so its line is on the chart')
+  const at = Number.parseFloat(String(mark.children[0].props.x1))
+  const left = t.CHART.padLeft
+  const innerWidth = t.CHART.width - t.CHART.padLeft - t.CHART.padRight
+  // x=0 is the live pass's first leg (201), so leg 260 is 59 legs in, against a
+  // window 0..299 long (the live pass's 300 legs).
+  assert.ok(at > left && at < left + innerWidth,
+    'the projection must be inside the frame, not off the end of an absolute axis')
+  assert.ok(at < left + innerWidth * 0.3,
+    'a projection 59 legs into a 300-leg window belongs in the left third, not at 87% of an '
+    + 'absolute leg axis')
+})
+
+test('a hidden category is still counted in the switch that hides it', () => {
+  const entry = { kind: 'corpus', word: 'CORPUS', count: 3 }
+  assert.match(t.toggleTitle(entry, true), /3 CORPUS marker\(s\) drawn/)
+  assert.match(t.toggleTitle(entry, true), /Press to hide this category/)
+  assert.match(t.toggleTitle(entry, false), /3 CORPUS marker\(s\) hidden by you/)
+  assert.match(t.toggleTitle(entry, false), /Press to draw them again/)
+})
+
+/**
+ * The reported defect, 10 October 2026: "the coloured indicators for the item
+ * cards below the graph are all black ... the enable/disable switches are black,
+ * so it is not possible to see which thing correlates to which colour."
+ *
+ * The cause was a custom property that was READ and never SET: the switch icons
+ * are drawn with `fill: var(--dshtd-kind)`, and the stylesheet's per-kind rules
+ * named the chart's marks, the label groups, the register rows and the register
+ * swatches - and no switch. An SVG shape whose fill is invalid at
+ * computed-value time is BLACK, so every kind came out the same colour and the
+ * key told the reader nothing. The tests below pin both halves of the fix: the
+ * colour is written on the element (so no sheet can black it out) and the sheet
+ * still names the same colour (so a theme still wins where the sheet applies).
+ */
+test('every switch in the key carries its kind of colour, so no icon is black', () => {
+  const tree = t.SeriesChart({
+    spec: chartSpec(), payload: snapshotWith({ breaks: ALL_KINDS }), overlay: null,
+  })
+  const kinds = new Set()
+  for (const toggle of elementsWithClass(tree, 'dshtd-toggle')) {
+    const kind = toggle.props['data-kind']
+    const ink = t.kindInk(kind)
+    assert.match(ink, /^#[0-9a-f]{6}$/, `no colour is registered for kind ${kind}`)
+    assert.equal(toggle.props.style?.['--dshtd-kind'], ink,
+      `the switch for ${kind} does not set --dshtd-kind, so its icon falls back to black`)
+    const icon = elementsWithClass(toggle, 'dshtd-marker-swatch')[0]
+    assert.ok(icon, `the switch for ${kind} has no swatch to colour`)
+    assert.equal(icon.props.fill, ink,
+      `the icon for ${kind} has no colour of its own, so a sheet that is not applied draws it black`)
+    kinds.add(kind)
+  }
+  assert.equal(kinds.size, new Set(ALL_KINDS.map((marker) => marker.kind)).size,
+    'every kind present in the register must be switchable and coloured')
+})
+
+test('the kind colours are the same in the elements and in the stylesheet', () => {
+  const kinds = [...new Set([...ALL_KINDS.map((marker) => marker.kind),
+    ...Object.keys(t.MARKER_SHAPES)])]
+  // EVERY RULE, as selector list plus body: a kind's colour is declared once for
+  // several selectors at a time, so a regex anchored to one selector followed by
+  // `{` finds the shape rules and misses the colour rule entirely.
+  const rules = [...t.CSS_SOURCE.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .map((match) => ({ selectors: match[1], body: match[2] }))
+  for (const kind of kinds) {
+    const ink = t.kindInk(kind)
+    for (const cls of ['dshtd-break-swatch', 'dshtd-toggle']) {
+      const selector = `.${cls}[data-kind='${kind}']`
+      const matching = rules.filter((rule) => rule.selectors.includes(selector))
+      assert.ok(matching.length > 0, `the sheet has no rule for ${selector}`)
+      assert.ok(matching.some((rule) => rule.body.includes(ink)),
+        `${selector} is declared as [${matching.map((rule) => rule.body.trim()).join(' | ')}] `
+        + `in the sheet and ${ink} on the element`)
+    }
+  }
+})
+
+test('a register row carries its kind of colour on the element too', () => {
+  const tree = renderChart(snapshotWith({ breaks: ALL_KINDS }))
+  const rows = elementsWithClass(tree, 'dshtd-break-row')
+  assert.ok(rows.length > 0)
+  for (const row of rows) {
+    assert.equal(row.props.style?.['--dshtd-kind'], t.kindInk(row.props['data-kind']),
+      `the row at leg ${row.props['data-leg']} leaves its swatch and badge to a sheet that may not`
+      + ' be applied, which is how they came out black')
+  }
+})
+
+test('the frontier\'s swatch stays an outline in the sheet and on the element', () => {  const payload = snapshotWith({
+    breaks: ALL_KINDS,
+    frontier: {
+      phase_now: 'a', next_phase: 'b', boundary_leg: 40, next_leg: 260,
+      legs_in_phase: 40, legs_remaining: 1, expected_to_raise_bpb: false,
+      imminent: false, sentence: 'FRONTIER: a to b at about leg 260.',
+    },
+  })
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: null })
+  const button = elementsWithClass(tree, 'dshtd-toggle').find(
+    (toggle) => toggle.props['data-kind'] === 'frontier')
+  const swatch = elementsWithClass(button, 'dshtd-frontier-swatch')[0]
+  assert.equal(swatch.props.fill, 'none',
+    'an expectation is not a joint, so its swatch is not filled')
+  assert.equal(swatch.props.stroke, t.FRONTIER_INK)
+  // The icon rule is the more specific of the two and used to fill this diamond.
+  assert.ok(t.CSS_SOURCE.includes('*:not(.dshtd-frontier-swatch)'),
+    'the key\'s fill rule must exclude the frontier, or the outline is filled solid')
+  assert.match(t.CSS_SOURCE, /\.dshtd-toggle-icon \.dshtd-frontier-swatch \{ fill: none/)
+})
+
+// ---------------------------------------------------------------------------
+// PRESSING THE SWITCHES.
+//
+// Every test above RENDERS a control; none of them presses one, and this
+// repository has already paid for that distinction once: the zoom buttons were
+// wired the wrong way round - `+` widening the window and `-` narrowing it -
+// through a passing unit suite, because the tests asserted that the labelled
+// controls existed rather than what they did. A switch whose handler is wired to
+// the wrong state is exactly that defect, so the switches are pressed here.
+//
+// The renderer below is what makes pressing possible: it drives `useState` and
+// `useEffect` the way React does, in hook order, and re-renders on a state
+// change. It is deliberately small and drives nothing but the chart.
+// ---------------------------------------------------------------------------
+
+/**
+ * Drive a function component with working hooks, and re-render when a state
+ * setter is called.
+ *
+ * @param component - the function component to run.
+ * @param props - its initial props.
+ * @returns `render()`, which returns the element tree as it stands now.
+ */
+function mountHooks(component, props) {
+  // Keyed by hook position, and NOT an append-only array: hooks are called in a
+  // fixed order but not every position writes on every render, so an append-only
+  // store drifts out of step with the cursor and hands a hook the wrong cell.
+  const cells = []
+  let cursor = 0
+  let scheduled = false
+  const dispatcher = {
+    useState(initial) {
+      const at = cursor
+      cursor += 1
+      if (!(at in cells)) cells[at] = typeof initial === 'function' ? initial() : initial
+      const set = (next) => {
+        cells[at] = typeof next === 'function' ? next(cells[at]) : next
+        schedule()
+      }
+      return [cells[at], set]
+    },
+    useEffect() { cursor += 1 },
+    useMemo(factory) { cursor += 1; return factory() },
+    useRef(value) {
+      const at = cursor
+      cursor += 1
+      if (!(at in cells)) cells[at] = { current: value }
+      return cells[at]
+    },
+    useCallback(fn) { cursor += 1; return fn },
+  }
+  /** Re-render once, after the handler that changed the state has returned. */
+  function schedule() {
+    if (scheduled) return
+    scheduled = true
+    queueMicrotask(() => { scheduled = false; draw() })
+  }
+  function draw() {
+    cursor = 0
+    return component(props)
+  }
+  return { render: draw, dispatcher, cells }
+}
+
+/**
+ * Run one render with the bundle's React stub, wired to a hook dispatcher.
+ *
+ * It has to be a WRAPPER and not an assignment around a single call: walking the
+ * tree calls every nested function component again, so the dispatcher must be
+ * installed for the whole walk and not only for the outermost component.
+ */
+function withDispatchedHooks(dispatcher, work) {
+  const real = {
+    useState: reactStub.useState,
+    useEffect: reactStub.useEffect,
+    useRef: reactStub.useRef,
+    useCallback: reactStub.useCallback,
+  }
+  reactStub.useState = (initial) => dispatcher.useState(initial)
+  reactStub.useEffect = (fn, deps) => dispatcher.useEffect(fn, deps)
+  reactStub.useRef = (value) => dispatcher.useRef(value)
+  reactStub.useCallback = (fn, deps) => dispatcher.useCallback(fn, deps)
+  try {
+    return work()
+  } finally {
+    Object.assign(reactStub, real)
+  }
+}
+
+test('pressing a category switch hides that category, and pressing it again brings it back', async () => {
+  const payload = snapshotWith({ breaks: ALL_KINDS })
+  // The switch state lives in the PANEL, for the reason the panel's own comment
+  // gives: the chart, the strip and the register all read one list. So this test
+  // stands in for the panel and hands the list down, which is exactly what the
+  // real panel does - the handler it passes is `setHiddenKinds` under another
+  // name.
+  let hiddenKinds = []
+  const props = {
+    spec: chartSpec(),
+    payload,
+    overlay: null,
+    get hiddenKinds() { return hiddenKinds },
+    onToggleKind: (kind) => {
+      hiddenKinds = hiddenKinds.includes(kind)
+        ? hiddenKinds.filter((item) => item !== kind)
+        : [...hiddenKinds, kind]
+    },
+  }
+  const view = mountHooks(t.SeriesChart, props)
+  const tree = () => withDispatchedHooks(view.dispatcher, () => view.render())
+  const marks = () => elementsWithClass(tree(), 'dshtd-breakmark').map((mark) => mark.props['data-kind'])
+  const switchFor = (kind) => elementsWithClass(tree(), 'dshtd-toggle')
+    .find((toggle) => toggle.props['data-kind'] === kind)
+  /** Press one switch the way a reader does, then re-render as the panel would. */
+  const press = async (kind) => { switchFor(kind).props.onClick(); await Promise.resolve() }
+
+  assert.deepEqual(marks(),
+    ['instrument', 'shape', 'arithmetic', 'restart', 'corpus'],
+    'every category is drawn before anything is pressed')
+
+  await press('corpus')
+  assert.deepEqual(marks(), ['instrument', 'shape', 'arithmetic', 'restart'],
+    'pressing the CORPUS switch must remove the corpus joints from the chart')
+  assert.equal(switchFor('corpus').props['data-on'], 'false')
+  assert.match(textOf(elementsWithClass(tree(), 'dshtd-breaks-head')[0]), /4 of 5 drawn/)
+
+  await press('corpus')
+  assert.deepEqual(marks(),
+    ['instrument', 'shape', 'arithmetic', 'restart', 'corpus'],
+    'pressing it again must bring the category back')
+  assert.equal(switchFor('corpus').props['data-on'], 'true')
+  assert.match(textOf(elementsWithClass(tree(), 'dshtd-breaks-head')[0]), /5 of 5 drawn/)
+
+  // Two categories at once, because a reader hiding the cluster is the case the
+  // switches exist for: the counts must still account for both.
+  await press('corpus')
+  await press('restart')
+  assert.deepEqual(marks(), ['instrument', 'shape', 'arithmetic'])
+  assert.match(textOf(elementsWithClass(tree(), 'dshtd-breaks-head')[0]), /3 of 5 drawn/)
+})
+
+test('a hook-ordered render is what makes the switches pressable at all', () => {
+  // The renderer above is load-bearing for the test before it: with the stub's
+  // own `useState` the chart is frozen, and a frozen chart would show the same
+  // markers before and after a press - which is the shape a "the control is
+  // rendered" test cannot tell from a working one.
+  const view = mountHooks(t.SeriesChart, { spec: chartSpec(), payload: null, overlay: null })
+  withDispatchedHooks(view.dispatcher, () => view.render())
+  assert.ok(view.cells.length >= 2, 'the chart must actually register hook state')
+  assert.ok(view.cells.some((cell) => cell !== null && typeof cell === 'object' && 'current' in cell),
+    'and the refs it draws with must be real refs')
+})
+
+test('the switches belong to the reader and outlive the component', () => {
+  // The pane remounts a tab body on events the reader did not cause. A switch
+  // that forgets is a switch that undoes the reader's work on the next poll.
+  assert.deepEqual(t.rememberedHiddenKinds('session-a'), [])
+
+  t.rememberHiddenKinds('session-a', ['corpus', 'restart'])
+  assert.deepEqual(t.rememberedHiddenKinds('session-a'), ['corpus', 'restart'])
+  assert.deepEqual(t.rememberedHiddenKinds('session-b'), [],
+    'two sessions must not fight over one set of switches')
+
+  assert.equal(t.rememberedHideFrontier('session-a'), false)
+  t.rememberHideFrontier('session-a', true)
+  assert.equal(t.rememberedHideFrontier('session-a'), true)
+  assert.equal(t.rememberedHideFrontier('session-b'), false)
+
+  // A copy, so a later edit of the reader's list cannot reach back into the store.
+  const list = t.rememberedHiddenKinds('session-a')
+  list.push('shape')
+  assert.deepEqual(t.rememberedHiddenKinds('session-a'), ['corpus', 'restart'])
+})
+
+

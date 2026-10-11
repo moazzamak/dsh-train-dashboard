@@ -125,6 +125,13 @@ window.__ModuleLoader__.load({
       breakMeaning: 'dshtd-break-meaning',
       breakSupport: 'dshtd-break-support',
       breakContradiction: 'dshtd-break-contradiction',
+      // The disclosure that keeps a register row one readable line. The prose a
+      // row carries (why the joint is there, what the kind does to the curve,
+      // where it was read from) is real and belongs on screen - behind a control
+      // the reader opens, not laid out under every joint as a wall.
+      why: 'dshtd-why',
+      whySummary: 'dshtd-why-summary',
+      whyBody: 'dshtd-why-body',
       frontier: 'dshtd-frontier',
       frontierSwatch: 'dshtd-frontier-swatch',
       frontierTitle: 'dshtd-frontier-title',
@@ -133,14 +140,43 @@ window.__ModuleLoader__.load({
       frontierCaveat: 'dshtd-frontier-caveat',
       line: 'dshtd-line',
       dot: 'dshtd-dot',
+      // The chain a rollback discarded, drawn dimmed and dashed on the SAME axis:
+      // see `rollbackPoint`.
+      ghostLine: 'dshtd-ghost-line',
+      ghostOverlay: 'dshtd-ghost-overlay',
+      ghostSwatch: 'dshtd-ghost-swatch',
+      overlayLine: 'dshtd-overlay-line',
+      overlayDot: 'dshtd-overlay-dot',
+      overlayGridline: 'dshtd-overlay-gridline',
+      overlayAxis: 'dshtd-overlay-axis',
+      overlayLegend: 'dshtd-overlay-legend',
+      overlaySwatch: 'dshtd-overlay-swatch',
+      overlayChip: 'dshtd-overlay-chip',
+      currentValue: 'dshtd-current',
+      currentRail: 'dshtd-current-rail',
+      currentPrimary: 'dshtd-current-primary',
+      currentOverlay: 'dshtd-current-overlay',
+      hint: 'dshtd-hint',
+      toggle: 'dshtd-toggle',
+      toggleIcon: 'dshtd-toggle-icon',
+      toggleOff: 'dshtd-toggle-off',
+      toggleFrontier: 'dshtd-toggle-frontier',
       windowRow: 'dshtd-window-row',
       windowButton: 'dshtd-window-button',
       windowReadout: 'dshtd-window-readout',
       windowNote: 'dshtd-window-note',
+      //: The Y ruler: a labelled slider, its readout, and the rule it is drawn against.
+      scaleRuler: 'dshtd-scale-ruler',
+      scaleSlider: 'dshtd-scale-slider',
+      scaleReadout: 'dshtd-scale-readout',
       brush: 'dshtd-brush',
       brushEdge: 'dshtd-brush-edge',
       overview: 'dshtd-overview',
       overviewLine: 'dshtd-overview-line',
+      // The older pass on the strip under the chart. Its own class and not the
+      // chart's ghost class: the strip is a second view of the same values, and a
+      // reader counting ghosts means the ones on the chart.
+      overviewOlder: 'dshtd-overview-older',
       overviewWindow: 'dshtd-overview-window',
       empty: 'dshtd-empty',
       notice: 'dshtd-notice',
@@ -149,6 +185,7 @@ window.__ModuleLoader__.load({
       code: 'dshtd-code',
       legend: 'dshtd-legend',
       legendItem: 'dshtd-legend-item',
+      legendSwatch: 'dshtd-legend-swatch',
       footnote: 'dshtd-footnote',
     }
 
@@ -258,13 +295,15 @@ window.__ModuleLoader__.load({
    kind sets one custom property, and the line, its swatch and the register's badge
    all read it. The label group is included, because the swatch is a child of that
    group and a custom property set on the line's group does not reach it. */
-.${CLASS.marker}[data-kind='corpus'], .${CLASS.markerLabel}[data-kind='corpus'], .${CLASS.breakRow}[data-kind='corpus'], .${CLASS.swatch}[data-kind='corpus'] { --dshtd-kind: #3fa06b; }
-.${CLASS.marker}[data-kind='instrument'], .${CLASS.markerLabel}[data-kind='instrument'], .${CLASS.breakRow}[data-kind='instrument'], .${CLASS.swatch}[data-kind='instrument'] { --dshtd-kind: #8f7ff0; }
-.${CLASS.marker}[data-kind='arithmetic'], .${CLASS.markerLabel}[data-kind='arithmetic'], .${CLASS.breakRow}[data-kind='arithmetic'], .${CLASS.swatch}[data-kind='arithmetic'] { --dshtd-kind: #e05252; }
-.${CLASS.marker}[data-kind='shape'], .${CLASS.markerLabel}[data-kind='shape'], .${CLASS.breakRow}[data-kind='shape'], .${CLASS.swatch}[data-kind='shape'] { --dshtd-kind: #e0a13f; }
-.${CLASS.marker}[data-kind='restart'], .${CLASS.markerLabel}[data-kind='restart'], .${CLASS.breakRow}[data-kind='restart'], .${CLASS.swatch}[data-kind='restart'] { --dshtd-kind: #5aa9e6; }
-.${CLASS.marker}[data-kind='break'], .${CLASS.markerLabel}[data-kind='break'], .${CLASS.breakRow}[data-kind='break'], .${CLASS.swatch}[data-kind='break'] { --dshtd-kind: #9aa0a6; }
-.${CLASS.marker}, .${CLASS.markerLabel}, .${CLASS.breakRow}, .${CLASS.swatch} { --dshtd-kind: #9aa0a6; }
+.${CLASS.marker}[data-kind='corpus'], .${CLASS.markerLabel}[data-kind='corpus'], .${CLASS.breakRow}[data-kind='corpus'], .${CLASS.swatch}[data-kind='corpus'], .${CLASS.toggle}[data-kind='corpus'] { --dshtd-kind: #3fa06b; }
+.${CLASS.marker}[data-kind='instrument'], .${CLASS.markerLabel}[data-kind='instrument'], .${CLASS.breakRow}[data-kind='instrument'], .${CLASS.swatch}[data-kind='instrument'], .${CLASS.toggle}[data-kind='instrument'] { --dshtd-kind: #8f7ff0; }
+.${CLASS.marker}[data-kind='arithmetic'], .${CLASS.markerLabel}[data-kind='arithmetic'], .${CLASS.breakRow}[data-kind='arithmetic'], .${CLASS.swatch}[data-kind='arithmetic'], .${CLASS.toggle}[data-kind='arithmetic'] { --dshtd-kind: #e05252; }
+.${CLASS.marker}[data-kind='shape'], .${CLASS.markerLabel}[data-kind='shape'], .${CLASS.breakRow}[data-kind='shape'], .${CLASS.swatch}[data-kind='shape'], .${CLASS.toggle}[data-kind='shape'] { --dshtd-kind: #e0a13f; }
+.${CLASS.marker}[data-kind='restart'], .${CLASS.markerLabel}[data-kind='restart'], .${CLASS.breakRow}[data-kind='restart'], .${CLASS.swatch}[data-kind='restart'], .${CLASS.toggle}[data-kind='restart'] { --dshtd-kind: #5aa9e6; }
+.${CLASS.marker}[data-kind='rollback'], .${CLASS.markerLabel}[data-kind='rollback'], .${CLASS.breakRow}[data-kind='rollback'], .${CLASS.swatch}[data-kind='rollback'], .${CLASS.toggle}[data-kind='rollback'] { --dshtd-kind: #d1567e; }
+.${CLASS.marker}[data-kind='break'], .${CLASS.markerLabel}[data-kind='break'], .${CLASS.breakRow}[data-kind='break'], .${CLASS.swatch}[data-kind='break'], .${CLASS.toggle}[data-kind='break'],
+.${CLASS.marker}[data-kind='unknown'], .${CLASS.markerLabel}[data-kind='unknown'], .${CLASS.breakRow}[data-kind='unknown'], .${CLASS.swatch}[data-kind='unknown'], .${CLASS.toggle}[data-kind='unknown'] { --dshtd-kind: #9aa0a6; }
+.${CLASS.marker}, .${CLASS.markerLabel}, .${CLASS.breakRow}, .${CLASS.swatch}, .${CLASS.toggle} { --dshtd-kind: #9aa0a6; }
 .${CLASS.marker} { stroke: var(--dshtd-kind); stroke-width: 1; }
 .${CLASS.marker}[data-declared='true'] { stroke-dasharray: 3 3; }
 /* The same markers on the strip under the chart: dimmer, because they are a
@@ -287,6 +326,7 @@ window.__ModuleLoader__.load({
 .${CLASS.swatch}[data-kind='shape'] { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
 .${CLASS.swatch}[data-kind='arithmetic'] { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .${CLASS.swatch}[data-kind='restart'] { clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.${CLASS.swatch}[data-kind='rollback'] { clip-path: polygon(100% 0, 0 50%, 100% 100%, 67% 100%, 33% 50%, 67% 0); }
 .${CLASS.swatch}[data-kind='break'] { clip-path: inset(35% 0 35% 0); }
 .${CLASS.swatch}[data-kind='unknown'] {
   clip-path: polygon(35% 0, 65% 0, 65% 35%, 100% 35%, 100% 65%, 65% 65%, 65% 100%,
@@ -324,6 +364,25 @@ window.__ModuleLoader__.load({
 .${CLASS.breakMeaning} { color: var(--dsw-alias-label-secondary, #b0b0b0); }
 .${CLASS.breakSupport}, .${CLASS.breaksNote} { color: var(--dsw-alias-label-caption, #8a8a8a); font-size: 10px; }
 .${CLASS.breakContradiction} { color: var(--dsw-alias-state-warn-primary, #e5a34d); }
+/* THE ONE CONTROL THAT KEEPS THE REGISTER READABLE. A row states its leg, its
+   kind and what changed, and nothing else until the reader asks: the reason, the
+   meaning, the evidence and the caveats are the answer to "why", which is a
+   question a reader has AFTER reading the line, not before. Native details
+   rather than React state, so the disclosure works without a render cycle and
+   is keyboard- and screen-reader-standard for free. */
+.${CLASS.why} { font-size: 10px; }
+.${CLASS.whySummary} {
+  cursor: pointer; color: var(--dsw-alias-label-tertiary, #8a8a8a);
+  list-style: none; width: fit-content;
+}
+.${CLASS.whySummary}::-webkit-details-marker { display: none; }
+.${CLASS.whySummary}::before { content: '▸ '; }
+.${CLASS.why}[open] > .${CLASS.whySummary}::before { content: '▾ '; }
+.${CLASS.whySummary}:hover { color: var(--dsw-alias-label-secondary, #b0b0b0); }
+.${CLASS.whyBody} {
+  display: flex; flex-direction: column; gap: 4px; padding: 4px 0 0 12px;
+  border-left: 1px solid var(--dsw-alias-border-l2, #3a3a3a);
+}
 .${CLASS.frontier} {
   border: 1px dashed var(--dsw-alias-border-l2, #3a3a3a); border-radius: 8px;
   background: var(--dsw-alias-bg-layer-1, #1d1d1d); padding: 8px 10px;
@@ -334,7 +393,86 @@ window.__ModuleLoader__.load({
 .${CLASS.frontierSentence} { color: var(--dsw-alias-label-secondary, #b0b0b0); }
 .${CLASS.frontierCaveat} { color: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 10px; }
 .${CLASS.line} { fill: none; stroke: var(--dsw-alias-brand-primary, #4d6bfe); stroke-width: 1.6; stroke-linejoin: round; }
+/* THE CHAIN A ROLLBACK THREW AWAY. The values are real and they are on the same
+   leg axis, so they stay on the chart - dimmed and dashed, which is what a ghost
+   is - and the live chain starts where the controller rewound to. The axis is
+   untouched by the split, so a reader comparing the two chains is comparing them
+   on one x. The colour is the same hue as the line it ghosts, because it is the
+   same series: only its LIFE is different.
+   AT HALF OPACITY AND NOT A THIRD, and this is a correction rather than a taste:
+   shipped at 0.30 with a 2-3 dash, a 200-leg ghost over a wide axis read as NOT
+   THERE at all - "the pre rollback values are completely gone ... they should
+   simply be ghosted out so the latest run can appear distinct" (the user, 10
+   October 2026). A ghost has to be visible enough to be recognised as one. */
+.${CLASS.ghostLine} {
+  fill: none; stroke: var(--dsw-alias-brand-primary, #4d6bfe); stroke-width: 1.4;
+  stroke-dasharray: 5 3; opacity: 0.5; stroke-linejoin: round;
+}
+.${CLASS.ghostOverlay} {
+  fill: none; stroke: var(--dshtd-overlay, #e5a34d); stroke-width: 1.3;
+  stroke-dasharray: 5 3; opacity: 0.5; stroke-linejoin: round;
+}
+.${CLASS.ghostSwatch} { stroke: var(--dshtd-ghost-ink, #8a8a8a); stroke-width: 1.4; stroke-dasharray: 5 3; }
 .${CLASS.dot} { fill: var(--dsw-alias-brand-primary, #4d6bfe); }
+/* THE SECOND LINE, AND WHY IT IS DRESSED DIFFERENTLY. It is drawn on the SAME
+   frame as the selected series but against the axis on the RIGHT, because the
+   two carry different units and one axis cannot be true for both. So the two
+   curves must not be confusable for one another: this one is a lighter weight,
+   dashed, in its own registered colour, and the legend under the chart names
+   it, its unit and which side of the frame its scale is on. The colour is a
+   SECOND channel and never the only one - the dash pattern and the legend
+   carry the same fact. */
+.${CLASS.overlayLine} { fill: none; stroke: var(--dshtd-overlay, #e5a34d); stroke-width: 1.3; stroke-dasharray: 5 3; stroke-linejoin: round; }
+.${CLASS.overlayDot} { fill: var(--dshtd-overlay, #e5a34d); }
+.${CLASS.overlayGridline} { stroke: var(--dshtd-overlay, #e5a34d); stroke-width: 1; opacity: 0.22; }
+.${CLASS.overlayAxis} { fill: var(--dshtd-overlay, #e5a34d); font-size: 9px; }
+.${CLASS.overlaySwatch} {
+  display: inline-block; width: 14px; height: 0; flex: none;
+  border-top: 2px dashed var(--dshtd-overlay, #e5a34d);
+}
+/* The first line's key in the legend: a solid rule in the brand colour, the
+   counterpart of the overlay's dashed one, so the pair reads as a pair. */
+.${CLASS.legendSwatch} {
+  display: inline-block; width: 14px; height: 0; flex: none;
+  border-top: 2px solid var(--dsw-alias-brand-primary, #4d6bfe);
+}
+.${CLASS.overlayLegend} { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 10px; }
+/* THE CURRENT VALUE OF EACH LINE, IN THE LEFT MARGIN. Written in its own line's
+   colour, which is the one place on this frame where colour carries the whole
+   meaning of a number - and still a second channel, because each reading sits at
+   the height its line was drawn at and rides a rail in the same colour. The fill
+   is set on the elements as well as here, because an SVG text with no fill is
+   BLACK and a reader saw exactly that when these first shipped: a fill that lives
+   only in this sheet is a fill that is absent whenever the sheet is not applied. */
+.${CLASS.currentValue} { font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.${CLASS.currentPrimary} { fill: var(--dsw-alias-brand-primary, #4d6bfe); }
+.${CLASS.currentOverlay} { fill: var(--dshtd-overlay, #e5a34d); }
+.${CLASS.hint} { color: var(--dsw-alias-label-caption, #8a8a8a); font-size: 10px; }
+/* The reader's own switch for the marker categories. A real button with a
+   label, so the categories are reachable by keyboard and by touch, and the
+   SWATCH KEEPS ITS SHAPE when switched off: the chip is dimmed and its word
+   struck through rather than recoloured, because a kind read as "off" by hue
+   alone is invisible to a reader who cannot separate the hues. */
+.${CLASS.toggle} {
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+  border: 1px solid var(--dsw-alias-border-l2, #3a3a3a); border-radius: 999px;
+  background: transparent; color: var(--dsw-alias-label-secondary, #b0b0b0);
+  font-size: 10px; padding: 1px 8px 1px 6px; line-height: 16px;
+}
+.${CLASS.toggle}:hover { border-color: var(--dsw-alias-border-l1, #4a4a4a); color: var(--dsw-alias-label-primary, #f0f0f0); }
+.${CLASS.toggle}[data-on='false'] { opacity: 0.6; }
+.${CLASS.toggle}[data-on='false'] .${CLASS.toggleLabel} { text-decoration: line-through; }
+.${CLASS.toggleIcon} { flex: none; display: inline-block; }
+/* Every icon in the key is filled with its kind's colour - EXCEPT the frontier's,
+   which is an outline: fill none is set here rather than only on its own class,
+   because this rule is the more specific of the two and was filling the
+   expectation's diamond solid. */
+.${CLASS.toggleIcon} *:not(.${CLASS.frontierSwatch}) { fill: var(--dshtd-kind); }
+.${CLASS.toggleIcon} .${CLASS.frontierSwatch} { fill: none; stroke: var(--dsw-alias-label-tertiary, #8a8a8a); }
+.${CLASS.toggleOff} {
+  border-style: dashed; border-color: var(--dsw-alias-border-l2, #5a5a5a);
+  color: var(--dsw-alias-label-tertiary, #8a8a8a);
+}
 .${CLASS.legend} { display: flex; flex-wrap: wrap; gap: 10px; color: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 10px; }
 .${CLASS.legendItem} { display: inline-flex; align-items: center; gap: 4px; }
 .${CLASS.notice} {
@@ -372,6 +510,27 @@ window.__ModuleLoader__.load({
   color: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 10.5px;
   font-variant-numeric: tabular-nums;
 }
+/* THE Y RULER. It sits in the control row beside the x window's buttons and reads as one
+   instrument with them, so it borrows their border and background rather than introducing a
+   second visual language for the same kind of control. The slider itself is left at the
+   platform's own size for the thumb, because a hand-sized target that a reader can hit is worth
+   more here than a hairline that matches the type. */
+.${CLASS.scaleRuler} {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 1px 8px 1px 6px; border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l2, #3a3a3a);
+  background: var(--dsw-alias-bg-layer-1, #1d1d1d);
+  cursor: pointer;
+}
+.${CLASS.scaleSlider} {
+  width: 96px; margin: 0; cursor: pointer;
+  accent-color: var(--dsw-alias-label-secondary, #b0b0b0);
+}
+.${CLASS.scaleReadout} {
+  min-width: 34px; text-align: right;
+  color: var(--dsw-alias-label-secondary, #b0b0b0); font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
 /* The chart takes pointer drags for the window, so the browser must not claim
    them for scrolling or text selection. */
 .${CLASS.chart} { touch-action: none; user-select: none; cursor: crosshair; }
@@ -380,6 +539,10 @@ window.__ModuleLoader__.load({
 .${CLASS.brushEdge} { stroke: var(--dsw-alias-brand-primary, #4d6bfe); stroke-width: 1; }
 .${CLASS.overview} { touch-action: none; user-select: none; cursor: crosshair; }
 .${CLASS.overviewLine} { fill: none; stroke: var(--dsw-alias-label-tertiary, #8a8a8a); stroke-width: 1; }
+.${CLASS.overviewOlder} {
+  fill: none; stroke: var(--dsw-alias-label-tertiary, #8a8a8a); stroke-width: 1;
+  stroke-dasharray: 4 3; opacity: 0.5;
+}
 .${CLASS.overviewWindow} {
   fill: var(--dsw-alias-brand-primary, #4d6bfe); opacity: 0.22;
   stroke: var(--dsw-alias-brand-primary, #4d6bfe); stroke-width: 1;
@@ -480,6 +643,76 @@ window.__ModuleLoader__.load({
     const HEADLINE_TAGS = ['train/bpb_legval', 'train/bpb_sealed']
 
     /**
+     * The series drawn as a SECOND LINE on the main chart, best source first.
+     *
+     * THE SEED MODEL'S OWN SIZE, AND WHY IT IS AN OVERLAY RATHER THAN A CHIP.
+     * The tab draws one series at a time on its own axis, because series carry
+     * different units and one axis cannot be true for two of them. This one is
+     * the exception the reader asked for: the growth ladder is the point of the
+     * run, so how big the model has become has to be visible AT THE SAME TIME as
+     * the reading it buys - a chip would make the reader choose between the
+     * curve and the size, which is exactly the comparison they are trying to
+     * make. It is therefore drawn on the same frame against the axis on the
+     * RIGHT, dashed and in its own colour, with a legend naming its unit and its
+     * side. The rule the chip design protects is not broken but made explicit:
+     * the two curves are on different scales, and the frame says so in words.
+     *
+     * These tags are kept OUT of the chip list by `availableSeries`: a chip that
+     * selects a series already drawn underneath the curve would be a second way
+     * to ask for one picture, and the one already on screen would win.
+     *
+     * Sizing the first entry is the total, in parameters. The other two are the
+     * tables it is made of, which are chartable in their own right when a
+     * producer serves no total - see `resolveOverlay`.
+     */
+    const OVERLAY_TAGS = ['train/seed_model_params', 'train/seed_read_rows']
+
+    /** The prefix every seed-size tag shares, kept out of the chip list. */
+    const OVERLAY_TAG_PREFIX = 'train/seed_'
+
+    /**
+     * The two y scales a series can be drawn on, named once.
+     *
+     * WHY THE SIZE AXIS IS LOGARITHMIC, and it is a measurement rather than a
+     * preference. The size is the product of the growth ladder, and the ladder
+     * multiplies: this run steps 17.05M -> 22.22M, which is 1.30x, and a linear
+     * axis anchored at zero draws that as a nearly flat line near the top of the
+     * frame - the growth is in the numbers but the picture does not show it. On a
+     * log axis the same readings are 0.115 decades of travel, and each growth
+     * step is the same fraction of the height however big the model already is,
+     * which is what "the size of the seed model as it grows" has to mean.
+     *
+     * WHAT "FROM 0" CANNOT MEAN HERE, stated rather than fudged: a log axis has
+     * no zero. log(0) is negative infinity, so a floor of 0 is not a setting this
+     * axis can honour, and a chart that drew one would be lying about its own
+     * scale. The floor is instead a quarter of the series' own maximum (see
+     * LOG_FLOOR_FRACTION), which is low enough that the line uses the frame and
+     * high enough that it is a scale the data actually occupies. The part of the
+     * request that DOES start from zero is carried by the series beside this one:
+     * `train/seed_read_rows` is 0 rows at leg 1 and 7,471 now, and it is one
+     * switch away.
+     */
+    const LOG_SCALE = 'log'
+    const LINEAR_SCALE = 'linear'
+
+    /**
+     * Whether a series spec asks for a logarithmic y axis.
+     *
+     * The field is `axis` and not `scale`, because `scale` on these specs is
+     * already taken: it is the numeric factor that turns a raw reading into the
+     * unit the axis is written in (parameters into millions). Two meanings for
+     * one name is how a log axis ends up reading `1e-6` as its scale kind.
+     */
+    function isLogScale(spec) {
+      return spec !== null && spec !== undefined && spec.axis === LOG_SCALE
+    }
+
+    /** Whether a tag is part of the seed-size overlay family. */
+    function isOverlayTag(tag) {
+      return typeof tag === 'string' && tag.startsWith(OVERLAY_TAG_PREFIX)
+    }
+
+    /**
      * Whether a tag looks like a per-step trace rather than a per-run series.
      *
      * A trace tag names one step (`vram_trace/step_0001_gib`), so offering one
@@ -548,6 +781,11 @@ window.__ModuleLoader__.load({
       for (const [tag, item] of index) {
         if (known.has(tag) || suppressed.has(tag)) continue
         if (isTraceTag(tag)) continue
+        // The seed-size family is drawn as the chart's SECOND LINE, against the
+        // axis on the right. Offering it as a chip too would let the reader
+        // select it as the one series, and then the overlay would be drawing the
+        // same curve as itself on two axes - see OVERLAY_TAGS.
+        if (isOverlayTag(tag)) continue
         if (tag.endsWith('_pre_break') || tag.endsWith('_post_break')) continue
         offered.push({ tag, label: tag, unit: '', digits: 3, primary: false, series: item })
       }
@@ -591,6 +829,61 @@ window.__ModuleLoader__.load({
      */
     const chosenSeriesBySession = new Map()
     const windowByTag = new Map()
+    //: The Y ruler's factor per series, beside the x window's own store so the two survive a remount
+    //: together and Reset can forget either without touching the other.
+    const scaleByTag = new Map()
+
+    /**
+     * The marker categories each session last had switched off, and whether it
+     * had the frontier switched off.
+     *
+     * A third piece of state that belongs to the READER, kept here for the same
+     * reason the other two are: the pane unmounts and mounts a tab body again on
+     * events the reader did not cause, and a switch that resets itself on a
+     * poll is worse than no switch - the reader turns a category off to read a
+     * curve, the next refresh puts it back, and the chart silently returns to
+     * the state they were trying to get away from.
+     *
+     * A LIST OF HIDDEN KINDS and not a set of shown ones, so a kind this tab has
+     * never seen is DRAWN by default: a producer's new kind, or a marker served
+     * with no kind, must not be hidden by a preference the reader expressed
+     * before it existed.
+     */
+    const hiddenKindsBySession = new Map()
+    const hideFrontierBySession = new Map()
+    const hideOlderBySession = new Map()
+
+    /** The categories one session has switched off, or [] for none. */
+    function rememberedHiddenKinds(sessionId) {
+      // A COPY, so a caller that sorts or splices what it is handed cannot reach
+      // back into the store and change what the next render reads.
+      return [...(hiddenKindsBySession.get(sessionId ?? '') ?? [])]
+    }
+
+    /** Remember the categories one session has switched off. */
+    function rememberHiddenKinds(sessionId, kinds) {
+      hiddenKindsBySession.set(sessionId ?? '', [...(kinds ?? [])])
+    }
+
+    /** Whether one session had the frontier switched off. */
+    function rememberedHideFrontier(sessionId) {
+      return hideFrontierBySession.get(sessionId ?? '') === true
+    }
+
+    /** Remember whether one session has the frontier switched off. */
+    function rememberHideFrontier(sessionId, hidden) {
+      hideFrontierBySession.set(sessionId ?? '', hidden === true)
+    }
+
+    /** Whether one session had the older run's values switched off. */
+    function rememberedHideOlder(sessionId) {
+      return hideOlderBySession.get(sessionId ?? '') === true
+    }
+
+    /** Remember whether one session has the older run's values switched off. */
+    function rememberHideOlder(sessionId, hidden) {
+      hideOlderBySession.set(sessionId ?? '', hidden === true)
+    }
 
     /** What the reader has chosen for one session, or null for the default. */
     function rememberedSeries(sessionId) {
@@ -612,6 +905,29 @@ window.__ModuleLoader__.load({
     function rememberWindow(tag, range) {
       if (range === null || range === undefined) windowByTag.delete(tag)
       else windowByTag.set(tag, range)
+    }
+
+    /**
+     * The Y ruler: a factor on the vertical window, per series, 1 meaning auto.
+     *
+     * WHY IT IS A FACTOR AND NOT A RANGE. The vertical window's honest default MOVES - it follows the
+     * samples inside the current x window, and it is taken from the live chain alone so the discarded
+     * arc cannot set it. A remembered absolute range would therefore go stale the moment the reader
+     * panned or the run advanced, and would silently pin the axis to a window the data has left. A
+     * FACTOR on whatever the axis would have been keeps the reader's intent - "twice as tall", "half
+     * as tall" - while the centre stays where the data puts it.
+     *
+     * 1 is auto and is the same state as never having touched the ruler, which is what makes Reset and
+     * "freshly loaded" one state rather than two that look alike.
+     */
+    function rememberedScale(tag) {
+      return scaleByTag.get(tag) ?? 1
+    }
+
+    /** Remember, or forget with 1 or null, how tall one series' axis was left. */
+    function rememberScale(tag, factor) {
+      if (factor === null || factor === undefined || factor === 1) scaleByTag.delete(tag)
+      else scaleByTag.set(tag, factor)
     }
 
     /**
@@ -807,7 +1123,72 @@ window.__ModuleLoader__.load({
     // React components
     // ----------------------------------------------------------------------
 
-    const CHART = { width: 720, height: 240, padLeft: 54, padRight: 14, padTop: 12, padBottom: 26 }
+    /**
+     * The room the second axis needs on the right, in chart units.
+     *
+     * Two things share this gutter: the overlay's tick labels, and the axis'
+     * own UNIT drawn rotated at the outer edge. A unit written flat beside the
+     * top tick is what this replaced: `22.00 M params` is far wider than any
+     * gutter worth taking out of the plot, so the unit stands up the side
+     * instead, where the chart's HEIGHT pays for it and the curve keeps its
+     * columns. See `axisUnitTitle`.
+     *
+     * The current-value readings used to be written here too, sharing a column
+     * with the tick labels until a reader could not tell them apart. They are in
+     * the left margin now, which is why this is 74 rather than 100.
+     */
+    const OVERLAY_GUTTER = 74
+
+    /** How far a tick label sits from the axis it belongs to. */
+    const AXIS_LABEL_GAP = 6
+
+    /** The width reserved at the outer edge of an axis for its rotated unit. */
+    const AXIS_UNIT_WIDTH = 16
+
+    /**
+     * The room the LEFT margin needs, in chart units.
+     *
+     * Four columns share it, from the far edge inward: the axis' rotated unit
+     * title, the floating CURRENT VALUE of each line (its text, then its rail),
+     * and the primary axis' tick labels against the plot. The reading has a
+     * column of its own rather than a row in the numbers' column, because on the
+     * right it shared theirs and the two were mistaken for one another.
+     *
+     * Measured at this frame's own font: the title takes 16, the reading's text
+     * up to about 44 ending at the rail, the rail 2 more, and a five-character
+     * tick label 28 against the plot. The rest is the gaps, which are what stop
+     * the numbers and the readings reading as one column of figures.
+     */
+    const PAD_LEFT = 130
+
+    /** The width of the band a current-value reading occupies. */
+    const CURRENT_VALUE_WIDTH = 50
+
+    /** The rail down a reading's inner edge: where it starts, and how thick. */
+    const CURRENT_VALUE_RAIL_X = 96
+    const CURRENT_VALUE_RAIL_WIDTH = 2
+
+    /**
+     * How far above its line a current-value reading floats, and the least room
+     * that may be left between two of them.
+     *
+     * A reading is offset so it sits beside its line rather than on it - a
+     * number written over the curve is a number nobody can check - and the two
+     * are kept apart so that two lines ending at nearly the same height do not
+     * write one reading over the other. The separation is measured against the
+     * band each reading occupies, so the two RAILS cannot meet either.
+     */
+    const CURRENT_VALUE_OFFSET = 16
+    const CURRENT_VALUE_MIN_SEPARATION = 13
+
+    /**
+     * The frame, and the strip under it.
+     *
+     * `padLeft` is `PAD_LEFT` and not a literal, because the left margin's width
+     * is decided by the four columns that share it - see PAD_LEFT - and two
+     * numbers for one margin is how they drift apart.
+     */
+    const CHART = { width: 720, height: 240, padLeft: PAD_LEFT, padRight: 14, padTop: 12, padBottom: 26 }
     /** The strip under the chart: one overview of the whole run and the window on it. */
     const OVERVIEW = { height: 30, padTop: 4, padBottom: 4 }
 
@@ -821,6 +1202,21 @@ window.__ModuleLoader__.load({
     const ZOOM_FACTOR = 0.6
     /** How far one arrow key pans, as a fraction of the window. */
     const PAN_FRACTION = 0.25
+    /**
+     * The Y ruler's span: the shortest and tallest vertical window its slider offers.
+     *
+     * The default is 1, which is auto - the axis the live chain's own bounds set - so the slider's
+     * centre is auto and each end is a deliberate departure from it. `SCALE_MAX` of 400 is chosen for
+     * the case that prompted the ruler: the discarded arc's values reach about 2,000 times the live
+     * arc's, so a reader who wants to see the whole spike needs a factor in the hundreds, and the exact
+     * end is not important as long as it is comfortably past that. `SCALE_MIN` of 0.05 puts the axis on
+     * a twentieth of the live span, which is inside the plateau where twenty legs move a tenth of a
+     * percent.
+     */
+    const SCALE_MIN = 0.05
+    const SCALE_MAX = 400
+    /** One press of the ruler's own step buttons, as a factor. */
+    const SCALE_STEP = 1.25
     /** Below this many pixels a drag is a click, not a selection. */
     const MIN_BRUSH_PIXELS = 6
     /**
@@ -924,14 +1320,50 @@ window.__ModuleLoader__.load({
       return { lo: lo - padding, hi: hi + padding }
     }
 
-    /** The frame's x mapping: which data values its left and right edges hold. */
-    function plotGeometry(range) {
-      return { left: CHART.padLeft, right: CHART.width - CHART.padRight, lo: range.lo, hi: range.hi }
+    /**
+     * Widen or narrow a Y extent about its own centre, by the ruler's factor.
+     *
+     * `1` returns the extent unchanged, which is auto; a factor below one narrows and above one widens,
+     * so the ruler reads the same way round as the x zoom's factor and the arrow beside it. The centre
+     * is held, because the reader's intent when they say "taller" is about the span and not about which
+     * end moves - and holding the centre is what keeps the curve where their eye already is.
+     *
+     * A null extent is passed through, because "no points" has no centre to scale about.
+     * @param range - the auto extent, or null.
+     * @param factor - the ruler's factor; 1 means auto.
+     * @returns the scaled extent, or the input when there is nothing to scale.
+     */
+    function scaleRange(range, factor) {
+      if (range === null || range === undefined) return range
+      const f = Number.isFinite(factor) && factor > 0 ? factor : 1
+      if (f === 1) return range
+      const centre = (range.lo + range.hi) / 2
+      const half = ((range.hi - range.lo) / 2) * f
+      return { lo: centre - half, hi: centre + half }
     }
 
-    /** Clamp a chart-space x to the frame's plot columns. */
-    function clampChartPixel(px) {
-      return Math.min(Math.max(px, CHART.padLeft), CHART.width - CHART.padRight)
+    /**
+     * The frame's x mapping: which data values its left and right edges hold.
+     *
+     * `padRight` is a parameter because the frame WIDENS when a second line is
+     * drawn against an axis on its right: the overlay's tick labels need a
+     * gutter, and a label drawn outside the plot's own columns would either be
+     * clipped away or land on top of the curve. Omitted, the frame is the one
+     * this tab has always drawn, so a caller that knows nothing about the
+     * overlay gets exactly the geometry it got before.
+     */
+    function plotGeometry(range, padRight = CHART.padRight) {
+      return { left: CHART.padLeft, right: CHART.width - padRight, lo: range.lo, hi: range.hi }
+    }
+
+    /**
+     * Clamp a chart-space x to a frame's plot columns.
+     *
+     * The right edge comes from the frame when the caller has one, so a drag on
+     * a chart with a second axis stops at the axis rather than under its labels.
+     */
+    function clampChartPixel(px, right = CHART.width - CHART.padRight) {
+      return Math.min(Math.max(px, CHART.padLeft), right)
     }
 
     /** The data value at one x pixel of the frame. */
@@ -951,23 +1383,30 @@ window.__ModuleLoader__.load({
      * The chart-space x of a pointer event over an element that draws the frame.
      * @param event - a pointer event.
      * @param element - the element the frame is drawn in.
+     * @param plot - the frame, when the caller has one with a widened right edge.
      * @returns the clamped chart-space x.
      */
-    function chartPixelFromEvent(event, element) {
+    function chartPixelFromEvent(event, element, plot = null) {
       const rect = element.getBoundingClientRect()
       if (rect.width === 0) return CHART.padLeft
-      return clampChartPixel(((event.clientX - rect.left) / rect.width) * CHART.width)
+      const right = plot === null ? CHART.width - CHART.padRight : plot.right
+      return clampChartPixel(((event.clientX - rect.left) / rect.width) * CHART.width, right)
     }
 
     /** "steps 120–480 · 360 of 1200 shown", for the visible readout. */
-    function rangeLabel(range, bounds) {
+    function rangeLabel(range, bounds, fromPassStart = false) {
       const lo = Math.round(range.lo)
       const hi = Math.round(range.hi)
       const total = Math.round(bounds.hi - bounds.lo)
       const whole = range.lo <= bounds.lo && range.hi >= bounds.hi
+      // A RE-BASED X IS NAMED, not left to be inferred from numbers that no longer
+      // match the legs in the register: on a run that has rolled back, x is the
+      // distance from each pass's own first leg, and "steps 12–60" would be read as
+      // legs 12 to 60 of a run whose live pass has not reached either.
+      const unit = fromPassStart ? "legs from each pass's start" : `${X_AXIS_LABEL}s`
       return whole
-        ? `${X_AXIS_LABEL}s ${lo}–${hi} · all ${total} shown`
-        : `${X_AXIS_LABEL}s ${lo}–${hi} · ${Math.round(range.hi - range.lo)} of ${total} shown`
+        ? `${unit} ${lo}–${hi} · all ${total} shown`
+        : `${unit} ${lo}–${hi} · ${Math.round(range.hi - range.lo)} of ${total} shown`
     }
 
     // ----------------------------------------------------------------------
@@ -1028,6 +1467,10 @@ window.__ModuleLoader__.load({
       arithmetic: 'triangle',
       shape: 'diamond',
       restart: 'triangle-down',
+      // A left-pointing band, because a rollback is a REWIND: the one kind whose
+      // joint the leg numbers do not order, since the weights on the right of it
+      // are older than the weights on the left.
+      rollback: 'chevron',
       [DECLARED_KIND]: 'bar',
       [UNKNOWN_KIND]: 'plus',
     }
@@ -1036,6 +1479,87 @@ window.__ModuleLoader__.load({
     function markerShape(kind) {
       return MARKER_SHAPES[kind] ?? MARKER_SHAPES[UNKNOWN_KIND]
     }
+
+    /**
+     * The leg where the newest ROLLBACK happened, or null when the run has none.
+     *
+     * The values to the LEFT of it are a chain the controller threw away: on
+     * 10 October 2026 the run rolled back to its START at leg 209 and carried on
+     * numbering from 210, so the reading jumps at that joint for a reason that is
+     * not the model. The chart draws those older values as a GHOST - dimmed and
+     * dashed, on the same axis, because the axis is the record and dropping them
+     * would make the run look shorter than it is - and the switch beside the key
+     * lets the reader take them off the picture.
+     *
+     * READ FROM THE WHOLE MARKER LIST AND NOT THE VISIBLE ONE: a reader who
+     * switches the ROLLBACK category off is asking not to see the marker, not to
+     * be shown a chart where the discarded chain looks live again.
+     */
+    function rollbackPoint(markers) {
+      let leg = null
+      for (const marker of markers ?? []) {
+        if (marker !== null && marker.kind === 'rollback' && Number.isFinite(marker.leg)) {
+          leg = leg === null ? marker.leg : Math.max(leg, marker.leg)
+        }
+      }
+      return leg
+    }
+
+    /** The older-run values and the live ones, split at a ghost leg. */
+    function splitOlder(points, ghostLeg) {
+      if (!Number.isFinite(ghostLeg)) return { older: [], live: [...(points ?? [])] }
+      const older = []
+      const live = []
+      for (const point of points ?? []) {
+        (point[0] <= ghostLeg ? older : live).push(point)
+      }
+      return { older, live }
+    }
+
+    /** Whether the older run's values are on the chart at all. */
+    function olderIsShown(markers, hideOlder) {
+      return rollbackPoint(markers) !== null && hideOlder !== true
+    }
+
+    /**
+     * THE KIND'S COLOUR, WRITTEN ON THE ELEMENT AS WELL AS IN THE SHEET.
+     *
+     * WHY TWICE, and this is the second time this file has paid for it. The
+     * stylesheet sets `--dshtd-kind` per kind and the elements that READ it are
+     * the chart's mark, its swatch, the register's swatch and badge, and the
+     * category switches' icons. A custom property that is never SET on an element
+     * makes `fill: var(--dshtd-kind)` invalid at computed-value time, and an SVG
+     * shape with no fill is BLACK — so the switches under the chart came out as
+     * black diamonds and triangles with nothing to tell the kinds apart, exactly
+     * the defect reported on 10 October 2026. The values here are the sheet's own
+     * fallbacks (see the `--dshtd-kind` rules), so the two cannot name different
+     * colours; a test reads both and fails if they drift.
+     */
+    const KIND_INK = {
+      corpus: '#3fa06b',
+      instrument: '#8f7ff0',
+      arithmetic: '#e05252',
+      shape: '#e0a13f',
+      restart: '#5aa9e6',
+      // Rose, and distinct from the arithmetic red on purpose: a rollback is not
+      // a change to how the numbers are computed, it is the numbers themselves
+      // going backwards.
+      rollback: '#d1567e',
+      [DECLARED_KIND]: '#9aa0a6',
+      [UNKNOWN_KIND]: '#9aa0a6',
+    }
+
+    /** The ink for one kind of joint; an unseen kind takes the fallback grey. */
+    function kindInk(kind) {
+      return KIND_INK[kind] ?? KIND_INK[UNKNOWN_KIND]
+    }
+
+    /**
+     * The ink of the frontier's own line, which is a label colour and not a
+     * kind's: an expectation is not a joint, so it is drawn in the same tertiary
+     * grey as the dashed line it belongs to.
+     */
+    const FRONTIER_INK = '#8a8a8a'
 
     /** Side of the marker swatch, in chart units. */
     const MARKER_SWATCH_SIZE = 7
@@ -1210,11 +1734,20 @@ window.__ModuleLoader__.load({
      * @param cx - centre x, in chart units.
      * @param cy - centre y, in chart units.
      * @param key - React key.
+     * @param ink - the fill to write ON THE SHAPE, or null to leave it to the
+     *   sheet. `'none'` is a fill value like any other: it is what the frontier's
+     *   outlined diamond is drawn with. A presentation attribute loses to any CSS
+     *   rule that applies, so the sheet still wins wherever it is applied and the
+     *   shape is never black where it is not.
+     * @param strokeInk - the outline, for the one swatch that is not filled.
      * @returns the SVG element for the swatch.
      */
-    function markerSwatch(shape, cx, cy, key, className = CLASS.markerSwatch) {
+    function markerSwatch(shape, cx, cy, key, className = CLASS.markerSwatch,
+                          ink = null, strokeInk = null) {
       const radius = MARKER_SWATCH_SIZE / 2
       const common = { key, className }
+      if (ink !== null) common.fill = ink
+      if (strokeInk !== null) common.stroke = strokeInk
       const points = (list) => list.map(([x, y]) => `${x},${y}`).join(' ')
       if (shape === 'circle') return React.createElement('circle', { ...common, cx, cy, r: radius })
       if (shape === 'square') {
@@ -1235,6 +1768,16 @@ window.__ModuleLoader__.load({
       if (shape === 'triangle-down') {
         return React.createElement('polygon', { ...common, points: points([
           [cx - radius, cy - radius], [cx + radius, cy - radius], [cx, cy + radius],
+        ]) })
+      }
+      if (shape === 'chevron') {
+        // A LEFT-POINTING BAND: the shape of a rewind, and distinct at 7 units
+        // from every other kind's shape.
+        const thick = (radius * 2) / 3
+        return React.createElement('polygon', { ...common, points: points([
+          [cx + radius, cy - radius], [cx - radius, cy], [cx + radius, cy + radius],
+          [cx + radius - thick, cy + radius], [cx - radius + thick, cy],
+          [cx + radius - thick, cy - radius],
         ]) })
       }
       if (shape === 'plus') {
@@ -1307,10 +1850,24 @@ window.__ModuleLoader__.load({
         nextPhase: markerText(raw.next_phase),
         boundaryLeg: Number.isFinite(raw.boundary_leg) ? raw.boundary_leg : null,
         nextLeg: Number.isFinite(raw.next_leg) ? raw.next_leg : null,
+        // The leg the PRODUCER says the expectation is about, when it serves one.
+        // The rule below is the same rule, and it stays as the fallback for a
+        // producer that predates the key; where both are present the producer's
+        // own answer wins, because the producer owns the budget the leg comes
+        // from and a second derivation here is free to disagree with it.
+        chartLeg: Number.isFinite(raw.chart_leg) ? raw.chart_leg : null,
+        // Where the run IS, as the producer counts it. The head line puts this
+        // before the projection, because a projection hundreds of legs ahead
+        // reads as a claim about the position otherwise ("we are not at step
+        // 690, we restarted and are at 10-ish" - the user, 10 October 2026).
+        newestLeg: Number.isFinite(raw.newest_leg) ? raw.newest_leg : null,
         legsInPhase: Number.isFinite(raw.legs_in_phase) ? raw.legs_in_phase : null,
         legsRemaining: Number.isFinite(raw.legs_remaining) ? raw.legs_remaining : null,
         raiseExpected: raw.expected_to_raise_bpb === true,
         imminent: raw.imminent === true,
+        // Whether the run is under a stop. The producer's sentence says so in
+        // full; this is what the one-line head needs.
+        stopped: raw.stopped === true,
         sentence: markerText(raw.sentence),
       }
     }
@@ -1325,9 +1882,11 @@ window.__ModuleLoader__.load({
      */
     function frontierLeg(frontier) {
       if (frontier === null) return null
-      const leg = frontier.imminent
-        ? (frontier.boundaryLeg ?? frontier.nextLeg)
-        : frontier.nextLeg
+      const leg = Number.isFinite(frontier.chartLeg)
+        ? frontier.chartLeg
+        : frontier.imminent
+          ? (frontier.boundaryLeg ?? frontier.nextLeg)
+          : frontier.nextLeg
       return Number.isFinite(leg) ? leg : null
     }
 
@@ -1341,16 +1900,28 @@ window.__ModuleLoader__.load({
      * predict. A frontier with no corpus after it says exactly that, rather
      * than leaving a leg number with nothing behind it.
      */
-    function frontierTagText(frontier) {
+    function frontierTagText(frontier, newestLeg = null) {
       if (frontier === null) return ''
       const named = frontierLeg(frontier)
+      // A STOPPED RUN'S EXPECTATION IS NOT LIVE, and the one-line head says so
+      // before it says anything else: on 10 October 2026 the run died at leg 9
+      // while this line went on reading "next corpus change expected around leg
+      // 690", which is a projection for a run that will never reach it.
+      const stopped = frontier.stopped ? 'the run has STOPPED · ' : ''
+      // WHERE THE RUN IS, FIRST, and then WHERE IT IS GOING. "Expected around leg
+      // 690" printed alone beside a run at leg 12 reads as the tab thinking the
+      // run is at 690; the distance is the number a reader at leg 12 can act on.
+      const here = Number.isFinite(newestLeg) && newestLeg !== null && newestLeg > 0
+        ? `now at leg ${newestLeg} · ` : ''
       if (frontier.imminent && named !== null) {
-        return `the corpus changes AT LEG ${named} — the next leg trained is the new one`
+        return `${stopped}${here}the corpus changes AT LEG ${named} — the next leg trained is the new one`
       }
-      if (frontier.nextPhase === '') return 'no further corpus change is scheduled ahead'
-      if (named === null) return `the next corpus change is ${frontier.phaseNow} to ${frontier.nextPhase}, leg not stated`
+      if (frontier.nextPhase === '') return `${stopped}${here}no further corpus change is scheduled ahead`
+      if (named === null) return `${stopped}${here}the next corpus change is ${frontier.phaseNow} to ${frontier.nextPhase}, leg not stated`
       const pair = frontier.phaseNow === '' ? frontier.nextPhase : `${frontier.phaseNow} to ${frontier.nextPhase}`
-      return `next corpus change expected around leg ${named} · ${pair}`
+      const ahead = Number.isFinite(newestLeg) && newestLeg !== null
+        ? ` (${Math.max(named - newestLeg, 0)} leg(s) ahead)` : ''
+      return `${stopped}${here}next corpus change expected around leg ${named}${ahead} · ${pair}`
     }
 
     /**
@@ -1362,16 +1933,682 @@ window.__ModuleLoader__.load({
      * one leg's volume, and the direction of the rise is registered from the
      * record — no sealed read exists for a corpus before its first leg, so how
      * far the level moves cannot be told from it.
+     *
+     * ONE LINE, because a caveat is read once and a paragraph is not read at all:
+     * the long form that used to stand here was reported, with the rest of the
+     * register, as a wall of text.
      */
-    const FRONTIER_CAVEAT = 'EXPECTED, NOT OBSERVED: this is where the producer\'s own budget says the '
-      + 'current corpus runs out, and its controller may end a visit early. It is a DIRECTION and not a '
-      + 'magnitude — whether bits per byte rises at the change is registered from the record, and by how '
-      + 'much is not known, because no sealed read exists for a corpus before its first leg.'
+    const FRONTIER_CAVEAT = 'EXPECTED, NOT OBSERVED: a direction from the producer\'s budget, not a '
+      + 'measurement, and the controller may end a visit early.'
 
     /** Everything the chart and the register need from one snapshot body. */
     function breakView(payload) {
       const read = readBreakMarkers(payload)
       return { markers: read.markers, skipped: read.skipped, frontier: readFrontier(payload) }
+    }
+
+    // ----------------------------------------------------------------------
+    // The second line: the seed model's size, on the axis on the right.
+    // ----------------------------------------------------------------------
+
+    /**
+     * The label and unit one overlay tag is drawn with.
+     *
+     * A tag this file has never heard of keeps its OWN name and no unit, for the
+     * same reason a chip does: a producer is free to emit whatever series names
+     * its run uses, and a tab that renamed one would be telling the reader it
+     * knew what the number was when it did not.
+     */
+    function overlayLabel(tag) {
+      if (tag === 'train/seed_model_params') {
+        return { label: 'seed model size', unit: 'M params', digits: 2, scale: 1e-6, axis: LOG_SCALE }
+      }
+      if (tag === 'train/seed_read_rows') {
+        return { label: "seed read's live rows", unit: 'rows', digits: 0, scale: 1, axis: LINEAR_SCALE }
+      }
+      if (tag === 'train/seed_trainable_rows') {
+        return { label: 'seed trainable rows', unit: 'rows', digits: 0, scale: 1, axis: LINEAR_SCALE }
+      }
+      return { label: tag, unit: '', digits: 3, scale: 1, axis: LINEAR_SCALE }
+    }
+    /**
+     * The series drawn as the second line, or null when the payload has none.
+     *
+     * Best source first: the TOTAL parameter count is the headline number, and
+     * the read's row count is the fallback for a producer that serves only the
+     * table growth moves. One line and never two - the whole point of putting
+     * this on the chart is that the reader does not have to choose - so the
+     * first tag the payload actually carries wins and the rest are not drawn.
+     *
+     * A series with no usable point is not an overlay: an empty scale on the
+     * right of the frame would be a second axis with no numbers to put on it.
+     */
+    function resolveOverlay(payload) {
+      const index = seriesIndex(payload)
+      for (const tag of OVERLAY_TAGS) {
+        const item = index.get(tag)
+        if (item !== undefined && item.points.length > 0) {
+          // `series` keeps the shape a chip's spec has, so the chart reads the
+          // overlay's points the same way it reads the selected series' points.
+          return { tag, series: item, ...overlayLabel(tag) }
+        }
+      }
+      return null
+    }
+
+    /**
+     * One series' value at an x, linearly interpolated, or null outside it.
+     *
+     * The two lines do not share an x sampling: the curve is one reading a leg
+     * and the size is one reading a leg, but the two logs do not cover the same
+     * legs, and a growth is a STEP. Interpolating between the bracketing samples
+     * draws that step as a slope one leg wide, which is the honest reading of a
+     * quantity that is only ever measured at a leg boundary. Outside the
+     * series' own extent the answer is null rather than the nearest value,
+     * because carrying the last size forward would draw a line claiming the
+     * model was that size at legs nobody measured.
+     *
+     * @param points - the overlay's points, ascending in x.
+     * @param x - the x to read at.
+     * @returns the value, or null when x is off either end.
+     */
+    function valueAtX(points, x) {
+      if (!Array.isArray(points) || points.length === 0) return null
+      if (x < points[0][0] || x > points[points.length - 1][0]) return null
+      for (let at = 1; at < points.length; at += 1) {
+        const [hiX, hiY] = points[at]
+        if (hiX >= x) {
+          const [loX, loY] = points[at - 1]
+          if (hiX === loX) return hiY
+          const fraction = (x - loX) / (hiX - loX)
+          return loY + fraction * (hiY - loY)
+        }
+      }
+      return points[points.length - 1][1]
+    }
+
+    /**
+     * The samples to draw for the second line, in the main chart's own x space.
+     *
+     * The overlay is resampled onto the SELECTED series' x values, so the two
+     * lines are drawn in one coordinate system: the curve steps where it has
+     * readings and the size line steps where IT has readings, and neither is
+     * stretched onto the other's grid. A run of x values the overlay does not
+     * cover breaks the path, so the line stops where the measurements stop
+     * instead of cutting a chord across legs nobody measured.
+     *
+     * @param points - the overlay's points, ascending in x.
+     * @param xs - the x values to sample at, ascending.
+     * @returns an array of segments, each an array of `[x, value]` pairs.
+     */
+    function resampleOnto(points, xs) {
+      const segments = []
+      let run = []
+      for (const x of xs) {
+        const value = valueAtX(points, x)
+        if (value === null) {
+          if (run.length > 0) segments.push(run)
+          run = []
+        } else {
+          run.push([x, value])
+        }
+      }
+      if (run.length > 0) segments.push(run)
+      return segments
+    }
+
+    /**
+     * The gridlines the frame draws, in the CHART's own coordinates.
+     *
+     * ONE SET OF HORIZONTAL LINES, AND ITS SPACING IS THE SCALE'S. When the
+     * second line is on a log axis the gridlines are at that axis' marks, which
+     * are equal RATIOS apart in value and so land at exponential intervals;
+     * when no second line is drawn they are the primary axis' regular ones.
+     * BOTH axes then LABEL the same lines, which is what makes the frame read as
+     * one frame rather than as two charts sharing a rectangle.
+     *
+     * The interval comes out exponential for free, and that is worth stating
+     * because it looks like an even ladder on screen: on a log axis a constant
+     * distance IS a constant ratio, so marks a quarter of the frame apart are
+     * values 1.09x apart, then 1.10x, then 1.12x - equal heights, unequal
+     * additions. The other axis quotes those same lines in its own terms.
+     *
+     * WHY NOT ONE SET PER AXIS. Two sets would put lines at two different
+     * spacings over one another, and half of each would be a line no label sits
+     * on - which is not a grid but a texture. So every line is a mark that BOTH
+     * scales quote a value for, and the reader reads each one twice, once per
+     * side.
+     *
+     * The lines are placed by the caller's own projection functions, the ones
+     * the series are drawn with, so a line lands exactly where a sample of that
+     * value lands. Laying them out separately is how a gridline drifts a pixel
+     * off the value it names.
+     *
+     * @param primary - the primary axis' own ticks, for a linear overlay.
+     * @param overlayTicks - the overlay axis' ticks, which rule when it is log.
+     * @param overlayIsLog - whether the overlay is the axis whose marks rule.
+     * @param projectPrimary - value to chart-space y, on the primary axis.
+     * @param projectOverlay - value to chart-space y, on the overlay axis.
+     * @returns `{ lines, extra }`: every line, with the primary axis' own value
+     *   and the overlay's beside it; and the overlay ticks that fall between
+     *   those lines, which the overlay axis still has to label.
+     */
+    function sharedGridlines(primary, overlayTicks, overlayIsLog,
+      projectPrimary, projectOverlay) {
+      const onLogGrid = (value) => {
+        if (!(value > 0) || typeof projectOverlay !== 'function') return false
+        const exponent = Math.log10(value)
+        const distance = Math.abs(exponent - Math.round(exponent * 10) / 10)
+        return distance < 1e-9
+      }
+      if (overlayIsLog && overlayTicks.length > 0) {
+        const placed = overlayTicks.map((value) => ({ value, y: projectOverlay(value) }))
+          .filter((entry) => entry.y !== null && Number.isFinite(entry.y))
+        if (placed.length > 0) {
+          // The primary axis reads the same lines, so its value at one is the
+          // inverse of its own projection - asked of the projection itself, so
+          // the two can never be computed from different frames.
+          const lines = placed.map((entry) => ({
+            y: entry.y,
+            overlayValue: entry.value,
+            primaryValue: inverseOf(projectPrimary, entry.y),
+          }))
+          return { lines, extra: [] }
+        }
+      }
+      const lines = primary.map((value) => {
+        const y = projectPrimary(value)
+        // A primary tick that lands on an overlay mark is that same line, and is
+        // written once, with both values on it. `onLogGrid` is the test, because
+        // the overlay's marks are exactly the powers of ten on its own grid.
+        const overlayValue = overlayIsLog && onLogGrid(value) ? value : null
+        return { y, primaryValue: value, overlayValue }
+      })
+      const extra = overlayIsLog
+        ? overlayTicks
+          .filter((value) => onLogGrid(value))
+          .filter((value) => !lines.some((line) => line.overlayValue === value))
+          .map((value) => ({ value, y: projectOverlay(value) }))
+          .filter((entry) => entry.y !== null && Number.isFinite(entry.y))
+        : []
+      return { lines, extra }
+    }
+
+    /**
+     * The value an axis' own projection puts at a chart-space y.
+     *
+     * Solved by bisection on the projection rather than by an algebra written
+     * out again here: a second formula would be free to disagree with the
+     * drawing, and then a gridline's label would name a value the line is not on.
+     */
+    function inverseOf(project, y) {
+      if (typeof project !== 'function' || !Number.isFinite(y)) return null
+      // A generous bracket, then sixty halvings - well past the precision of a
+      // 240-unit plot, and cheap because nothing here is called per sample.
+      let low = 0
+      let high = 1
+      for (let grow = 0; grow < 200; grow += 1) {
+        const atLow = project(low)
+        const atHigh = project(high)
+        if (atLow === null || atHigh === null) return null
+        if ((atLow - y) * (atHigh - y) <= 0) break
+        if (Math.abs(atLow - y) < Math.abs(atHigh - y)) low -= (high - low)
+        else high += (high - low)
+      }
+      for (let step = 0; step < 60; step += 1) {
+        const middle = (low + high) / 2
+        const at = project(middle)
+        if (at === null) return null
+        if ((at - y) * (project(low) - y) <= 0) high = middle
+        else low = middle
+      }
+      return (low + high) / 2
+    }
+
+    /**
+     * One axis tick's text: the number, and ONLY the number.
+     *
+     * The unit used to ride the top tick, which said the same thing on a line
+     * meant for a value and cost the reading its width: `22.00 M params` is
+     * wider than any gutter worth taking out of the plot, so it either ran out
+     * of the frame or pushed the curve into a column. Each axis carries its unit
+     * ONCE, rotated up its outer edge, where the height pays for it - see
+     * `axisUnitTitle`. A scale whose marks already carry a suffix (`22.0 M`)
+     * does not repeat it here either.
+     */
+    function axisLabelText(value, spec) {
+      return formatValue(value, spec.digits)
+    }
+
+    /**
+     * A unit with the scale mark the value formatter already writes taken off.
+     *
+     * `formatValue` writes 22 million as `22.2M`, so the `M` is already on the
+     * label and a unit that LEAD WITH IT would write `22.2M M params`. The scale
+     * mark stays with the numbers, where a reader comparing two of them needs
+     * it; this returns the word it stands for. Shared with the rotated axis
+     * title, which must not repeat the mark either.
+     */
+    function unitWithoutScale(unit) {
+      const text = typeof unit === 'string' ? unit : ''
+      const suffix = /^(k|M)\s+(.+)$/.exec(text)
+      return suffix === null ? text : suffix[2]
+    }
+
+    /**
+     * Where each current-value label sits, so no two overlap and none leaves the
+     * frame.
+     *
+     * A label floats just above the newest reading of its own line, because a
+     * number beside the line it belongs to needs no legend to be read, and the
+     * two lines are the whole point of the frame. They are then pushed apart
+     * where two lines end at nearly the same height - a size axis that barely
+     * moves against a bpb curve that swings widely will do that often - and
+     * clamped inside the frame so a line ending at the very top or bottom does
+     * not write its reading off the edge.
+     *
+     * @param wanted - one `{ kind, y }` per line, `y` in chart coordinates.
+     * @param top - the first row a label may occupy.
+     * @param bottom - the last row a label may occupy.
+     * @returns one `{ kind, y }` per label that can be placed, in the order
+     *   given; a line with no position contributes nothing.
+     */
+    function currentValueLabels(wanted, top, bottom) {
+      const placed = (wanted ?? [])
+        .filter((entry) => entry !== null && entry !== undefined && Number.isFinite(entry.y))
+        .map((entry) => ({
+          ...entry,
+          y: Math.min(Math.max(entry.y - CURRENT_VALUE_OFFSET, top), bottom),
+        }))
+        .sort((left, right) => left.y - right.y)
+      for (let at = 1; at < placed.length; at += 1) {
+        const gap = placed[at].y - placed[at - 1].y
+        if (gap < CURRENT_VALUE_MIN_SEPARATION) {
+          placed[at].y = placed[at - 1].y + CURRENT_VALUE_MIN_SEPARATION
+        }
+      }
+      // The push may have carried the lowest label past the frame; pull the whole
+      // stack back up rather than letting it be clipped.
+      const overflow = placed.length === 0 ? 0 : placed[placed.length - 1].y - bottom
+      if (overflow > 0) {
+        for (const entry of placed) entry.y = Math.max(entry.y - overflow, top)
+      }
+      return placed
+    }
+
+    /**
+     * One axis tick's text: the number, and NOTHING ELSE.
+     *
+     * Each axis names its unit exactly ONCE, in the title rotated up its outer
+     * edge, and the tick labels beside it are bare numbers. Writing the unit on
+     * a label as well says it twice within a few pixels of itself - `params`
+     * standing up at the edge and `17.4M params` lying beside the top tick - and
+     * a frame that repeats itself is a frame with less room for its numbers. The
+     * legend under the chart names both units in full for anyone who wants them
+     * spelled out.
+     *
+     * The labels are still made DISTINCT of one another, because the gridlines
+     * are shared between the two axes: a tick's value is whatever the series is
+     * worth where the line falls, not a round number the axis chose, so two of
+     * them can round to the same text. Two gridlines labelled alike is a scale
+     * that cannot be read, so a colliding label takes one more decimal until it
+     * does not.
+     *
+     * @param values - the tick values, in the order they are to be written.
+     * @param spec - the series spec, for its `digits`.
+     * @returns one label per value, in the same order.
+     */
+    function axisTickLabels(values, spec) {
+      if (!Array.isArray(values) || values.length === 0) return []
+      const digits = Number.isFinite(spec.digits) ? spec.digits : 3
+      for (let extra = 0; extra <= 6; extra += 1) {
+        const labels = values.map((value) => formatValue(value, digits + extra))
+        if (new Set(labels).size === labels.length) return labels
+      }
+      // More precision than this and the label no longer fits the gutter; the
+      // last attempt is returned so the axis is still drawn.
+      return values.map((value) => formatValue(value, digits + 6))
+    }
+
+    /**
+     * The unit of an axis, drawn ROTATED up its outer edge.
+     *
+     * An axis without its unit is a column of numbers a reader has to guess the
+     * meaning of, and a unit written flat beside the top tick does not fit
+     * beside a number: `22.00 M params` is wider than any gutter worth taking
+     * out of the plot, which is how it came to run out of the window. So the
+     * title stands up, and the chart's HEIGHT pays for it instead of the curve's
+     * width. Reading it bottom-to-top is the convention for a right-hand axis;
+     * the rotation is a TRANSFORM on one text element, so the rest of the frame
+     * stays upright.
+     *
+     * THE SCALE MARK IS NOT REPEATED, which is the other half of the same fix.
+     * `formatValue` already writes a value of 22 million as `22.0M`, so the
+     * marks carry the `M` and this title carries the word it stands for: the
+     * suffix is stripped here and said once, in the marks, where a reader
+     * comparing two ticks needs it. A title repeating it would put `M` in both
+     * places for one fact.
+     *
+     * @param unit - the unit string, from the series spec.
+     * @param x - the x the text is anchored at.
+     * @param top - the top of the plot.
+     * @param height - the height of the plot.
+     * @param side - `'left'` or `'right'`: which way the glyphs face.
+     * @returns the text element, or null when there is no unit left to write.
+     */
+    function axisUnitTitle(unit, x, top, height, side) {
+      // The scale mark belongs with the numbers, so the title carries only the
+      // word it stands for - `unitWithoutScale` is the one rule for that, shared
+      // with the topmost tick label so the axis cannot say it twice.
+      const text = unitWithoutScale(unit)
+      if (text === '') return null
+      return React.createElement('text', {
+        className: side === 'right' ? CLASS.overlayAxis : CLASS.axis,
+        transform: `rotate(-90 ${x} ${top + height / 2})`,
+        x, y: top + height / 2,
+        textAnchor: 'middle',
+        // The legend and the accessible name already carry the unit in full, so
+        // a screen reader is not read a second copy of it per axis.
+        'aria-hidden': 'true',
+      }, text)
+    }
+
+    // ----------------------------------------------------------------------
+    // The marker categories the reader can switch off.
+    //
+    // The chart used to draw every category unconditionally. On a run with
+    // eight joints across fifty legs that is unreadable, and the reader's only
+    // recourse was to zoom past the cluster they wanted to understand. So the
+    // key under the chart is now also the switch: each category is a button,
+    // and a switched-off category stops being drawn ON THE CHART, ON THE STRIP
+    // and IN THE REGISTER.
+    //
+    // NOTHING IS HIDDEN SILENTLY. The register keeps saying how many markers
+    // there are and how many the switch is holding back, and every count on
+    // screen is stated twice - the markers of that category, and the markers on
+    // screen - so a reader can always tell "there is nothing here" from "I
+    // turned this off". That distinction is the whole reason the counts exist.
+    // ----------------------------------------------------------------------
+
+    /**
+     * The second line's y scale is named by `LOG_SCALE` / `LINEAR_SCALE`, set
+     * once in `overlayLabel` and read by `isLogScale`.
+     */
+
+    /**
+     * Where a value sits on a log axis, as a fraction from the bottom.
+     *
+     * A value outside the axis returns null, which the caller draws as a GAP:
+     * at or below the floor there is no place for it on a log axis, and above
+     * the top it is off the frame. Clamping either would draw a reading at a
+     * position the scale does not support.
+     *
+     * THE BELOW-THE-FLOOR CASE WAS MISSING, and it is the defect that hid a
+     * whole stretch of this chart. The guard tested `lo > 0` - whether the axis
+     * could be logged at all - and not whether the VALUE was above it, so a
+     * reading below the floor came back as a negative fraction rather than null.
+     * A negative fraction is a perfectly ordinary number to the projection, so
+     * the reading was drawn BELOW the bottom of the plot rather than dropped as
+     * a gap: the tab reported "769 of 769 readings drawn" while the early ones
+     * were off the canvas, which is exactly the silent absence this module's
+     * comments claim it does not do.
+     */
+    function logFraction(value, lo, hi) {
+      if (!Number.isFinite(value) || !(value > 0)) return null
+      if (!Number.isFinite(lo) || !Number.isFinite(hi) || !(lo > 0) || !(hi > lo)) return null
+      if (value < lo || value > hi) return null
+      return (Math.log10(value) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo))
+    }
+
+    /**
+     * A range for a log axis: the readings' own span, with a band under it.
+     *
+     * SOLVED GEOMETRICALLY, because that is the only way to get the property
+     * this axis exists for. The floor `f` is placed so that the axis' total
+     * height is `span / (1 - LOG_FLOOR_PADDING)` decades, where `span` is the
+     * data's own log-range - which puts the smallest reading exactly
+     * `LOG_FLOOR_PADDING` of the height above the floor, and the whole run
+     * across the remaining 92 percent of the frame.
+     *
+     * Two rules were tried here first and both were wrong in the same direction:
+     * a floor at a fixed fraction of the MAXIMUM (a quarter) left a 1.30x run
+     * drawn in the top 19 percent of the frame, and taking the lower of that and
+     * the data's minimum pinned the floor to the minimum itself, so a window of
+     * near-identical readings started at 81 percent of the height. In each case
+     * the data sat in a corner of an axis that had been widened for no reason -
+     * the flattening a log axis is chosen to avoid.
+     *
+     * A reading below the floor has no place on the axis and is dropped by
+     * `logFraction`, which the caller draws as a gap.
+     *
+     * @param points - the overlay's samples in the window.
+     * @param fallback - the range to keep when there is nothing to scale to.
+     */
+    function logRange(points, fallback) {
+      if (!Array.isArray(points) || points.length === 0) return fallback
+      const positive = points.map((point) => point[1]).filter((value) => value > 0)
+      if (positive.length === 0) return fallback
+      const top = Math.max(...positive)
+      const bottom = Math.min(...positive)
+      if (!(top > 0) || !(bottom > 0)) return fallback
+      if (top === bottom) {
+        // One reading, or a flat window: the band is the padding on its own.
+        const decade = 1 / (1 - LOG_FLOOR_PADDING)
+        return { lo: top / Math.pow(10, decade - 1), hi: top }
+      }
+      // `span` in decades, then the total height that puts the padding under it.
+      const span = Math.log10(top) - Math.log10(bottom)
+      const lo = Math.pow(10, Math.log10(bottom) - span * LOG_FLOOR_PADDING / (1 - LOG_FLOOR_PADDING))
+      if (!(lo > 0) || !(top > lo)) return fallback
+      return { lo, hi: top }
+    }
+
+    /**
+     * Round tick values for a log axis, at EVEN intervals up the scale.
+     *
+     * One, two and five per decade are the numbers a reader recognises on a log
+     * scale, so those are the candidates. But taking all of them inside a narrow
+     * range puts marks at uneven POSITIONS: a range from 16.7M to 22.2M holds
+     * 20M and 22M, which sit about 2M and 0.2M apart - nearly equal distances on
+     * the frame for values a hundredth as far apart. A reader reads that as a
+     * mistake in the data.
+     *
+     * So the candidates are thinned to a MULTIPLE OF ONE RATIO: `1/2^n` of a
+     * decade, the finest that still fits `count` marks. Every adjacent pair is
+     * then the same distance up the axis and the same ratio in value, which is
+     * what a log scale's marks mean.
+     *
+     * Ticks outside the range are dropped rather than clamped - a tick at the
+     * frame's edge that names a value the axis does not reach is a misreading
+     * waiting to happen.
+     */
+    function logTicks(lo, hi, count = 5) {
+      if (!Number.isFinite(lo) || !Number.isFinite(hi) || !(lo > 0) || !(hi > lo)) return []
+      const from = Math.log10(lo)
+      const to = Math.log10(hi)
+      // The mark budget is the tighter of what the caller asked for and what the
+      // spacing floor allows: two marks closer than LOG_TICK_MIN_GAP of the
+      // height are one blur.
+      const budget = Math.min(count, Math.floor(1 / LOG_TICK_MIN_GAP) + 1)
+      // The interval index runs over positions `step * LOG_TICK_STEPS` decades,
+      // starting at the decade below the range - which is where a value like 20M
+      // has to be reached from, since stepping from 16.6M's own decade at a half
+      // decade at a time would never land on it.
+      const firstStep = Math.round((Math.floor(from) - 1) * 2)
+      const ticksFor = (interval) => {
+        const ticks = []
+        for (let step = firstStep; ; step += 1) {
+          const exponent = step * interval / 2
+          if (exponent > to + 1e-9) break
+          const value = Math.pow(10, exponent)
+          // A RELATIVE tolerance, because the marks are powers of ten and
+          // `Math.pow` does not return them exactly: `Math.pow(10, 9)` is
+          // 1000000000.0000001, which a bare `value <= hi` rejects - so every
+          // interval quietly lost the mark on the axis' own top, and a range from
+          // 1 to 1e9 came out with no marks at all.
+          if (value >= lo * (1 - 1e-12) && value <= hi * (1 + 1e-12)) ticks.push(value)
+        }
+        return ticks
+      }
+      // THE FINEST INTERVAL THAT FITS THE BUDGET, walking the grid from fine to
+      // coarse, so the axis carries as much of the scale as it has room for. The
+      // grid must be NESTED for any of this to mean anything: each step below is
+      // 1, 2 or 5 tens of the one before, so a coarser set is always a subset of
+      // a finer one and "the most marks that fit" is well defined.
+      const space = Math.log10(5)
+      let interval = Math.pow(10, -Math.ceil(-Math.log10(to - from) / space) * space)
+      for (let guard = 0; guard < 64; guard += 1) {
+        const ticks = ticksFor(interval)
+        if (ticks.length >= 2 && ticks.length <= budget) return ticks
+        interval *= 2
+        if (interval > (to - from) + 1e-9) break
+      }
+      // Nothing on the grid lands on two marks inside the budget. Take what the
+      // floor's own allowance gives and thin it evenly, because an axis with a
+      // crowded scale still beats an unmarked one.
+      const finest = ticksFor(Math.pow(10, -Math.ceil(-Math.log10(to - from) / space) * space))
+      if (finest.length < 2) return finest
+      const room = Math.floor(1 / LOG_TICK_MIN_GAP) + 1
+      const stride = Math.ceil(finest.length / room)
+      const thinned = finest.filter((_tick, at) => at % stride === 0)
+      const last = finest[finest.length - 1]
+      if (thinned[thinned.length - 1] !== last) thinned.push(last)
+      return thinned
+    }
+
+    /**
+     * Marker categories: whether each is drawn, and how many markers it holds.
+     */
+
+    /**
+     * The two line colours, as literal values, and why they are written twice.
+     *
+     * The stylesheet sets them with the theme tokens, and the theme tokens are
+     * right: a renamed token degrades the look rather than breaking the render.
+     * But a fill that exists ONLY in the stylesheet is a fill that is absent
+     * whenever the sheet is not applied - and an SVG `text` with no fill is
+     * BLACK, which is what a reader saw over a dark frame when the current-value
+     * labels first shipped. So each element carries the same colour as a
+     * presentation attribute as well, where nothing can take it away, and the
+     * stylesheet keeps the token so a theme still wins.
+     *
+     * These are the fallbacks the stylesheet itself names, so the two cannot
+     * drift apart into different colours.
+     */
+    const OVERLAY_INK = '#e5a34d'
+    const PRIMARY_INK = '#4d6bfe'
+
+    /**
+     * How far below the data's own minimum a log axis puts its floor, as a
+     * fraction of the axis' total height.
+     *
+     * EIGHT PERCENT, and both halves of that are deliberate. The floor must sit
+     * BELOW the smallest reading, or the reading is off the axis and the line
+     * starts somewhere other than its own beginning. And it must not sit far
+     * below it, or the axis spends height on a scale the data does not use: a
+     * floor at a quarter of the MAXIMUM - this function's first rule, and the
+     * wrong one - leaves the whole 1.30x run drawn in the top 19 percent of the
+     * frame, which is the same flattening a zero-anchored linear axis causes.
+     * Eight percent below the minimum puts the run across 92 percent of the
+     * height, and the band left under it is the visual "this is where it
+     * started" that a linear axis gets from its zero.
+     */
+    const LOG_FLOOR_PADDING = 0.08
+
+    /**
+     * The closest two marks on a log axis may sit, as a fraction of its height.
+     *
+     * Eight percent, which is about sixteen chart units at this frame's plot
+     * height - enough for two tick labels not to read as one. Marks closer than
+     * this are dropped by widening the interval between them, never by thinning
+     * an uneven set: see `logTicks`.
+     */
+    const LOG_TICK_MIN_GAP = 0.08
+
+    /** Whether one marker's category is switched on. */
+    function kindIsShown(hiddenKinds, kind) {
+      return !(hiddenKinds ?? []).includes(kind)
+    }
+
+    /** Whether the frontier's dashed line and block are switched on. */
+    function frontierIsShown(hideFrontier) {
+      return hideFrontier !== true
+    }
+
+    /** The markers whose category is switched on, in leg order. */
+    function shownMarkers(markers, hiddenKinds) {
+      return (markers ?? []).filter((marker) => kindIsShown(hiddenKinds, marker.kind))
+    }
+
+    /**
+     * The markers inside a window, in leg order.
+     *
+     * `at` MAPS A LEG TO THE X THE WINDOW IS IN, and defaults to the leg itself.
+     * On a run that has rolled back the window is measured from each pass's own
+     * first leg, so a marker on the live chain at leg 250 sits at x=40: comparing
+     * its leg to the window would report it as out of a window it is inside.
+     */
+    function markersInWindow(markers, range, at = (leg) => leg) {
+      if (range === null || range === undefined) return markers ?? []
+      return (markers ?? []).filter((marker) => {
+        const x = at(marker.leg)
+        return x >= range.lo && x <= range.hi
+      })
+    }
+
+    /**
+     * The categories to offer a switch for, and each one's marker count.
+     *
+     * EVERY category present is offered, in the registered order and with an
+     * unknown kind last and keeping its own name, because a category the reader
+     * cannot switch off is a category they cannot get out of the way. A
+     * category with no markers in this snapshot is not offered at all - a
+     * switch for nothing is a control that does not work.
+     *
+     * @returns one `{ kind, word, count }` per category, in display order.
+     */
+    function markerCategories(markers) {
+      const counts = new Map()
+      for (const marker of markers ?? []) {
+        counts.set(marker.kind, (counts.get(marker.kind) ?? 0) + 1)
+      }
+      const ordered = []
+      for (const kind of KIND_ORDER) {
+        if (counts.has(kind)) ordered.push(kind)
+      }
+      for (const kind of counts.keys()) {
+        if (!ordered.includes(kind)) ordered.push(kind)
+      }
+      return ordered.map((kind) => ({
+        kind,
+        word: kind.toUpperCase(),
+        count: counts.get(kind),
+      }))
+    }
+
+    /** Whether any category is switched off, so the counts can say so. */
+    function anyKindHidden(markers, hiddenKinds, hideFrontier) {
+      const categories = markerCategories(markers)
+      return categories.some((entry) => !kindIsShown(hiddenKinds, entry.kind))
+        || (!frontierIsShown(hideFrontier) && categories.length === 0)
+    }
+
+    /** One category's switch label, and what it will do when pressed. */
+    function toggleTitle(entry, shown) {
+      // THE ROLLBACK'S SWITCH HIDES A RECORD AND NOT A LINE, and says so: since
+      // both passes are drawn from one origin there is no line of its own to take
+      // off the chart, and a reader who pressed it expecting the chart to change
+      // would think the switch was broken.
+      if (entry.kind === 'rollback') {
+        return shown
+          ? `${entry.count} rollback(s), recorded in the register below: the chart shows a rollback by `
+            + 'drawing both passes from the same origin rather than by a line of its own. Press to '
+            + 'hide the record.'
+          : `${entry.count} rollback(s) hidden by you. Press to show them again.`
+      }
+      return shown
+        ? `${entry.count} ${entry.word} marker(s) drawn. Press to hide this category.`
+        : `${entry.count} ${entry.word} marker(s) hidden by you. Press to draw them again.`
     }
 
     /**
@@ -1395,31 +2632,168 @@ window.__ModuleLoader__.load({
      * polled state route instead would let the lines be one revision ahead of
      * the curve they sit on.
      */
-    function SeriesChart({ spec, payload }) {
+    function SeriesChart({ spec, payload, overlay = null, hiddenKinds = [],
+      hideFrontier = false, hideOlder = false, onToggleKind = null,
+      onToggleFrontier = null, onToggleOlder = null }) {
       const points = spec.series.points
-      const bounds = React.useMemo(() => fullRange(points), [points])
       const breaks = React.useMemo(() => breakView(payload), [payload])
       // `null` IS the whole run, so "never zoomed" and "reset" are one state and
       // the readout cannot disagree with the picture. A window the reader left
       // is restored on the next mount, per series, for the same reason the series
       // choice is: this component is remounted by the pane, not by the reader.
       const [view, setView] = React.useState(() => rememberedWindow(spec.tag))
+      //: The Y ruler's factor: 1 is auto, and auto is the axis the live chain's own bounds set. Held in
+      //: state AND in the module store, like the x window, because this component is remounted by the
+      //: pane rather than by the reader - a ruler that forgot itself on a poll would be worse than none.
+      //:
+      //: NORMALISED AT THE POINT IT IS READ, and that is not paranoia: this project's own client test
+      //: harness stubs `React.useState` and hands back the state VALUE, which for a state initialised
+      //: from a function is `null` rather than that function's result. Every use of the factor below
+      //: therefore goes through `yScale`, so a harness stub, a snapshot missing the field, or a stored
+      //: value that is not a number all render as auto rather than throwing inside the chart.
+      const [scaleFactorRaw, setScaleFactor] = React.useState(() => rememberedScale(spec.tag))
+      const scaleFactor = Number.isFinite(scaleFactorRaw) && scaleFactorRaw > 0
+        ? scaleFactorRaw : 1
       const [brush, setBrush] = React.useState(null)
       const hostRef = React.useRef(null)
       const brushRef = React.useRef(null)
       brushRef.current = brush
+      // The seed model's size, when the snapshot carries it, drawn as a second
+      // line against the axis on the right. Its own samples are resampled onto
+      // this series' x values, so both lines live in one coordinate system.
+      const second = overlay === null || overlay === undefined ? null : overlay
+      // The markers whose category is switched on, in leg order.
+      const markers = React.useMemo(() => shownMarkers(breaks.markers, hiddenKinds),
+        [breaks, hiddenKinds])
+      const showFrontier = frontierIsShown(hideFrontier)
+      // Where the newest rollback stands, and whether the chain it threw away is
+      // still on the chart. Read from `breaks.markers` - EVERY marker, not the
+      // visible ones - because switching the ROLLBACK category off is a request
+      // about the marker and not about whether the discarded values look live.
+      const ghostAt = rollbackPoint(breaks.markers)
+      const ghostIsShown = ghostAt !== null && hideOlder !== true
+      // THE TWO PASSES SHARE AN ORIGIN, so a reader compares pass 2's third leg
+      // with pass 1's third leg instead of hunting for the new chain at the far
+      // right of an axis that starts at the run's first leg. The user's words,
+      // twice: "start populating the latest value from the target point in the
+      // graph so the x-axis remains consistent ... the new arc should start from
+      // x=0, with the older arc ghosted". So on a run that has rolled back, a leg
+      // is mapped to its distance from ITS OWN pass's first leg - the older chain
+      // from the series' first leg, the live chain from the leg after the rollback
+      // - and every point, marker, frontier line and window below works in that x.
+      // A run that has not rolled back keeps the leg number itself as x, byte for
+      // byte as before.
+      const origin = points.length > 0 ? points[0][0] : 0
+      // NO ROLLBACK MEANS NO RE-BASING AT ALL: the offsets are 0 and a leg is its
+      // own x, which is what every run before this one was drawn against.
+      const olderOrigin = ghostAt === null ? 0 : origin
+      const liveOrigin = ghostAt === null ? 0 : ghostAt + 1
+      const chainX = (leg) => (ghostAt === null ? leg
+        : (leg <= ghostAt ? leg - olderOrigin : leg - liveOrigin))
+      // SPLIT BY LEG FIRST, THEN RE-BASE EACH CHAIN: the two chains OVERLAP in x
+      // once they share an origin (legs 1..209 land on 0..208 and 210..213 on
+      // 0..3), so they cannot be one array. Every helper below reads its input as
+      // ASCENDING in x - bracketing a window, resampling, splitting at a joint -
+      // and an array that jumps back to 0 in the middle of the run is not.
+      const byLeg = React.useMemo(() => splitOlder(points, ghostAt), [points, ghostAt])
+      const olderChain = React.useMemo(
+        () => byLeg.older.map(([leg, value]) => [leg - olderOrigin, value]),
+        [byLeg, olderOrigin])
+      const liveChain = React.useMemo(
+        () => byLeg.live.map(([leg, value]) => [leg - liveOrigin, value]), [byLeg, liveOrigin])
+      const bounds = React.useMemo(() => fullRange([...olderChain, ...liveChain]),
+        [olderChain, liveChain])
       const range = view === null ? bounds : view
-      const inside = pointsInRange(points, range)
-      const drawn = pointsToDraw(points, range)
-      // The axis follows the samples IN the window. A bracketing sample only
-      // exists so the line reaches the frame, and letting its value set the
-      // scale would let the spike the reader zoomed away from keep dominating
-      // the axis — which is the whole reason to zoom. When no sample is inside,
-      // the window is crossed by one segment whose two endpoints bound
-      // everything visible in it, so those are the honest scale.
-      const values = valueRange(inside.length > 0 ? inside : drawn)
-      const windowIsEmpty = inside.length === 0 && drawn.length < 2
-      const plot = plotGeometry(range)
+      // The seed line is split at the same joint and resampled in ABSOLUTE legs,
+      // so a gap in it stays a gap, and re-based afterwards.
+      const overlayChains = React.useMemo(() => {
+        if (second === null) return { older: [], live: [] }
+        const other = splitOlder(second.series.points, ghostAt)
+        const rebase = (segments, offset) => segments
+          .map((segment) => segment.map(([leg, value]) => [leg - offset, value]))
+        return {
+          older: rebase(resampleOnto(other.older, byLeg.older.map((point) => point[0])), olderOrigin),
+          live: rebase(resampleOnto(other.live, byLeg.live.map((point) => point[0])), liveOrigin),
+        }
+      }, [second, byLeg, ghostAt, olderOrigin, liveOrigin])
+      // How many markers the switches are holding back. It is a COUNT and not a
+      // boolean because "no markers here" and "you hid the markers here" look
+      // identical on a chart and mean opposite things.
+      const hiddenMarkerCount = breaks.markers.length - markers.length
+      // THE TWO CHAINS ARE WINDOWED SEPARATELY, because after a rewind the older
+      // chain's x and the live chain's x are different legs' distances: one window
+      // covers both, and each chain answers for itself.
+      const insideOlder = pointsInRange(olderChain, range)
+      const insideLive = pointsInRange(liveChain, range)
+      const inside = [...(ghostIsShown ? insideOlder : []), ...insideLive]
+      const olderDrawn = ghostIsShown ? pointsToDraw(olderChain, range) : []
+      const liveDrawn = pointsToDraw(liveChain, range)
+      const drawn = [...olderDrawn, ...liveDrawn]
+      const drawablePoints = olderDrawn.length + liveDrawn.length
+      // THE AXIS IS TARGETED AT THE LIVE CHAIN'S BOUNDS, AND THE GHOST IS DRAWN AGAINST IT.
+      //
+      // This replaced "the two scales are taken over BOTH chains", and the reason is measured. The
+      // discarded arc ran away to a bits-per-byte of 7.7961 before the rollback, which is a perplexity
+      // of 10,305,465 against the live arc's 83 to 150 - five orders of magnitude. When both chains set
+      // the extent, everything the live arc has ever done occupies about eight ten-thousandths of one
+      // percent of the axis height, so the whole of this arc's real movement renders as a flat line
+      // one pixel tall. The user, 11 October 2026: "I would like to use only the current arc's bounds
+      // as scaling targets", having watched exactly that.
+      //
+      // SO THE GHOST OUTSIDE THE AXIS IS CLIPPED, NOT SCALED TO. It is still drawn, still dashed and
+      // still labelled - the clipPath above already bounds every path - and it simply leaves the top of
+      // the frame where its values exceed the live extent, which is the honest picture: the door the
+      // run walked out of is visible as a line going off the top, not as a 0-height hump.
+      //
+      // IT IS STILL COMPUTED OVER BOTH CHAINS IN ONE RESPECT: `insideLive` is the live chain whether or
+      // not the ghost is switched on, so hiding the ghost cannot move the axis. That property used to
+      // come from including the older chain and now comes from excluding it, which is the stronger
+      // form of it.
+      const liveScalePoints = insideLive.length > 0
+        ? insideLive
+        : pointsToDraw(liveChain, range)
+      const liveValues = valueRange(liveScalePoints)
+      const values = scaleRange(liveValues, scaleFactor)
+      // The right axis is scaled to the WHOLE SIZE SERIES, and not to the
+      // samples inside the window, which is the one place this axis departs from
+      // the rule the main axis follows.
+      //
+      // WHY. This line's whole purpose is the model's growth, and the size only
+      // ever rises. A floor derived from the window therefore RISES as the
+      // reader pans right and LIFTS THE BEGINNING OF THE LINE OFF THE BOTTOM of
+      // the frame: at the whole-run view the first reading sits 8 percent up,
+      // and a few hundred legs into the run it is below the axis and not drawn
+      // at all - so the reader is shown a series that appears to start later
+      // than it does, with nothing on screen saying a reading was dropped. A
+      // floor anchored to the series instead stays put under every window, which
+      // is also what makes the line's shape comparable from one window to the
+      // next. The x window still does all the framing work it did before.
+      //
+      // The main axis is deliberately NOT changed: its readings are noisy and
+      // uncorrelated, so there the rescale is the point.
+      const overlayIsLog = second !== null && isLogScale(second)
+      const overlayAll = second === null ? [] : second.series.points
+      const overlayRange = overlayIsLog
+        ? logRange(overlayAll, valueRange(overlayAll))
+        : valueRange(overlayAll)
+      const overlayLo = overlayRange === null ? 0 : overlayRange.lo
+      const overlayHi = overlayRange === null ? 1 : overlayRange.hi
+      /** Where a value sits on the second axis, 0 at its floor and 1 at its top. */
+      const overlayFraction = (value) => {
+        if (!overlayIsLog) return (value - overlayLo) / (overlayHi - overlayLo)
+        return logFraction(value, overlayLo, overlayHi)
+      }
+      // IS THERE ANYTHING TO DRAW IN THIS WINDOW? Asked of the points that will be
+      // DRAWN, not of every point in the file: with the older run's values switched
+      // off, a window inside the discarded chain holds plenty of samples and no
+      // line, and a note that stayed silent there would leave the reader looking
+      // for a rendering fault that is a switch. The scale above is still computed
+      // from every point, so the axis does not move when the ghost is taken away.
+      const windowIsEmpty = inside.length === 0 && drawablePoints < 2
+      // The frame is widened by the overlay's gutter ONLY when there is a second
+      // axis to write in, so a snapshot without one gets the frame this tab has
+      // always drawn.
+      const plot = plotGeometry(range, second === null ? CHART.padRight : CHART.padRight + OVERLAY_GUTTER)
 
       /**
        * Show a window, clamped; the whole run collapses back to the null state.
@@ -1435,6 +2809,24 @@ window.__ModuleLoader__.load({
         rememberWindow(spec.tag, applied)
         setView(applied)
       }, [bounds, spec.tag])
+
+      /**
+       * Set the Y ruler, clamped to the range the control offers; 1 is auto.
+       *
+       * CLAMPED TO THE CONTROL'S OWN RANGE RATHER THAN TO THE DATA, because the ruler's factor is a
+       * statement about the axis' height and not about the values: a factor of 0 would collapse the
+       * axis to a line and divide by zero on the way, and a factor of a thousand would put every value
+       * inside one pixel. The bounds are the same ones the slider is built from, so the two cannot
+       * disagree about what the ruler can say.
+       */
+      const showScale = React.useCallback((next) => {
+        const wanted = Number(next)
+        const applied = !Number.isFinite(wanted) ? 1
+          : Math.min(SCALE_MAX, Math.max(SCALE_MIN, wanted))
+        const settled = applied === 1 ? 1 : applied
+        rememberScale(spec.tag, settled)
+        setScaleFactor(settled)
+      }, [spec.tag])
 
       const zoomBy = React.useCallback((factor, anchor) => {
         showWindow(zoomRange(range, factor, anchor))
@@ -1473,14 +2865,14 @@ window.__ModuleLoader__.load({
         if (event.button !== 0) return
         const host = hostRef.current
         if (host === null) return
-        const at = chartPixelFromEvent(event, host)
+        const at = chartPixelFromEvent(event, host, plot)
         host.setPointerCapture?.(event.pointerId)
         setBrush({ from: at, to: at })
       }
       const onPointerMove = (event) => {
         const host = hostRef.current
         if (host === null) return
-        const at = chartPixelFromEvent(event, host)
+        const at = chartPixelFromEvent(event, host, plot)
         setBrush((current) => (current === null ? null : { from: current.from, to: at }))
       }
       const onPointerUp = (event) => {
@@ -1496,38 +2888,177 @@ window.__ModuleLoader__.load({
         if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomIn(centre) }
         else if (event.key === '-' || event.key === '_') { event.preventDefault(); zoomOut(centre) }
         else if (event.key === '0' || event.key === 'Escape') { event.preventDefault(); showWindow(null) }
+        // `1` IS AUTO FOR THE Y RULER, and it is a separate key from the window's `0` because they are
+        // separate controls: a reader who has zoomed the x window and widened the y axis wants to give
+        // one of them back without losing the other, which one shared reset could not express.
+        else if (event.key === '1') { event.preventDefault(); showScale(1) }
         else if (event.key === 'ArrowLeft') { event.preventDefault(); showWindow(panRange(range, -PAN_FRACTION)) }
         else if (event.key === 'ArrowRight') { event.preventDefault(); showWindow(panRange(range, PAN_FRACTION)) }
       }
 
-      const innerWidth = CHART.width - CHART.padLeft - CHART.padRight
+      // `plot` and not `CHART`: the frame's right edge is the plot's own, so a
+      // chart with a second axis leaves the gutter for that axis' labels and
+      // draws both curves to the column the gridlines stop at.
+      const innerWidth = plot.right - plot.left
       const innerHeight = CHART.height - CHART.padTop - CHART.padBottom
       const yLo = values === null ? 0 : values.lo
       const yHi = values === null ? 1 : values.hi
-      const projectX = (value) => CHART.padLeft + ((value - range.lo) / (range.hi - range.lo)) * innerWidth
+      const projectX = (value) => plot.left + ((value - range.lo) / (range.hi - range.lo)) * innerWidth
       const projectY = (value) => CHART.padTop + innerHeight - ((value - yLo) / (yHi - yLo)) * innerHeight
+      // The second line's own y scale, against the axis on the right. Its extent
+      // is the overlay's samples IN this window, so it rescales with the window
+      // exactly as the main axis does. A value the log axis cannot hold - a zero,
+      // which log(0) puts at negative infinity - returns null here, and the
+      // caller draws that as a gap rather than clamping it to the floor.
+      const projectOverlayY = (value) => {
+        const fraction = overlayFraction(value)
+        return fraction === null ? null : CHART.padTop + innerHeight - fraction * innerHeight
+      }
 
       const children = []
       children.push(React.createElement('clipPath', { key: 'clip', id: CLIP_ID },
         React.createElement('rect', {
-          x: CHART.padLeft, y: CHART.padTop, width: innerWidth, height: innerHeight,
+          x: plot.left, y: CHART.padTop, width: innerWidth, height: innerHeight,
         })))
-      for (const tick of niceTicks(yLo, yHi, 4)) {
-        const y = projectY(tick)
+      // ONE SET OF GRIDLINES, AND ITS SPACING IS THE SCALE'S. See
+      // `sharedGridlines`: with a log second line the lines sit at that axis'
+      // exponential intervals, and BOTH axes label them; with none, they are the
+      // primary axis' regular ones.
+      const overlayTicks = second === null ? []
+        : overlayIsLog ? logTicks(overlayLo, overlayHi, 5) : niceTicks(overlayLo, overlayHi, 4)
+      const primaryTicks = niceTicks(yLo, yHi, 4)
+      const grid = second === null
+        ? { lines: primaryTicks.map((value) => ({ y: projectY(value), primaryValue: value, overlayValue: null })), extra: [] }
+        : sharedGridlines(primaryTicks, overlayTicks, overlayIsLog, projectY, projectOverlayY)
+      // The primary axis' labels, decided together so no two of them collide.
+      const primaryValues = grid.lines
+        .map((line) => line.primaryValue)
+        .filter((value) => value !== null && value !== undefined)
+      const primaryLabels = axisTickLabels(primaryValues, spec)
+      const primaryLabelAt = new Map(primaryValues.map((value, at) => [value, primaryLabels[at]]))
+      for (const [index, line] of grid.lines.entries()) {
         children.push(React.createElement('line', {
-          key: `grid-${tick}`, className: CLASS.gridline,
-          x1: CHART.padLeft, x2: CHART.width - CHART.padRight, y1: y, y2: y,
+          key: `grid-${index}`, className: CLASS.gridline,
+          x1: plot.left, x2: plot.right, y1: line.y, y2: line.y,
         }))
-        children.push(React.createElement('text', {
-          key: `gridlabel-${tick}`, className: CLASS.axis,
-          x: CHART.padLeft - 6, y: y + 3, textAnchor: 'end',
-        }, formatValue(tick, spec.digits)))
+        const label = primaryLabelAt.get(line.primaryValue)
+        if (label !== undefined) {
+          children.push(React.createElement('text', {
+            key: `gridlabel-${index}`, className: CLASS.axis,
+            x: plot.left - AXIS_LABEL_GAP, y: line.y + 3, textAnchor: 'end',
+          }, label))
+        }
       }
+      // The left axis' unit, rotated up its outer edge, for the same reason the
+      // right axis' unit is: a unit does not fit beside a number, and a reader
+      // should not have to guess what the column means.
+      children.push(axisUnitTitle(spec.unit,
+        AXIS_UNIT_WIDTH / 2 + 2, CHART.padTop, innerHeight, 'left'))
       for (const tick of niceTicks(range.lo, range.hi, 5)) {
         children.push(React.createElement('text', {
           key: `xtick-${tick}`, className: CLASS.axis,
           x: projectX(tick), y: CHART.height - 8, textAnchor: 'middle',
         }, String(Math.round(tick))))
+      }
+      // The second axis, on the RIGHT. It labels EVERY line it has a mark on -
+      // the shared ones and the `extra` marks that fall between them - so no line
+      // on the frame is a line without a value on the side that drew it. Its
+      // labels are decided together for the same reason the primary axis' are.
+      if (second !== null) {
+        const marks = [
+          ...grid.lines
+            .filter((line) => line.overlayValue !== null && line.overlayValue !== undefined)
+            .map((line) => ({ y: line.y, value: line.overlayValue })),
+          ...grid.extra.map((entry) => ({ y: entry.y, value: entry.value })),
+        ].sort((left, right) => left.y - right.y)
+        const overlayLabels = axisTickLabels(marks.map((mark) => mark.value), second)
+        for (const [index, mark] of marks.entries()) {
+          children.push(React.createElement('text', {
+            key: `ovaxis-${index}`, className: CLASS.overlayAxis,
+            x: plot.right + AXIS_LABEL_GAP, y: mark.y + 3, textAnchor: 'start',
+          }, overlayLabels[index]))
+        }
+        children.push(axisUnitTitle(second.unit,
+          CHART.width - AXIS_UNIT_WIDTH / 2 - 2, CHART.padTop, innerHeight, 'right'))
+      }
+
+      // THE CURRENT VALUE OF EACH LINE, FLOATING IN THE LEFT MARGIN.
+      //
+      // The newest reading of each series, written at the height that reading is
+      // drawn at - so a number and the line it belongs to are read together, with
+      // no legend in between. They are the values for the WHOLE RUN and not for
+      // the window: a reader zoomed into leg 300 is still steering by the newest
+      // reading, and a label that vanished when they panned would be one they
+      // cannot rely on.
+      //
+      // WHY THE LEFT, AND NOT BESIDE THE NUMBERS THEY RESEMBLE. On the right they
+      // shared a column with the overlay's tick labels, which is where a reader
+      // looks for an axis value - the two were mistaken for each other. The left
+      // margin holds the primary axis' numbers, and the reading is separated from
+      // them by POSITION, COLOUR and a rail down its inner edge: three channels,
+      // so it reads as a floating marker rather than as another tick.
+      //
+      // A LABEL IS ONLY WRITTEN WHERE ITS LINE IS DRAWN, and a rail is drawn
+      // across the whole band of each label, so the two rails cannot bleed into
+      // one another however close the values are. The text is written through
+      // `axisLabelText`, the SAME call the axis' own marks use - the formatter
+      // does its own scaling (`22,217,000` becomes `22.2M`), so a value already
+      // multiplied by the spec's scale would come out as a bare `22.22` that
+      // disagrees with the mark on the axis beside it.
+      const inView = (seriesPoints) => seriesPoints.some(
+        (point) => point[0] >= range.lo && point[0] <= range.hi)
+      const newestPrimary = liveChain.length > 0
+        ? liveChain[liveChain.length - 1] : olderChain[olderChain.length - 1]
+      const overlayPoints = second === null ? [] : second.series.points
+      const overlayLiveLast = overlayChains.live.length > 0
+        ? overlayChains.live[overlayChains.live.length - 1].slice(-1)[0] : null
+      const newestOverlay = overlayLiveLast
+        ?? (overlayChains.older.length > 0
+          ? overlayChains.older[overlayChains.older.length - 1].slice(-1)[0] : null)
+      // WHICH CHAIN THE READER IS LOOKING AT is what decides whether a floating
+      // value belongs on the chart: a label for a chain that is not in the window
+      // is a number attached to nothing.
+      const primaryInView = inView(liveChain) || (ghostIsShown && inView(olderChain))
+      const overlayInView = inView(overlayChains.live.flat())
+        || (ghostIsShown && inView(overlayChains.older.flat()))
+      const valueLabels = currentValueLabels([
+        newestPrimary === undefined || !primaryInView ? null : {
+          kind: 'primary',
+          ink: PRIMARY_INK,
+          y: projectY(newestPrimary[1]),
+          text: axisLabelText(newestPrimary[1], spec),
+        },
+        newestOverlay === null || !overlayInView ? null : {
+          kind: 'overlay',
+          ink: OVERLAY_INK,
+          y: projectOverlayY(newestOverlay[1]),
+          text: axisLabelText(newestOverlay[1], second),
+        },
+      ], CHART.padTop + 8, CHART.padTop + innerHeight - 2)
+      const railX = CURRENT_VALUE_RAIL_X + CURRENT_VALUE_RAIL_WIDTH
+      const inkX = CURRENT_VALUE_RAIL_X - 6
+      for (const label of valueLabels) {
+        children.push(React.createElement('g', {
+          key: `current-${label.kind}`, className: CLASS.currentValue,
+          'data-series': label.kind,
+        },
+        // The rail, in the same colour as the number: a mark that says the band
+        // belongs to one reading, and that separates two readings a few units
+        // apart without a background box over the plot.
+        React.createElement('rect', {
+          className: CLASS.currentRail,
+          fill: label.ink,
+          x: CURRENT_VALUE_RAIL_X, y: label.y - 7,
+          width: CURRENT_VALUE_RAIL_WIDTH, height: 10,
+        }),
+        // The colour is on the element AND in the stylesheet: a fill that exists
+        // only in the sheet is absent whenever the sheet is not applied, and an
+        // SVG text with no fill is black. See OVERLAY_INK.
+        React.createElement('text', {
+          className: label.kind === 'overlay' ? CLASS.currentOverlay : CLASS.currentPrimary,
+          fill: label.ink,
+          x: inkX, y: label.y + 1, textAnchor: 'end',
+        }, label.text)))
       }
 
       // The break markers: on the chart itself, because a joint that is only
@@ -1541,9 +3072,26 @@ window.__ModuleLoader__.load({
       // legs — that is the common case and not the corner. The whole group is
       // clipped to the plot, so a label near the right edge cannot draw outside
       // the frame where nobody would read it.
-      const visibleMarkers = breaks.markers.filter(
-        (marker) => marker.leg >= range.lo && marker.leg <= range.hi)
-      const markerLayout = layoutMarkerLabels(visibleMarkers, projectX, plot)
+      //
+      // A CATEGORY THE READER SWITCHED OFF IS NOT IN `markers` AT ALL, so it is
+      // absent from here, from the strip below and from the register: the three
+      // views of one marker can never disagree about whether it is drawn.
+      // A ROLLBACK IS NOT A JOINT AT A LEG ON THIS CHART, and drawing it as one was
+      // the report: "the rollback marker is not useful with everything aligned to
+      // 0". It used to put a line at the end of the older chain - at x=208 on a
+      // chart whose live chain starts at 0 - which marks nothing a reader can use,
+      // because the rollback IS the reason both chains start at 0. What says it on
+      // the chart is the origin itself: two chains from one x, the older ghosted,
+      // and the readout naming the unit. What says it in words is the register row,
+      // with the rule and the checkpoint it went back to. So the rollback is kept
+      // out of the drawn markers and its category switch hides the RECORD.
+      const placedMarkers = markers.filter((marker) => marker.kind !== 'rollback')
+      const markerX = (leg) => projectX(chainX(leg))
+      const visibleMarkers = placedMarkers.filter((marker) => {
+        const at = chainX(marker.leg)
+        return at >= range.lo && at <= range.hi
+      })
+      const markerLayout = layoutMarkerLabels(visibleMarkers, markerX, plot)
       for (const [index, entry] of markerLayout.entries()) {
         const { marker } = entry
         children.push(React.createElement('g', {
@@ -1556,15 +3104,29 @@ window.__ModuleLoader__.load({
         },
         React.createElement('line', {
           x1: entry.x, x2: entry.x, y1: CHART.padTop, y2: CHART.padTop + innerHeight,
+          // The kind's colour on the element as well as in the sheet: a line whose
+          // stroke lives only in the sheet loses its stroke entirely when the sheet
+          // is not applied, which is a joint the reader cannot see at all. See
+          // KIND_INK.
+          stroke: kindInk(marker.kind),
         }),
         React.createElement('title', null, markerTooltip(marker))))
       }
 
       // The frontier, drawn as an expectation and not as a fact: a dashed line in
       // the label colour rather than a kind's colour, in a lane of its own, and
-      // labelled with the word "expected".
+      // labelled with the word "expected". It has its own switch, and switching
+      // it off is NOT the same as switching a kind off: the register says so in
+      // words, because a reader who hid the projection must not be left thinking
+      // the run has no next corpus.
       const expectedLeg = frontierLeg(breaks.frontier)
-      const frontierInWindow = expectedLeg !== null && expectedLeg >= range.lo && expectedLeg <= range.hi
+      // The frontier is placed in the same x as the lines: its leg is an absolute
+      // leg, and on a run that has rolled back that is a leg of the LIVE chain, so
+      // it lands at its distance from the rewind.
+      const expectedX = expectedLeg === null ? null : chainX(expectedLeg)
+      const expectedPixel = expectedX === null ? null : projectX(expectedX)
+      const frontierInWindow = showFrontier && expectedX !== null
+        && expectedX >= range.lo && expectedX <= range.hi
       if (frontierInWindow) {
         children.push(React.createElement('g', {
           key: 'frontier', className: CLASS.frontierMark,
@@ -1572,11 +3134,13 @@ window.__ModuleLoader__.load({
           clipPath: `url(#${CLIP_ID})`,
         },
         React.createElement('line', {
-          x1: projectX(expectedLeg), x2: projectX(expectedLeg),
+          x1: expectedPixel, x2: expectedPixel,
           y1: CHART.padTop, y2: CHART.padTop + innerHeight,
         }),
         React.createElement('title', null,
-          breaks.frontier.sentence === '' ? frontierTagText(breaks.frontier) : breaks.frontier.sentence)))
+          breaks.frontier.sentence === ''
+            ? frontierTagText(breaks.frontier, breaks.frontier.newestLeg)
+            : breaks.frontier.sentence)))
       }
 
       // The labels, over every line: one chip per marker, so the text is never
@@ -1598,18 +3162,19 @@ window.__ModuleLoader__.load({
           className: CLASS.markerHalo,
           x: haloX, y: labelY - 9, width: entry.width, height: 11,
         }),
-        markerSwatch(markerShape(marker.kind), haloX + MARKER_SWATCH_SIZE / 2, labelY - 3, 'swatch'),
+        markerSwatch(markerShape(marker.kind), haloX + MARKER_SWATCH_SIZE / 2, labelY - 3, 'swatch',
+          CLASS.markerSwatch, kindInk(marker.kind)),
         React.createElement('text', {
           x: haloX + MARKER_SWATCH_SIZE + MARKER_SWATCH_GAP, y: labelY,
         },
         React.createElement('tspan', { className: CLASS.markerLegText }, String(marker.leg)))))
       }
       if (frontierInWindow) {
-        const x = projectX(expectedLeg)
+        const x = expectedPixel
         const text = String(expectedLeg)
         const width = MARKER_SWATCH_SIZE + MARKER_SWATCH_GAP
           + text.length * MARKER_CHAR_WIDTH + MARKER_LABEL_PAD
-        const haloX = x + width <= CHART.width - CHART.padRight ? x : x - width
+        const haloX = x + width <= plot.right ? x : x - width
         children.push(React.createElement('g', {
           key: 'frontierlabel', className: CLASS.markerLabel,
           'data-kind': 'frontier', 'data-leg': String(expectedLeg),
@@ -1620,29 +3185,96 @@ window.__ModuleLoader__.load({
         }),
         // The one UNFILLED swatch: an expectation is not a joint read from an
         // artifact. Its sentence, and the caveat that its leg is a direction, are
-        // in the register under a heading that says both.
+        // in the register under a heading that says both. `fill: none` and the
+        // outline are on the element as well as in the sheet, for the reason in
+        // KIND_INK: a sheet that is not applied was filling this diamond black.
         markerSwatch('diamond', haloX + MARKER_SWATCH_SIZE / 2, markerLaneY(frontierLane) - 3,
-          'frontier-swatch', CLASS.frontierSwatch),
+          'frontier-swatch', CLASS.frontierSwatch, 'none', FRONTIER_INK),
         React.createElement('text', {
           className: CLASS.frontierLabel,
           x: haloX + MARKER_SWATCH_SIZE + MARKER_SWATCH_GAP, y: markerLaneY(frontierLane),
         }, text)))
       }
 
-      if (drawn.length >= 2) {
+      // THE SECOND LINE, UNDER THE FIRST. The selected series is the reading the
+      // reader came for, so the overlay is drawn beneath it: where the two cross,
+      // the curve stays unbroken and the dashed line is the one interrupted.
+      // Each segment is drawn separately so a run the overlay does not cover
+      // leaves a GAP rather than a chord across legs nobody measured.
+      //
+      // A SAMPLE THE LOG AXIS CANNOT HOLD IS DROPPED, not clamped. `projectOverlayY`
+      // answers null for a value at or below a log axis' floor - a reading of zero,
+      // which log(0) puts at negative infinity - and folding that to the bottom of
+      // the frame would draw a zero on a scale that cannot contain one.
+      // THE SECOND LINE IS GHOSTED ON THE SAME SIDE OF THE ROLLBACK AS THE FIRST:
+      // the size ALSO went back to the seed's at that joint, and a size line drawn
+      // live where the reading is ghosted would say the current chain had already
+      // grown to 20M. It is split by LEG like the first line and re-based with it,
+      // so the two lines of one pass are drawn against the same origin.
+      for (const [side, segments] of [['older', overlayChains.older],
+        ['live', overlayChains.live]]) {
+        if (side === 'older' && !ghostIsShown) continue
+        for (const [index, segment] of segments.entries()) {
+          const placed = segment
+            .map((point) => [projectX(point[0]), projectOverlayY(point[1])])
+            .filter((point) => point[1] !== null)
+          if (placed.length >= 2) {
+            children.push(React.createElement('path', {
+              key: `overline-${side}-${index}`,
+              className: side === 'older' ? CLASS.ghostOverlay : CLASS.overlayLine,
+              clipPath: `url(#${CLIP_ID})`,
+              d: polylinePath(placed, (x) => x, (y) => y),
+            }))
+          } else if (placed.length === 1 && side === 'live') {
+            children.push(React.createElement('circle', {
+              key: `ovdot-${side}-${index}`, className: CLASS.overlayDot,
+              cx: placed[0][0], cy: placed[0][1], r: 2,
+            }))
+          }
+        }
+      }
+      const overlayNewestSegments = [...overlayChains.live, ...overlayChains.older]
+      if (second !== null && overlayNewestSegments.length > 0) {
+        const last = overlayNewestSegments[overlayNewestSegments.length - 1]
+        const newestOverlay = last[last.length - 1]
+        const newestY = projectOverlayY(newestOverlay[1])
+        if (newestY !== null && newestOverlay[0] >= range.lo && newestOverlay[0] <= range.hi) {
+          children.push(React.createElement('circle', {
+            key: 'ovnewest', className: CLASS.overlayDot,
+            cx: projectX(newestOverlay[0]), cy: newestY, r: 2,
+          }))
+        }
+      }
+
+      // THE OLDER PASS, GHOSTED ON THE SAME AXIS AS THE ONE BEING TRAINED. The two
+      // chains are drawn in the re-based x, so both begin at the left edge: the
+      // reader compares pass 2's third leg with pass 1's third leg, which is the
+      // whole reason the older values are kept on the picture instead of dropped.
+      if (olderDrawn.length >= 2) {
+        children.push(React.createElement('path', {
+          key: 'ghostline', className: CLASS.ghostLine, clipPath: `url(#${CLIP_ID})`,
+          d: polylinePath(olderDrawn, projectX, projectY),
+        }))
+      }
+      if (liveDrawn.length >= 2) {
         children.push(React.createElement('path', {
           key: 'line', className: CLASS.line, clipPath: `url(#${CLIP_ID})`,
-          d: polylinePath(drawn, projectX, projectY),
+          d: polylinePath(liveDrawn, projectX, projectY),
         }))
-      } else if (drawn.length === 1) {
+      } else if (liveDrawn.length === 1) {
         // One sample is a dot, not a line: a single M draws nothing at all.
         children.push(React.createElement('circle', {
           key: 'only', className: CLASS.dot,
-          cx: projectX(drawn[0][0]), cy: projectY(drawn[0][1]), r: 2.6,
+          cx: projectX(liveDrawn[0][0]), cy: projectY(liveDrawn[0][1]), r: 2.6,
+        }))
+      } else if (olderDrawn.length === 1) {
+        children.push(React.createElement('circle', {
+          key: 'only', className: CLASS.dot,
+          cx: projectX(olderDrawn[0][0]), cy: projectY(olderDrawn[0][1]), r: 2.6,
         }))
       }
 
-      const newest = points[points.length - 1]
+      const newest = newestPrimary
       if (newest !== undefined && newest[0] >= range.lo && newest[0] <= range.hi) {
         children.push(React.createElement('circle', {
           key: 'newest', className: CLASS.dot,
@@ -1666,10 +3298,17 @@ window.__ModuleLoader__.load({
       }
 
       if (windowIsEmpty) {
+        // A window with nothing in it and a window whose only points the reader
+        // switched off look identical and are not the same fact: the second one
+        // has values on screen one press away, and a note that said "no points"
+        // would send the reader looking for a fault instead.
+        const olderHere = !ghostIsShown && byLeg.older.length > 0
         children.push(React.createElement('text', {
           key: 'windowempty', className: CLASS.windowNote,
           x: CHART.padLeft + innerWidth / 2, y: CHART.padTop + innerHeight / 2, textAnchor: 'middle',
-        }, 'no points in this window · Reset shows the run'))
+        }, olderHere
+          ? "only the older run's values are in this window · OLDER RUN below draws them"
+          : 'no points in this window · Reset shows the run'))
       }
 
       const atFloor = range.hi - range.lo <= (bounds.hi - bounds.lo) * MIN_WINDOW_FRACTION * 1.01
@@ -1689,58 +3328,119 @@ window.__ModuleLoader__.load({
           title: 'Show the whole run ( 0 )', 'aria-label': 'Reset to the whole run',
           onClick: () => { showWindow(null) },
         }, 'Reset'),
+        // THE Y RULER. The x axis has had buttons, keys and a wheel since the window landed; the
+        // vertical one had nothing, and the axis is now targeted at the live chain alone, so a reader
+        // who wants to see how far the discarded arc went has no way to ask. The slider is the ruler:
+        // its centre is auto and each end is a deliberate departure, and it is the only control here
+        // that is not a button, because a factor has a natural continuum and a pair of buttons would
+        // make reaching 200 a chore.
+        React.createElement('label', {
+          className: CLASS.scaleRuler,
+          title: 'Y scale: 1 is automatic, sized to the current arc. Slide up to see how far the '
+            + 'discarded arc went, or down to spread the plateau.',
+        },
+        React.createElement('span', { className: CLASS.hint }, 'Y×'),
+        React.createElement('input', {
+          type: 'range',
+          className: CLASS.scaleSlider,
+          min: String(SCALE_MIN), max: String(SCALE_MAX), step: '0.01',
+          // THE SLIDER IS LOGARITHMIC IN EFFECT AND LINEAR IN FACT, by mapping the factor through
+          // log10: a linear slider from 0.05 to 400 would spend nine tenths of its travel above 40,
+          // where nothing a reader wants lives, and put auto (1) almost at the left end. Read as
+          // log10, auto sits at 42 percent of the travel and each decade gets equal room.
+          value: String(Math.log10(scaleFactor)),
+          'aria-label': 'Y scale factor, logarithmic; 1 is automatic',
+          onChange: (event) => { showScale(10 ** Number(event.target.value)) },
+        }),
+        React.createElement('span', {
+          className: CLASS.scaleReadout, 'aria-live': 'polite',
+        }, scaleFactor === 1 ? 'auto' : `×${scaleFactor < 1
+          ? scaleFactor.toFixed(3) : scaleFactor.toFixed(1)}`),
+        React.createElement('button', {
+          type: 'button', className: CLASS.windowButton, disabled: scaleFactor === 1,
+          title: 'Back to the automatic Y scale ( 1 )', 'aria-label': 'Reset the Y scale',
+          onClick: () => { showScale(1) },
+        }, 'Y auto'),
         React.createElement('span', {
           className: CLASS.windowReadout, 'aria-live': 'polite',
-        }, rangeLabel(range, bounds)))
+        }, rangeLabel(range, bounds, ghostAt !== null))))
 
+      // `overlaySegments.length`/`second.label` are part of what the picture
+      // says, so they are part of what its accessible name says: a screen reader
+      // is told the second line exists, what it is and at which end its scale
+      // sits, rather than being handed one curve and no mention of the other.
+      const overlaySentence = second === null
+        ? ''
+        : ` A second dashed line shows ${second.label} against the axis on the right`
+          + `${second.unit === '' ? '' : `, in ${second.unit}`}, covering `
+          + `${(ghostIsShown
+            ? [...overlayChains.older, ...overlayChains.live] : overlayChains.live)
+            .flat().length} of its points in view.`
       const chart = React.createElement('svg', {
         ref: hostRef,
         className: CLASS.chart,
         viewBox: `0 0 ${CHART.width} ${CHART.height}`,
         role: 'img',
         tabIndex: 0,
-        'aria-label': `${spec.label}. ${rangeLabel(range, bounds)}. `
-          + `${inside.length} of ${points.length} points in view.`,
         onPointerDown, onPointerMove, onPointerUp,
         onDoubleClick: () => { showWindow(null) },
         onKeyDown,
         // The markers are part of what the picture says, so they are part of
-        // what its accessible name says: a screen reader gets the count.
-        'aria-label': `${spec.label}. ${rangeLabel(range, bounds)}. `
+        // what its accessible name says: a screen reader gets the count - and it
+        // gets the count of what the reader SWITCHED OFF beside it, so hiding a
+        // category is never a silent absence.
+        'aria-label': `${spec.label}. ${rangeLabel(range, bounds, ghostAt !== null)}. `
           + `${inside.length} of ${points.length} points in view. `
-          + `${visibleMarkers.length} of ${breaks.markers.length} break markers in this window.`,
+          + `${visibleMarkers.length} of ${placedMarkers.length} break markers in this window`
+          + `${hiddenMarkerCount > 0
+            ? `, and ${hiddenMarkerCount} more hidden by the category switches`
+            : ''}.`
+          + `${ghostAt === null ? ''
+            : ` This run rolled back at leg ${ghostAt}, so both passes are drawn from`
+              + ' their own first leg and the older one is ghosted.'}${overlaySentence}`,
       }, ...children)
 
       // The strip is the whole run at a stable scale, with the window drawn on
       // it: the reader can see where they are in the run and jump anywhere,
-      // without the strip's own shape changing as they zoom.
+      // without the strip's own shape changing as they zoom. It is the FULL
+      // width of the frame, the gutter included: the strip belongs to no axis.
       const overviewPlot = { left: CHART.padLeft, right: CHART.width - CHART.padRight, lo: bounds.lo, hi: bounds.hi }
-      const overviewValues = valueRange(points) ?? { lo: 0, hi: 1 }
+      const overviewValues = valueRange([...olderChain, ...liveChain]) ?? { lo: 0, hi: 1 }
       const overviewHeight = OVERVIEW.height - OVERVIEW.padTop - OVERVIEW.padBottom
       const projectOverviewX = (value) =>
-        CHART.padLeft + ((value - bounds.lo) / (bounds.hi - bounds.lo)) * innerWidth
+        CHART.padLeft + ((value - bounds.lo) / (bounds.hi - bounds.lo))
+        * (CHART.width - CHART.padLeft - CHART.padRight)
       const projectOverviewY = (value) =>
         OVERVIEW.padTop + overviewHeight - ((value - overviewValues.lo) / (overviewValues.hi - overviewValues.lo)) * overviewHeight
       const overviewRef = React.useRef(null)
       const overviewBrushRef = React.useRef(null)
-      // Every marker gets a tick on the strip as well, so the joints are visible
-      // on the whole run even when the reader has zoomed somewhere else.
-      const overviewMarks = points.length < 2 ? [] : breaks.markers
-        .filter((marker) => marker.leg >= bounds.lo && marker.leg <= bounds.hi)
+      // Every DRAWN marker gets a tick on the strip as well, so the joints are
+      // visible on the whole run even when the reader has zoomed somewhere else -
+      // and a switched-off category is absent here too, so the strip cannot show
+      // a joint the chart above it is not drawing. The strip is drawn in the SAME
+      // re-based x as the chart, so a tick sits above the marker it belongs to.
+      const overviewMarks = olderChain.length + liveChain.length < 2 ? [] : placedMarkers
+        .filter((marker) => {
+          const at = chainX(marker.leg)
+          return at >= bounds.lo && at <= bounds.hi
+        })
         .map((marker, index) => React.createElement('line', {
           key: `ovmark-${marker.leg}-${index}`,
           className: CLASS.markerTick,
           'data-kind': marker.kind,
           'data-leg': String(marker.leg),
-          x1: projectOverviewX(marker.leg), x2: projectOverviewX(marker.leg),
+          // The strip is inside no element that carries the kind, so the kind's
+          // colour is written here as well as in the sheet: see KIND_INK.
+          stroke: kindInk(marker.kind),
+          x1: projectOverviewX(chainX(marker.leg)), x2: projectOverviewX(chainX(marker.leg)),
           y1: OVERVIEW.padTop, y2: OVERVIEW.padTop + overviewHeight,
         }))
-      const overview = points.length < 2 ? null : React.createElement('svg', {
+      const overview = olderChain.length + liveChain.length < 2 ? null : React.createElement('svg', {
         ref: overviewRef,
         className: CLASS.overview,
         viewBox: `0 0 ${CHART.width} ${OVERVIEW.height}`,
         role: 'img',
-        'aria-label': `The whole run, with the window on it: ${rangeLabel(range, bounds)}`,
+        'aria-label': `The whole run, with the window on it: ${rangeLabel(range, bounds, ghostAt !== null)}`,
         onPointerDown: (event) => {
           if (event.button !== 0 || overviewRef.current === null) return
           const at = chartPixelFromEvent(event, overviewRef.current)
@@ -1769,9 +3469,20 @@ window.__ModuleLoader__.load({
           showWindow(brushRange(current.from, current.to, overviewPlot))
         },
       },
+      // THE STRIP IS THE WHOLE RUN at a stable scale, drawn in the same re-based x
+      // as the chart above it: the two passes overlaid, the older one dimmed, so a
+      // tick on the strip sits over the marker it belongs to.
+      ghostIsShown && olderChain.length >= 2
+        ? React.createElement('path', {
+          key: 'ovolder', className: CLASS.overviewOlder,
+          d: polylinePath(olderChain, projectOverviewX, projectOverviewY),
+        })
+        : null,
       React.createElement('path', {
+        key: 'ovline',
         className: CLASS.overviewLine,
-        d: polylinePath(points, projectOverviewX, projectOverviewY),
+        d: polylinePath(liveChain.length >= 2 ? liveChain : olderChain,
+          projectOverviewX, projectOverviewY),
       }),
       ...overviewMarks,
       // The window, and — while a drag is in flight on the strip — the window it
@@ -1791,8 +3502,34 @@ window.__ModuleLoader__.load({
         : null)
       overviewBrushRef.current = brush !== null && brush.overview === true ? brush : null
 
+      // THE LEGEND IS NOT DECORATION, IT IS THE ONLY PLACE THAT SAYS WHICH SCALE
+      // EACH LINE IS ON. Two lines on one frame with different units are
+      // readable only if the frame says so, and the axis labels alone cannot:
+      // they carry numbers, not names. So the legend names both series, both
+      // units, and the side of the frame each one's scale sits on.
+      const legend = second === null ? null : React.createElement('div', {
+        className: CLASS.overlayLegend,
+      },
+      React.createElement('span', { className: CLASS.legendItem },
+        React.createElement('span', {
+          className: CLASS.legendSwatch, 'data-series': 'primary',
+        }),
+        `${spec.label} (${spec.unit || 'no unit'}) · LEFT axis`),
+      React.createElement('span', { className: CLASS.legendItem },
+        React.createElement('span', { className: CLASS.overlaySwatch }),
+        `${second.label} (${second.unit || 'no unit'}) · RIGHT axis`),
+      React.createElement('span', { className: CLASS.hint },
+        'the two lines carry different units and are drawn on different scales'))
+
       return React.createElement(React.Fragment, null,
-        windowRow, chart, overview, breakRegister(breaks, { range, bounds }))
+        windowRow, chart, legend, overview,
+        breakRegister(breaks, {
+          range, bounds, chainX, liveX: liveChain.length > 0
+            ? liveChain[liveChain.length - 1][0] : Math.round(bounds.hi),
+        }, {
+          hiddenKinds, hideFrontier, hideOlder, onToggleKind, onToggleFrontier,
+          onToggleOlder,
+        }))
     }
 
     /** The kinds present in a marker list, in the registered order, unknown last. */
@@ -1820,41 +3557,58 @@ window.__ModuleLoader__.load({
      */
     function breakRow(marker, index) {
       const kindLabel = markerKindLabel(marker)
-      const headline = marker.declared
-        ? "declared by the snapshot's own break_leg"
-        : marker.label
+      // THE LINE, AND NOTHING ELSE, IS WHAT A ROW SAYS AT REST: the shape and
+      // colour of its kind, what that kind is, the leg, and what changed there.
+      // The reader asked for a status list, and a row that arrives as four
+      // paragraphs is not one - on 10 October 2026 the register was reported as
+      // "too verbose, it's unreadable ... walls of text". Everything a row knows
+      // is still here, one press away, because the reason is why the row exists.
+      //
+      // "NO KIND" AND NOT "BREAK": a joint the snapshot declared without a kind
+      // is the one row whose badge must not read like a kind's word, or the
+      // reader files it under one. Its explanation is the disclosure's.
+      const headline = marker.declared ? '' : marker.label
+      // The declared joint's own wording, kept exactly: it is the producer's
+      // explanation of why this row claims no kind, and it belongs under the row
+      // for a reader who asks.
       const reason = marker.declared
         ? 'This joint comes from `break_leg`, which names a leg and no kind. This tab therefore claims '
           + 'none: it cannot tell from `break_leg` alone whether the data, the reading, the arithmetic, '
           + "the leg's shape or the process changed here, and a guess would put a kind on the chart that "
           + 'the snapshot never stated.'
         : marker.reason
-      const parts = [
-        React.createElement('div', { key: 'head', className: CLASS.breakRowHead },
-          React.createElement('span', { className: CLASS.swatch, 'data-kind': marker.kind }),
-          React.createElement('span', { className: CLASS.breakBadge }, kindLabel),
-          React.createElement('span', { className: CLASS.breakLegText }, `LEG ${marker.leg}`),
-          headline === '' ? null : React.createElement('span', { className: CLASS.breakWhat }, headline)),
-      ]
-      if (reason !== '') {
-        parts.push(React.createElement('div', { key: 'reason', className: CLASS.breakReason }, reason))
-      }
+      const body = []
+      if (reason !== '') body.push(React.createElement('div', { key: 'reason', className: CLASS.breakReason }, reason))
       if (marker.meaning !== '') {
-        parts.push(React.createElement('div', { key: 'meaning', className: CLASS.breakMeaning },
+        body.push(React.createElement('div', { key: 'meaning', className: CLASS.breakMeaning },
           `WHAT THIS ${kindLabel} CHANGE DOES TO THE CURVE: ${marker.meaning}.`))
       }
       if (marker.contradiction !== '') {
-        parts.push(React.createElement('div', { key: 'contradiction', className: CLASS.breakContradiction },
+        body.push(React.createElement('div', { key: 'contradiction', className: CLASS.breakContradiction },
           `THE LEGS CONTRADICT THIS: ${marker.contradiction}`))
       }
       if (marker.support !== '') {
-        parts.push(React.createElement('div', { key: 'support', className: CLASS.breakSupport },
+        body.push(React.createElement('div', { key: 'support', className: CLASS.breakSupport },
           `READ FROM: ${marker.support}`))
       }
       if (marker.declaredInCode) {
-        parts.push(React.createElement('div', { key: 'declared', className: CLASS.breaksNote },
+        body.push(React.createElement('div', { key: 'declared', className: CLASS.breaksNote },
           "THIS MARKER'S LEG IS A CONSTANT IN THE CODE, not a reading: see the READ FROM line for why "
           + 'no artifact carries it.'))
+      }
+      const parts = [
+        React.createElement('div', { key: 'head', className: CLASS.breakRowHead },
+          React.createElement('span', { className: CLASS.swatch, 'data-kind': marker.kind }),
+          React.createElement('span', { className: CLASS.breakBadge },
+            marker.declared ? 'NO KIND' : kindLabel),
+          React.createElement('span', { className: CLASS.breakLegText }, `LEG ${marker.leg}`),
+          headline === '' ? null : React.createElement('span', { className: CLASS.breakWhat }, headline)),
+      ]
+      if (body.length > 0) {
+        parts.push(React.createElement('details', { key: 'why', className: CLASS.why },
+          React.createElement('summary', { className: CLASS.whySummary },
+            marker.declared ? 'why no kind is claimed' : 'why this joint is marked'),
+          React.createElement('div', { className: CLASS.whyBody }, ...body)))
       }
       return React.createElement('div', {
         key: `row-${marker.leg}-${marker.kind}-${index}`,
@@ -1862,6 +3616,12 @@ window.__ModuleLoader__.load({
         'data-kind': marker.kind,
         'data-leg': String(marker.leg),
         'data-declared': marker.declared ? 'true' : 'false',
+        // The kind's colour, set here rather than left to the sheet alone: the
+        // row's left border, its badge and its swatch all read `--dshtd-kind`, and
+        // a swatch whose colour exists only in a sheet that is not applied came out
+        // BLACK on a dark card - the "which colour is which kind" question the
+        // reader could not answer on 10 October 2026. See KIND_INK.
+        style: { '--dshtd-kind': kindInk(marker.kind) },
       }, ...parts)
     }
 
@@ -1876,35 +3636,98 @@ window.__ModuleLoader__.load({
      */
     function frontierBlock(frontier, chart) {
       if (frontier === null) return null
-      const head = frontierTagText(frontier)
-        + (frontier.raiseExpected ? ' · a rise in bits per byte is EXPECTED there' : '')
+      // The producer's own count of the newest leg, or the chart's last point
+      // when it serves none: the head needs to say where the run is before it
+      // says where it is going. See `frontierTagText`.
+      const newestLeg = frontier.newestLeg ?? (chart === undefined ? null : chart.bounds.hi)
+      const head = frontierTagText(frontier, newestLeg)
+        // "bpb", not "bits per byte": this is a status line, the unit is spelled
+        // out in the legend and in the disclosure's own sentence, and the short
+        // form is what the axis and the chips already use.
+        + (frontier.raiseExpected ? ' · a rise in bpb is EXPECTED there' : '')
       const parts = [
         React.createElement('div', { key: 'title', className: CLASS.frontierTitle },
           'Frontier — the next corpus change, as an expectation'),
         React.createElement('div', { key: 'head', className: CLASS.frontierHead }, head),
       ]
-      if (frontier.sentence !== '') {
-        parts.push(React.createElement('div', { key: 'sentence', className: CLASS.frontierSentence },
-          frontier.sentence))
-      }
       const expectedLeg = frontierLeg(frontier)
-      if (chart !== undefined && expectedLeg !== null) {
-        if (expectedLeg > chart.bounds.hi) {
+      // THE FRONTIER'S LEG IS THE RUN'S, THE AXIS IS EACH PASS'S. On a run that has
+      // rolled back, "the axis reaches leg 908" is not true of an axis that reaches
+      // 208 legs from each pass's start, so the note below is written in both: the
+      // legs the pass must run, and the leg of the run that is.
+      const asX = chart === undefined || chart.chainX === undefined
+        ? (leg) => leg : chart.chainX
+      const expectedX = expectedLeg === null ? null : asX(expectedLeg)
+      const liveX = chart === undefined
+        ? null : (chart.liveX ?? Math.round(chart.bounds.hi))
+      if (chart !== undefined && expectedX !== null) {
+        if (expectedX > chart.bounds.hi) {
           parts.push(React.createElement('div', { key: 'absence', className: CLASS.frontierCaveat },
-            `Its dashed line is not on the chart yet: leg ${expectedLeg} is past the last point of the `
-            + `series on screen (leg ${Math.round(chart.bounds.hi)}). The line appears when the axis `
-            + 'reaches it.'))
-        } else if (expectedLeg < chart.range.lo || expectedLeg > chart.range.hi) {
+            `The dashed line appears when this pass has run ${Math.round(expectedX)} legs `
+            + `(leg ${expectedLeg} of the run); it has run ${Math.round(liveX)}.`))
+        } else if (expectedX < chart.range.lo || expectedX > chart.range.hi) {
           parts.push(React.createElement('div', { key: 'absence', className: CLASS.frontierCaveat },
-            `Its dashed line is outside the window on screen (leg ${expectedLeg}); press Reset to see `
-            + 'the whole run.'))
+            `The dashed line is outside the window on screen (leg ${expectedLeg}); press Reset.`))
         }
       }
-      parts.push(React.createElement('div', { key: 'caveat', className: CLASS.frontierCaveat },
-        FRONTIER_CAVEAT))
+      // THE PRODUCER'S OWN STATEMENT, AND THE CAVEAT, BEHIND ONE DISCLOSURE. The
+      // head line above already carries the status - where the run is, where the
+      // change is expected, the distance and the direction; the sentence is the
+      // authority a reader checks it against, and the caveat is a qualification.
+      // Laid out under the head they were most of a screen of prose per update.
+      parts.push(React.createElement('details', { key: 'why', className: CLASS.why },
+        React.createElement('summary', { className: CLASS.whySummary }, 'the producer\'s own words'),
+        React.createElement('div', { className: CLASS.whyBody },
+          frontier.sentence === '' ? null : React.createElement('div', {
+            key: 'sentence', className: CLASS.frontierSentence,
+          }, frontier.sentence),
+          React.createElement('div', { key: 'caveat', className: CLASS.frontierCaveat },
+            FRONTIER_CAVEAT))))
       return React.createElement('div', {
         className: CLASS.frontier, 'data-expectation': 'true',
       }, ...parts)
+    }
+
+    /**
+     * One category's switch in the key: its swatch in the kind's own SHAPE, its
+     * word, and its marker count.
+     *
+     * The swatch is an SVG built from the same `MARKER_SHAPES` table the chart
+     * draws with, so the shape in the key is the shape on the line - not a
+     * second drawing of it that is free to drift. When the category is switched
+     * off the swatch keeps its shape and its colour and the chip is dimmed with
+     * its word struck through: a kind read as "off" by hue alone would be
+     * invisible to a reader who cannot separate the hues, and this tab's whole
+     * reason for giving every kind a shape is that it does not assume they can.
+     */
+    function categoryToggle(entry, shown, onToggle) {
+      const radius = 4
+      const box = radius * 2 + 2
+      return React.createElement('button', {
+        key: `key-${entry.kind}`, type: 'button',
+        className: `${CLASS.toggle}${shown ? '' : ` ${CLASS.toggleOff}`}`,
+        'data-kind': entry.kind,
+        'data-on': shown ? 'true' : 'false',
+        'aria-pressed': shown ? 'true' : 'false',
+        title: toggleTitle(entry, shown),
+        onClick: () => { if (onToggle !== null) onToggle(entry.kind) },
+        // THE SWITCH'S ICON WAS BLACK, and this is why: it is drawn with
+        // `fill: var(--dshtd-kind)`, and nothing ever SET that property on a
+        // switch - the sheet's per-kind rules name the chart's marks, the label
+        // groups, the register rows and the register swatches, and no switch. A
+        // custom property that is never set makes the fill invalid at
+        // computed-value time, and an SVG shape with no fill is black, so every
+        // kind came out the same colour and the key told the reader nothing. The
+        // property is set here AND the icon carries the colour itself.
+        style: { '--dshtd-kind': kindInk(entry.kind) },
+      },
+      React.createElement('svg', {
+        className: CLASS.toggleIcon, width: box, height: box,
+        viewBox: `0 0 ${box} ${box}`, 'aria-hidden': true,
+      }, markerSwatch(markerShape(entry.kind), box / 2, box / 2, `swatch-${entry.kind}`,
+        CLASS.markerSwatch, kindInk(entry.kind))),
+      React.createElement('span', { className: CLASS.toggleLabel }, entry.word),
+      React.createElement('span', { className: CLASS.hint }, ` ${entry.count}`))
     }
 
     /**
@@ -1917,39 +3740,125 @@ window.__ModuleLoader__.load({
      * tooltip alone is a joint the reader has to already suspect in order to
      * find.
      *
+     * THE KEY IS ALSO THE SWITCH, and this is the only place a category can be
+     * turned off, because it is the only place that can SAY what turning one off
+     * costs. A control somewhere else would hide markers with nothing on screen
+     * connecting the control to the lines it removed.
+     *
      * @param breaks - `breakView(payload)`.
      * @param chart - `{ range, bounds }` of the chart this register sits under.
+     * @param switches - the reader's category switches: `hiddenKinds`,
+     *   `hideFrontier` and the two callbacks. Absent means everything is drawn,
+     *   which is what a caller that knows nothing about the switches gets.
      * @returns the block, or null when the snapshot serves no markers and no
      *   frontier — an empty box would be chrome.
      */
-    function breakRegister(breaks, chart) {
+    function breakRegister(breaks, chart, switches = {}) {
       const frontier = breaks.frontier
+      const hiddenKinds = switches.hiddenKinds ?? []
+      const hideFrontier = switches.hideFrontier === true
+      const hideOlder = switches.hideOlder === true
+      // Where the newest rollback stands: the key offers the older run's switch
+      // only when a rollback put a chain there to switch.
+      const ghostAt = rollbackPoint(breaks.markers)
       if (breaks.markers.length === 0 && frontier === null && breaks.skipped === 0) return null
-      const visible = chart === undefined ? breaks.markers.length
-        : breaks.markers.filter((marker) => marker.leg >= chart.range.lo && marker.leg <= chart.range.hi).length
+      const shown = shownMarkers(breaks.markers, hiddenKinds)
+      const hidden = breaks.markers.length - shown.length
+      const inWindow = markersInWindow(
+        shown, chart === undefined ? null : chart.range,
+        chart === undefined || chart.chainX === undefined ? (leg) => leg : chart.chainX).length
       const parts = []
-      parts.push(React.createElement('div', { key: 'head', className: CLASS.breaksHead },
-        React.createElement('span', null, 'Break markers'),
-        React.createElement('span', { className: CLASS.breaksNote },
-          `${breaks.markers.length} in the snapshot · ${visible} in this window`
-          + (breaks.markers.length > 0 ? ' · drag on the chart to zoom to one' : ''))))
+      // THE HEADER IS A COUNT, or it is nothing. "0 of 0 drawn · 0 in this window"
+      // is a line that says a reader has nothing to read; when the register has no
+      // markers to count, the key and the frontier below it are the whole block.
       if (breaks.markers.length > 0) {
+        parts.push(React.createElement('div', { key: 'head', className: CLASS.breaksHead },
+          React.createElement('span', null, 'Break markers'),
+          React.createElement('span', { className: CLASS.breaksNote },
+            `${shown.length} of ${breaks.markers.length} drawn`
+            + `${hidden > 0 ? ` · ${hidden} hidden by your switches` : ''}`
+            + ` · ${inWindow} in this window`
+            + (shown.length > 0 ? ' · drag on the chart to zoom to one' : ''))))
+      }
+      if (hidden > 0) {
+        // Said in words and not only as a number in the line above, because a
+        // chart missing its joints looks exactly like a run with no joints, and
+        // those two states call for opposite readings of the same curve.
+        parts.push(React.createElement('div', { key: 'hidden', className: CLASS.breaksNote },
+          `${hidden} marker(s) hidden by your switches; the curve is unchanged and they come back `
+          + 'where they were.'))
+      }
+      // The key is offered when there is anything to switch: a marker category, a
+      // frontier, or a chain a rollback threw away.
+      if (breaks.markers.length > 0 || ghostAt !== null) {
         parts.push(React.createElement('div', { key: 'key', className: CLASS.breaksKey },
-          ...kindsPresent(breaks.markers).map((kind) => React.createElement('span', {
-            key: `key-${kind}`, className: CLASS.keyItem,
+          ...markerCategories(breaks.markers).map((entry) => categoryToggle(
+            entry, kindIsShown(hiddenKinds, entry.kind), switches.onToggleKind ?? null))))
+        // The frontier gets its own switch, drawn with its own unfilled swatch so
+      // it is never mistaken for a kind of joint. It is offered even when it
+      // has no line on the chart, because its block below still reads.
+        if (frontier !== null) {
+          parts.push(React.createElement('button', {
+            key: 'key-frontier', type: 'button',
+            className: `${CLASS.toggle}${frontierIsShown(hideFrontier) ? '' : ` ${CLASS.toggleOff}`}`,
+            'data-kind': 'frontier',
+            'data-on': frontierIsShown(hideFrontier) ? 'true' : 'false',
+            'aria-pressed': frontierIsShown(hideFrontier) ? 'true' : 'false',
+            title: frontierIsShown(hideFrontier)
+              ? 'The next expected corpus change. Press to hide it — it is a projection and not a '
+                + 'marker read from an artifact.'
+              : 'The next expected corpus change is hidden. Press to draw it again.',
+            onClick: () => { if (switches.onToggleFrontier != null) switches.onToggleFrontier() },
           },
-          React.createElement('span', { className: CLASS.swatch, 'data-kind': kind }),
-          kind.toUpperCase()))))
+          React.createElement('svg', {
+            className: CLASS.toggleIcon, width: 10, height: 10,
+            viewBox: '0 0 10 10', 'aria-hidden': true,
+          }, markerSwatch('diamond', 5, 5, 'frontier-swatch', CLASS.frontierSwatch,
+            'none', FRONTIER_INK)),
+          React.createElement('span', { className: CLASS.toggleLabel }, 'EXPECTED')))
+        }
+        // AND THE OLDER RUN'S OWN SELECTOR. It is the third switch of the same
+        // kind and for the same reason: the reader must be able to take the
+        // discarded chain off the picture - to read the live one alone - and put
+        // it back, without losing the axis the two are compared on. Offered only
+        // when a rollback put a chain there to switch.
+        if (ghostAt !== null) {
+          const shown = hideOlder !== true
+          parts.push(React.createElement('button', {
+            key: 'key-older', type: 'button',
+            className: `${CLASS.toggle}${shown ? '' : ` ${CLASS.toggleOff}`}`,
+            'data-kind': 'older-run',
+            'data-leg': String(ghostAt),
+            'data-on': shown ? 'true' : 'false',
+            'aria-pressed': shown ? 'true' : 'false',
+            title: shown
+              ? `The values before the controller rolled the run back at leg ${ghostAt}: the chain it `
+                + 'threw away, drawn dimmed. Press to take them off the chart.'
+              : `The chain rolled away at leg ${ghostAt} is hidden. Its values are still in the window `
+                + 'and the axis still covers them. Press to draw them again.',
+            onClick: () => { if (switches.onToggleOlder != null) switches.onToggleOlder() },
+          },
+          React.createElement('svg', {
+            className: CLASS.toggleIcon, width: 10, height: 6,
+            viewBox: '0 0 10 6', 'aria-hidden': true,
+          }, React.createElement('line', {
+            className: CLASS.ghostSwatch, x1: 0, y1: 3, x2: 10, y2: 3,
+          })),
+          React.createElement('span', { className: CLASS.toggleLabel }, 'OLDER RUN'),
+          React.createElement('span', { className: CLASS.hint }, ` ≤${ghostAt}`)))
+        }
       }
       if (breaks.skipped > 0) {
+        // One line, and the count is the whole message: a marker with no readable
+        // leg cannot be placed, and a reader who sees fewer rows than the snapshot
+        // carries should be told why in as many words.
         parts.push(React.createElement('div', { key: 'skipped', className: CLASS.breakContradiction },
-          `${breaks.skipped} marker(s) in this snapshot carry no readable leg, so they cannot be placed `
-          + 'on the axis and are not drawn. The rest of the list is unaffected.'))
+          `${breaks.skipped} marker(s) carry no readable leg and are not drawn.`))
       }
-      for (const [index, marker] of breaks.markers.entries()) {
+      for (const [index, marker] of shown.entries()) {
         parts.push(breakRow(marker, index))
       }
-      const block = frontierBlock(frontier, chart)
+      const block = frontierIsShown(hideFrontier) ? frontierBlock(frontier, chart) : null
       if (block !== null) parts.push(React.createElement('div', { key: 'frontier' }, block))
       return React.createElement('div', { className: CLASS.breaks }, ...parts)
     }
@@ -1971,10 +3880,45 @@ window.__ModuleLoader__.load({
       // The reader's choice is restored rather than defaulted, because this
       // component is remounted by the pane on events the reader did not cause.
       const [chosen, setChosen] = React.useState(() => rememberedSeries(sessionId))
+      // The reader's category switches, restored for the same reason the series
+      // choice is: the pane remounts this body on events the reader did not
+      // cause, and a switch that resets itself on a poll undoes the reader's
+      // work while looking exactly like a refresh.
+      const [hiddenKinds, setHiddenKinds] = React.useState(() => rememberedHiddenKinds(sessionId))
+      const [hideFrontier, setHideFrontier] = React.useState(() => rememberedHideFrontier(sessionId))
+      const [hideOlder, setHideOlder] = React.useState(() => rememberedHideOlder(sessionId))
       const [failure, setFailure] = React.useState(null)
       const revisionRef = React.useRef(null)
 
       React.useEffect(() => { rememberSeries(sessionId, chosen) }, [sessionId, chosen])
+      React.useEffect(() => { rememberHiddenKinds(sessionId, hiddenKinds) }, [sessionId, hiddenKinds])
+      React.useEffect(() => { rememberHideFrontier(sessionId, hideFrontier) }, [sessionId, hideFrontier])
+      React.useEffect(() => { rememberHideOlder(sessionId, hideOlder) }, [sessionId, hideOlder])
+
+      /**
+       * Switch one marker category off, or back on.
+       *
+       * The chart, the strip and the register all read this one list, so the
+       * three views of a marker cannot disagree about whether it is drawn.
+       */
+      const toggleKind = React.useCallback((kind) => {
+        setHiddenKinds((current) => (current.includes(kind)
+          ? current.filter((item) => item !== kind)
+          : [...current, kind]))
+      }, [])
+      const toggleFrontier = React.useCallback(() => {
+        setHideFrontier((current) => !current)
+      }, [])
+      /**
+       * Take the chain a rollback threw away off the chart, or put it back.
+       *
+       * The axis does not move either way: the older values are still in the
+       * window and the window is the reader's, so hiding them is a statement
+       * about the picture and not about how much run there has been.
+       */
+      const toggleOlder = React.useCallback(() => {
+        setHideOlder((current) => !current)
+      }, [])
 
       React.useEffect(() => {
         let stopped = false
@@ -2041,6 +3985,10 @@ window.__ModuleLoader__.load({
       const latestVram = lastPoint(payload, 'memory/vram_peak_gib')
       const latestExam = lastPoint(payload, 'eval/exam_accuracy')
       const latestUnits = lastPoint(payload, 'train/units_per_second')
+      // The seed model's size, for the header tile and for the second line on the
+      // chart. ONE resolution, read once, so the tile and the line cannot
+      // disagree about which series the number came from.
+      const overlay = React.useMemo(() => resolveOverlay(payload), [payload])
 
       const head = React.createElement('div', { className: CLASS.head },
         React.createElement('span', { className: CLASS.title }, 'Training dashboard'),
@@ -2088,6 +4036,19 @@ window.__ModuleLoader__.load({
           value: latestExam === null ? '—' : formatValue(latestExam[1], 4),
           title: latestExam === null ? 'no exam reading yet'
             : `last read at leg ${Math.round(latestExam[0])}`,
+        }),
+        // The seed model's own size, beside the reading it buys. Its value is
+        // formatted through the SAME spec the second line's axis uses, so the
+        // tile and the right-hand axis always show the same number the same way.
+        React.createElement(Kpi, {
+          label: overlay === null ? 'seed size' : overlay.label,
+          value: overlay === null ? '—'
+            : `${formatValue(overlay.series.points[overlay.series.points.length - 1][1] * overlay.scale,
+              overlay.digits)}${overlay.unit === '' ? '' : ` ${overlay.unit}`}`,
+          title: overlay === null
+            ? 'this snapshot carries no seed model size; the chart draws no second line'
+            : `${overlay.tag} — drawn as the dashed line against the axis on the right, `
+              + 'from the run\'s own leg logs (the read\'s live rows and the trainable rows)',
         }))
 
       // A series the reader chose that this revision does not carry keeps its
@@ -2142,9 +4103,14 @@ window.__ModuleLoader__.load({
               + 'to go back to the default.'))
           : null)
         : React.createElement('div', { className: CLASS.chartWrap },
-          // The whole snapshot body goes in, so the break markers and the
-          // frontier are read from the SAME snapshot as the curve under them.
-          React.createElement(SeriesChart, { spec: activeSpec, payload }),
+          // The whole snapshot body goes in, so the break markers, the frontier
+          // and the seed model's size are read from the SAME snapshot as the
+          // curve under them.
+          React.createElement(SeriesChart, {
+            spec: activeSpec, payload, overlay, hiddenKinds, hideFrontier, hideOlder,
+            onToggleKind: toggleKind, onToggleFrontier: toggleFrontier,
+            onToggleOlder: toggleOlder,
+          }),
           React.createElement('div', { className: CLASS.legend },
             React.createElement('span', { className: CLASS.legendItem },
               `${activeSpec.series.points.length} points · unit ${activeSpec.unit || 'none'}`
@@ -2170,8 +4136,8 @@ window.__ModuleLoader__.load({
         ? React.createElement('div', { className: CLASS.notice },
           React.createElement('div', { className: CLASS.noticeTitle }, 'These numbers are not the newest'),
           React.createElement('div', { className: CLASS.noticeBody },
-            `${ageSentence(state)} They are older than the ${state.refreshSeconds}s refresh interval, `
-            + 'so a step may have finished since. What is drawn below is real, just not current.'))
+            `${ageSentence(state)} Older than the ${state.refreshSeconds}s refresh, so the newest step `
+            + 'may be missing.'))
         : null
 
       const body = payload === null
@@ -2296,6 +4262,13 @@ window.__ModuleLoader__.load({
       pointsInRange,
       pointsToDraw,
       valueRange,
+      // THE Y RULER'S TWO PIECES, exported so a test can drive them without a DOM: `scaleRange` is what
+      // the ruler does to the axis, and `rememberedScale`/`rememberScale` are its memory.
+      scaleRange,
+      rememberedScale,
+      rememberScale,
+      SCALE_MIN,
+      SCALE_MAX,
       resolveSelection,
       splitOffered,
       disclosureForced,
@@ -2310,6 +4283,10 @@ window.__ModuleLoader__.load({
       rememberSeries,
       rememberedWindow,
       rememberWindow,
+      rememberedHiddenKinds,
+      rememberHiddenKinds,
+      rememberedHideFrontier,
+      rememberHideFrontier,
       plotGeometry,
       clampChartPixel,
       valueAt,
@@ -2331,6 +4308,64 @@ window.__ModuleLoader__.load({
       KIND_ORDER,
       UNKNOWN_KIND,
       DECLARED_KIND,
+      OVERLAY_TAGS,
+      OVERLAY_TAG_PREFIX,
+      OVERLAY_GUTTER,
+      OVERLAY_TAG_PREFIX,
+      LOG_SCALE,
+      LINEAR_SCALE,
+      LOG_FLOOR_PADDING,
+      LOG_TICK_MIN_GAP,
+      isLogScale,
+      logFraction,
+      logRange,
+      logTicks,
+      AXIS_LABEL_GAP,
+      AXIS_UNIT_WIDTH,
+      OVERLAY_GUTTER,
+      PAD_LEFT,
+      CURRENT_VALUE_WIDTH,
+      CURRENT_VALUE_RAIL_X,
+      CURRENT_VALUE_RAIL_WIDTH,
+      CURRENT_VALUE_OFFSET,
+      CURRENT_VALUE_MIN_SEPARATION,
+      OVERLAY_INK,
+      PRIMARY_INK,
+      // The kind inks, exported for the same reason as the two above: a test
+      // reads them against the stylesheet's own `--dshtd-kind` values, so the
+      // colour the elements write and the colour the sheet names cannot drift.
+      KIND_INK,
+      kindInk,
+      FRONTIER_INK,
+      // The stylesheet itself, so a test can check that the colours the elements
+      // write and the colours the sheet names have not drifted apart.
+      CSS_SOURCE: CSS,
+      currentValueLabels,
+      isOverlayTag,
+      overlayLabel,
+      resolveOverlay,
+      valueAtX,
+      resampleOnto,
+      axisLabelText,
+      axisTickLabels,
+      unitWithoutScale,
+      sharedGridlines,
+      inverseOf,
+      currentValueLabels,
+      axisUnitTitle,
+      kindIsShown,
+      frontierIsShown,
+      shownMarkers,
+      markersInWindow,
+      markerCategories,
+      anyKindHidden,
+      toggleTitle,
+      kindsPresent,
+      rollbackPoint,
+      splitOlder,
+      olderIsShown,
+      rememberedHideOlder,
+      rememberHideOlder,
       MARKER_LABEL_CHARS,
       MARKER_CHAR_WIDTH,
       MARKER_LABEL_PAD,
