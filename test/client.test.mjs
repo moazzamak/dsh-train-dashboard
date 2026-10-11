@@ -700,11 +700,13 @@ test('the window controls are labelled buttons and the chart takes focus', () =>
   })
 
   const buttons = elementsWithClass(tree, 'dshtd-window-button')
-  // BACK TO THREE, 11 October 2026. They were eight for an hour: the value axis' five buttons - `-y`,
-  // `+y`, `↑y`, `↓y`, `y auto` - were added and then removed the same day, because the user replaced
-  // them with the rail: "instead of having +y -y buttons just show a vertical window to the left of
-  // the graph that I can drag-select exactly like the x-axis zoom feature". So the row is the leg
-  // axis' own three again, and the value axis is reached by dragging the rail or by the Shift-keys.
+  // BACK TO THREE, 11 October 2026. The row carried EIGHT for a few hours: the value axis' five
+  // buttons - `-y`, `+y`, `↑y`, `↓y`, `y auto` - were added and then removed the same day, because the
+  // user replaced them with the rail: "instead of having +y -y buttons just show a vertical window to
+  // the left of the graph that I can drag-select exactly like the x-axis zoom feature". So the row is
+  // the leg axis' own three again, and the value axis is reached by dragging the rail or by the
+  // Shift-keys. (An earlier version of this comment said the row had carried "six", which was my own
+  // miscount of my own row: three leg buttons plus five value buttons is eight.)
   assert.equal(buttons.length, 3, 'zoom out, zoom in, and Reset for the leg axis')
   for (const button of buttons) {
     assert.equal(typeof button.props['aria-label'], 'string',
