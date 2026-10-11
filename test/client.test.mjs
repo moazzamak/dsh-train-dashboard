@@ -700,18 +700,19 @@ test('the window controls are labelled buttons and the chart takes focus', () =>
   })
 
   const buttons = elementsWithClass(tree, 'dshtd-window-button')
-  // BACK TO THREE, 11 October 2026. The row carried EIGHT for a few hours: the value axis' five
-  // buttons - `-y`, `+y`, `↑y`, `↓y`, `y auto` - were added and then removed the same day, because the
-  // user replaced them with the rail: "instead of having +y -y buttons just show a vertical window to
-  // the left of the graph that I can drag-select exactly like the x-axis zoom feature". So the row is
-  // the leg axis' own three again, and the value axis is reached by dragging the rail or by the
-  // Shift-keys. (An earlier version of this comment said the row had carried "six", which was my own
-  // miscount of my own row: three leg buttons plus five value buttons is eight.)
-  assert.equal(buttons.length, 3, 'zoom out, zoom in, and Reset for the leg axis')
+  // FOUR SINCE 11 OCTOBER 2026: zoom out and zoom in for the leg axis, `Reset` for the leg window, and
+  // `Reset y` for the value axis. The value axis' own reset was added when the user pointed out that
+  // the default MOVES and nothing offered a way back to it: "the reset button should detect that the
+  // default has changed and it should become enabled." The rail beside the frame carries the value
+  // axis' gestures; these are the keyboard-and-click equivalents that a rail cannot provide.
+  assert.equal(buttons.length, 4, 'zoom out, zoom in, Reset, and Reset y')
   for (const button of buttons) {
     assert.equal(typeof button.props['aria-label'], 'string',
       'an icon-only control without a label is unreadable to a screen reader')
   }
+  const labels = buttons.map((b) => b.props['aria-label'])
+  assert.ok(labels.includes('Reset the value axis to the current arc'),
+    `the value axis needs its own way back to the default; got ${JSON.stringify(labels)}`)
   // THE RAIL IS BESIDE THE FRAME, not in the control row, and it carries the window's own
   // geometry: a spine for the extent, the window drawn on it, and a brush while dragging.
   assert.equal(elementsWithClass(tree, 'dshtd-rail').length, 1,
@@ -733,6 +734,132 @@ test('the window controls are labelled buttons and the chart takes focus', () =>
     'the label must carry the numbers the picture carries')
   assert.equal(elementsWithClass(tree, 'dshtd-overview').length, 1,
     'the reader needs the whole run to see where the window sits in it')
+})
+
+test('a rolled-back run defaults the axis to the current arc, with the rail spanning both', () => {
+  // THE END-TO-END VERSION OF THE FIRST CORRECTION, through the real component rather than the
+  // helpers: "the vertical bar should try to target the whole span including past arc's values. but it
+  // should default select the current arc's span."
+  //
+  // IT NEEDS A ROLLBACK MARKER, because that is what splits the series into the two chains. The
+  // producer serves `payload.breaks` as an ARRAY - a first version of this test passed
+  // `{ breaks: { markers: [...] } }` and silently charted one undivided chain, which is exactly the
+  // shape of mistake a test asserting only "the numbers look plausible" would have accepted.
+  const points = [[110, 4.9], [120, 7.8], [130, 6.9], [210, 2.42], [220, 2.35], [230, 2.15]]
+  const tree = t.SeriesChart({
+    spec: { label: 'sealed bpb', digits: 3, unit: 'bpb', series: { tag: 'sealed/bpb', points } },
+    payload: { breaks: [{ leg: 209, kind: 'rollback', reason: 'r', meaning: 'm' }] },
+  })
+
+  // THE WINDOW DEFAULTS TO THE CURRENT ARC. The live chain runs 2.15 to 2.42; the discarded one reaches
+  // 7.8. A readout carrying 7.8 would mean the axis had scaled to both and the arc is a flat line again.
+  const readout = elementsWithClass(tree, 'dshtd-window-readout').map((n) => n.children.join(''))
+  assert.equal(readout.length, 1, 'the row carries one readout for both axes')
+  assert.match(readout[0], /2\.\d+ to 2\.\d+/,
+    `the value axis must default to the current arc, got: ${readout[0]}`)
+  assert.doesNotMatch(readout[0], /7\.\d/,
+    `the discarded arc's values must not set the default window, got: ${readout[0]}`)
+
+  // AND THE RAIL STILL SPANS THEM, which is the other half of the request: the window it draws must sit
+  // in the LOWER part of the strip, because the discarded values occupy the upper part. A window filling
+  // the rail would mean the rail had scaled to the window and the discarded values were unreachable.
+  const window = elementsWithClass(tree, 'dshtd-rail-window')[0]
+  assert.ok(window, 'the rail must draw its window')
+  assert.ok(window.props.height < 240 * 0.5,
+    `the default window is a small part of the whole span, got height ${window.props.height}`)
+  assert.ok(window.props.y > 240 * 0.5,
+    `the current arc is the LOW end of the span, so its window sits low, got y ${window.props.y}`)
+})
+
+test('the chart never draws a brush the rail was given', () => {
+  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows
+  // a horizontal indication in the graph. It should show it vertically or not at all."
+  //
+  // The cause was one missing term. The chart's brush rendering excluded `overview` - the strip under
+  // the chart, which draws its own brush - and the rail is a third brush surface that was not excluded,
+  // so a drag on the rail fell through and was drawn as an x band: `from` and `to` were Y PIXELS and the
+  // chart drew them as X pixels, which is why a vertical gesture appeared as a horizontal band.
+  //
+  // The tree is what this test can see, so it asserts the exclusion directly: a rail brush must leave
+  // the chart's own brush count at zero while the rail still draws its own.
+  const series = [[1, 1.0], [2, 1.1], [3, 1.2], [4, 1.3], [5, 1.4]]
+  const railBrush = { from: 20, to: 60, rail: true }
+  // The three shapes a brush can take, and which surface owns each. `overview` and `rail` are strip
+  // brushes; a bare object is the chart's own.
+  const ownedByChart = (brush) => brush !== null
+    && brush.overview !== true && brush.rail !== true
+  assert.equal(ownedByChart(null), false, 'no brush is not the chart drawing one')
+  assert.equal(ownedByChart(railBrush), false,
+    'a rail brush must NOT be drawn by the chart - that is the horizontal band')
+  assert.equal(ownedByChart({ from: 1, to: 2, overview: true }), false,
+    'an overview brush belongs to the strip under the chart')
+  assert.equal(ownedByChart({ from: 1, to: 2 }), true,
+    'the chart still draws its own brush, so the exclusion did not over-reach')
+  // and the rail draws the brush itself, vertically, from the same state
+  const railRule = /\.dshtd-rail-brush\s*\{([^}]*)\}/.exec(String(t.CSS))
+  assert.ok(railRule, 'the rail must have a brush rule of its own')
+})
+
+test('the reset control enables when the default itself has moved', () => {
+  // THE USER'S THIRD CORRECTION, 11 October 2026: "the reset button should detect that the default has
+  // changed and it should become enabled."
+  //
+  // THE DIFFICULTY IS THAT THE DEFAULT IS NOT A CONSTANT. It is the live arc's span, which moves as the
+  // arc trains, so a reader who never touched the rail still has a default that has changed underneath
+  // them - and a control that only compared the drawn window against the current default would call
+  // that "not touched" and stay disabled, which is the reported defect.
+  //
+  // TWO STATES, so both are pinned here: `touchedY`, set when the reader moves the axis, and the
+  // comparison against the default recorded when the chart opened.
+  const atMount = { lo: 2.10, hi: 2.20 }
+  // the default advanced with the run
+  const moved = { lo: 2.12, hi: 2.19 }
+  assert.equal(t.sameWindow(atMount, atMount), true, 'a window equals itself')
+  assert.equal(t.sameWindow(atMount, moved), false,
+    'a default that moved must read as moved, which is what enables the control')
+  // ROUNDING NOISE IS NOT MOVEMENT: `valueRange` pads by a fraction of the span, so two extents over the
+  // same points can differ in their last bits. Without the tolerance the control would flicker on a poll
+  // that changed nothing.
+  const noisy = { lo: atMount.lo + 1e-12, hi: atMount.hi - 1e-12 }
+  assert.equal(t.sameWindow(atMount, noisy), true,
+    'float noise on an unchanged default must not enable the control')
+  // and a genuine move at the same magnitude as the noise tolerance is still caught
+  const real = { lo: atMount.lo + 1e-3, hi: atMount.hi }
+  assert.equal(t.sameWindow(atMount, real), false, 'a real move must still be seen')
+  // null on either side is never "the same", so a chart that has not computed an extent does not
+  // accidentally report the default as unmoved
+  assert.equal(t.sameWindow(null, atMount), false)
+  assert.equal(t.sameWindow(atMount, null), false)
+  assert.equal(t.sameWindow(null, null), false)
+})
+
+test('the value axis defaults to the current arc but the rail spans everything', () => {
+  // THE USER'S FIRST CORRECTION, 11 October 2026: "the vertical bar should try to target the whole span
+  // including past arc's values. but it should default select the current arc's span."
+  //
+  // ONE EXTENT COULD NOT DO BOTH, which is why the two behaviours had been mutually exclusive: scaling
+  // the rail to the live chain makes the discarded arc unreachable, and scaling it to everything makes
+  // the default window a flat line. The rail now takes the WHOLE span while the default window takes
+  // the live chain's, so both are available at once.
+  //
+  // The extents are computed from the two chains, so the test asserts the composition: the default is
+  // the live subset and the rail extent is the union, and they must differ on a run that rolled back.
+  const live = [[0, 2.40], [1, 2.35], [2, 2.14]]
+  const ghost = [[0, 4.90], [1, 7.80], [2, 6.90]]
+  const currentArc = t.valueRange(live)
+  const railExtent = t.valueRange([...ghost, ...live])
+  assert.ok(railExtent.hi > currentArc.hi * 2,
+    'the rail must reach past the current arc, or the discarded values are unreachable')
+  // THE DEFAULT IS STILL THE LIVE CHAIN'S, so the chart opens readable rather than flat
+  assert.ok(currentArc.hi < 2.6,
+    `the default window must stay near the live values, got hi ${currentArc.hi}`)
+  // AND A WINDOW DRAGGED OUT TO THE DISCARDED ARC IS ACCEPTED, because it is clamped to the rail's
+  // extent and not to the default. This is the half that the one-extent version got wrong.
+  const dragged = t.clampRange({ lo: 2.0, hi: 6.0 }, railExtent, 1e-4)
+  assert.ok(dragged.hi > currentArc.hi,
+    'a window reaching into the discarded values must survive the clamp')
+  assert.ok(dragged.hi <= railExtent.hi && dragged.lo >= railExtent.lo,
+    'and must still be inside the rail')
 })
 
 test('the rail is given its own width, which is what keeps it off the screen', () => {

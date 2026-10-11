@@ -1468,6 +1468,26 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * Whether two windows mean the same thing, to within the noise of how they were computed.
+     *
+     * THE TOLERANCE IS RELATIVE TO THE WINDOW'S OWN SPAN and not an absolute figure, because a window's
+     * meaningful resolution depends entirely on the series: a tolerance of 1e-9 is tight for a value in
+     * the thousands and loose for one in the thousandths, and the same Epsilon cannot be both. A window
+     * whose ends agree to a millionth of its span is the same window for any purpose a reader has.
+     *
+     * It exists because `valueRange` pads by a fraction of the span, so two extents computed over the
+     * same points at slightly different widths differ in their last bits - which would make a reset
+     * control flicker enabled on a poll that changed nothing.
+     */
+    function sameWindow(left, right) {
+      if (left === null || left === undefined || right === null || right === undefined) return false
+      const span = Math.max(Math.abs(left.hi - left.lo), Math.abs(right.hi - right.lo), 1e-12)
+      const tolerance = span * 1e-6
+      return Math.abs(left.lo - right.lo) <= tolerance
+        && Math.abs(left.hi - right.hi) <= tolerance
+    }
+
+    /**
      * The rail's window rectangle, in the rail's own viewBox coordinates.
      *
      * THE INVERSION IS THE WHOLE FUNCTION. SVG's y grows downward while the value axis grows upward, so
@@ -2752,7 +2772,23 @@ window.__ModuleLoader__.load({
       //: asked for: `zoomRange`, `panRange` and `clampRange` never mention the x data, so the buttons,
       //: the keys, the wheel and the drag below are the same code as the top-of-chart controls, aimed
       //: at a second window. `null` is auto, which is the same convention the x window uses.
-      const [yView, setYView] = React.useState(() => rememberedWindow(yTag(spec.tag)))
+      const [yView, setYView] = React.useState(() => rememberedYWindow(spec.tag))
+      //: Whether the reader has asked for a value window that the default has since moved away from.
+      //:
+      //: `yView` ALONE CANNOT ANSWER THAT, which is the user's third correction of 11 October 2026: "the
+      //: reset button should detect that the default has changed and it should become enabled." The
+      //: default is not a constant - it is the live arc's span, and it MOVES as the arc trains - so a
+      //: reader who touched the rail and then watched the run advance sits at a window that is still a
+      //: legitimate choice but is no longer the default. This flag is set when they ask for something
+      //: and cleared only when they ask for the default back.
+      const [touchedY, setTouchedY] = React.useState(false)
+      //: THE DEFAULT THE AXIS WORE WHEN THIS CHART OPENED, or null until the series' extents are known.
+      //:
+      //: A SNAPSHOT AND NOT A RUNNING VALUE, which is the whole difficulty: the default is the live
+      //: arc's span, so a reference that tracked it could never detect that it had moved - it would be
+      //: compared against itself and always agree. It is assigned once, below, at the first render that
+      //: has an extent to record, and read only by the reset control's enablement.
+      const [defaultAtMountY, setDefaultAtMountY] = React.useState(null)
       const [brush, setBrush] = React.useState(null)
       const hostRef = React.useRef(null)
       const brushRef = React.useRef(null)
@@ -2829,13 +2865,13 @@ window.__ModuleLoader__.load({
       const liveDrawn = pointsToDraw(liveChain, range)
       const drawn = [...olderDrawn, ...liveDrawn]
       const drawablePoints = olderDrawn.length + liveDrawn.length
-      // THE AXIS IS TARGETED AT THE LIVE CHAIN'S BOUNDS, AND THE GHOST IS DRAWN AGAINST IT.
+      // THE AXIS DEFAULTS TO THE LIVE CHAIN'S BOUNDS, AND THE RAIL SPANS EVERYTHING.
       //
       // This replaced "the two scales are taken over BOTH chains", and the reason is measured. The
       // discarded arc ran away to a bits-per-byte of 7.7961 before the rollback, which is a perplexity
-      // of 10,305,465 against the live arc's 83 to 150 - five orders of magnitude. When both chains set
-      // the extent, everything the live arc has ever done occupies about eight ten-thousandths of one
-      // percent of the axis height, so the whole of this arc's real movement renders as a flat line
+      // of 10,305,465 against the live arc's 83 to 150 - five orders of magnitude. While both chains set
+      // the drawn extent, everything the live arc has ever done occupies about eight ten-thousandths of
+      // one percent of the axis height, so the whole of this arc's real movement renders as a flat line
       // one pixel tall. The user, 11 October 2026: "I would like to use only the current arc's bounds
       // as scaling targets", having watched exactly that.
       //
@@ -2844,24 +2880,68 @@ window.__ModuleLoader__.load({
       // the frame where its values exceed the live extent, which is the honest picture: the door the
       // run walked out of is visible as a line going off the top, not as a 0-height hump.
       //
+      // AND THE RAIL IS WHAT MAKES THE DISCARDED VALUES REACHABLE AGAIN, which the same user asked for
+      // in the same breath: "the vertical bar should try to target the whole span including past arc's
+      // values. but it should default select the current arc's span." One extent could not do both, so
+      // there are two - `railExtent` for the rail and the clamp, `currentArc` for the default window.
+      //
       // IT IS STILL COMPUTED OVER BOTH CHAINS IN ONE RESPECT: `insideLive` is the live chain whether or
       // not the ghost is switched on, so hiding the ghost cannot move the axis. That property used to
       // come from including the older chain and now comes from excluding it, which is the stronger
       // form of it.
-      // THE VERTICAL AXIS READS EXACTLY AS THE HORIZONTAL ONE DOES, which is the point of the pairing:
       //
-      //     x:  bounds = the run's legs            range = view === null ? bounds : view
-      //     y:  auto   = the live chain's extent    values = yView === null ? auto : yView
+      // AND THE PAIRING WITH THE HORIZONTAL AXIS IS STILL EXACT:
       //
-      // `auto` is the value the axis takes when the reader has asked for nothing, and it is what the
-      // vertical controls clamp against and what Reset returns to. Naming it separately from `values`
-      // is what lets the two controls be independent: `values` is what is DRAWN, `auto` is what "auto"
-      // means, and the second has to stay available while the first has been overridden.
-      const liveScalePoints = insideLive.length > 0
-        ? insideLive
-        : pointsToDraw(liveChain, range)
-      const autoValues = valueRange(liveScalePoints)
-      const values = yView === null ? autoValues : yView
+      //     x:  bounds = the run's legs              range  = view  === null ? bounds     : view
+      //     y:  railExtent = every chain's values    values = yView === null ? currentArc : yView
+      //
+      // where `x`'s bounds and `y`'s railExtent play the same part - the whole thing the window is
+      // clamped to - and `x`'s default window happens to BE its bounds while `y`'s is a subset of them.
+      //
+      // The user's own words for the two behaviours, 11 October 2026: "the vertical bar should try to
+      // target the whole span including past arc's values. but it should default select the current
+      // arc's span."
+      //
+      //   `railExtent`  the WHOLE span, the discarded arc included - what the rail draws itself
+      //                 against, and what the window is clamped to, so the reader can drag out into
+      //                 the values the rollback threw away and see how far they went.
+      //   `currentArc`  the live chain's own span - what the axis shows when the reader has asked for
+      //                 nothing, so a chart that opens on a run which has rolled back shows the run
+      //                 that is actually training rather than one flat line under a spike.
+      //
+      // The two were one value, and that is why only one of the two behaviours could be had at a time:
+      // scaling the rail to the live chain made the discarded arc unreachable, and scaling it to
+      // everything made the default window useless.
+      const liveScalePoints = insideLive.length > 0 ? insideLive : pointsToDraw(liveChain, range)
+      const currentArc = valueRange(liveScalePoints)
+      const fullValues = valueRange([...olderChain, ...liveChain])
+      // The rail's own extent, with a unit fallback so the render below has a range whatever happens:
+      // `valueRange` is null only for no points, and the rail is not drawn at all in that case.
+      const railExtent = fullValues ?? currentArc ?? { lo: 0, hi: 1 }
+      //: What the axis shows when the reader has asked for nothing - the same expression `values`
+      //: falls back to, written once so the two cannot disagree about what "auto" means.
+      const defaultYWindow = currentArc ?? railExtent
+      const values = yView === null ? defaultYWindow : yView
+      // THE DEFAULT IS RECORDED THE FIRST TIME THERE IS ONE, and never again. Guarded on null so this
+      // runs once rather than on every render, which is what makes it a snapshot: the whole point of
+      // holding it is to notice that the default it was recorded at is not the default now.
+      if (defaultAtMountY === null) setDefaultAtMountY(defaultYWindow)
+      //: Whether the reset control has anything to do. Two independent reasons, and BOTH are needed:
+      //:
+      //:   the reader asked for a window    `touchedY`, which stays true even if the window they chose
+      //:                                    happens to equal the default again, so dragging back to
+      //:                                    where it started does not silently disable the control
+      //:   the default moved away from them the comparison against the snapshot, which is the user's
+      //:                                    third correction: "the reset button should detect that the
+      //:                                    default has changed and it should become enabled"
+      //:
+      // The tolerance is not decorative. `valueRange` pads by a fraction of the span, so two extents
+      // computed from the same arc at different widths differ in the last bits; without it the control
+      // would flicker enabled on a poll that changed nothing.
+      const defaultHasMoved = defaultAtMountY !== null
+        && !sameWindow(defaultAtMountY, defaultYWindow)
+      const resetYEnabled = touchedY || defaultHasMoved
+
       // The right axis is scaled to the WHOLE SIZE SERIES, and not to the
       // samples inside the window, which is the one place this axis departs from
       // the rule the main axis follows.
@@ -2932,15 +3012,19 @@ window.__ModuleLoader__.load({
        * the blur of the values themselves, and unbounded zoom on a flat plateau would magnify
        * rounding into apparent signal.
        */
-      const showYWindow = React.useCallback((next) => {
-        if (autoValues === null) return
-        const floor = (autoValues.hi - autoValues.lo) * Y_MIN_WINDOW_FRACTION
-        const settled = next === null ? null : clampRange(next, autoValues, floor)
+      const showYWindow = React.useCallback((next, { touched = true } = {}) => {
+        const floor = (railExtent.hi - railExtent.lo) * Y_MIN_WINDOW_FRACTION
+        const settled = next === null ? null : clampRange(next, railExtent, floor)
         const applied = settled === null
-          || (settled.lo <= autoValues.lo && settled.hi >= autoValues.hi) ? null : settled
+          || (settled.lo <= railExtent.lo && settled.hi >= railExtent.hi) ? null : settled
         rememberYWindow(spec.tag, applied)
         setYView(applied)
-      }, [autoValues, spec.tag])
+        // THE AXIS IS NO LONGER AT ITS DEFAULT THE MOMENT THE READER MOVES IT, even if the window they
+        // chose happens to equal the current default - and it STAYS not-at-default as the run advances
+        // and the default moves away from where they left it. Only the reset passes `touched: false`,
+        // because every other caller is the reader asking for something.
+        setTouchedY(touched)
+      }, [railExtent, spec.tag])
 
       const zoomBy = React.useCallback((factor, anchor) => {
         showWindow(zoomRange(range, factor, anchor))
@@ -2965,7 +3049,7 @@ window.__ModuleLoader__.load({
       // The wheel listener is bound once, so it reads the live window from a ref
       // instead of from the render that installed it.
       const live = React.useRef(null)
-      live.current = { range, bounds, plot, values, autoValues, spec,
+      live.current = { range, bounds, plot, values, railExtent, spec,
         showX: showWindow, showY: showYWindow }
       React.useEffect(() => {
         const host = hostRef.current
@@ -3036,7 +3120,9 @@ window.__ModuleLoader__.load({
         // Shift+ArrowUp/Down is also the convention a reader already has for a vertical axis, so the
         // binding is derived rather than invented.
         else if (event.key === '1' || (event.shiftKey && event.key === ')')) {
-          event.preventDefault(); showYWindow(null)
+          // `touched: false` because this IS the reset - the key and the `Reset y` button must leave the
+          // control in the same state, or one of them would re-enable a control the other had cleared.
+          event.preventDefault(); showYWindow(null, { touched: false })
         }
         // The Shift-keys go straight to `showYWindow` with the same `zoomRange` and `panRange` the x
         // keys use, and not through per-direction wrappers: the wrappers existed for the buttons and
@@ -3448,7 +3534,14 @@ window.__ModuleLoader__.load({
         }))
       }
 
-      if (brush !== null && brush.overview !== true && Math.abs(brush.to - brush.from) >= 1) {
+      // THE BRUSH BELONGS TO ONE AXIS AT A TIME, and the rail's is drawn on the rail. This test used to
+      // exclude only `overview`, so a brush dragged on the RAIL fell through to here and was drawn as an
+      // x band across the chart: a vertical gesture rendering as a horizontal one, which is the user's
+      // second correction of 11 October 2026 - "dragging to set the vertical bar on the side shows a
+      // horizontal indication in the graph. It should show it vertically or not at all." It shows it
+      // vertically, on the rail itself, and this excludes it from the chart.
+      if (brush !== null && brush.overview !== true && brush.rail !== true
+        && Math.abs(brush.to - brush.from) >= 1) {
         const left = Math.min(brush.from, brush.to)
         const right = Math.max(brush.from, brush.to)
         children.push(React.createElement('rect', {
@@ -3494,15 +3587,24 @@ window.__ModuleLoader__.load({
           title: 'Show the whole run ( 0 )', 'aria-label': 'Reset to the whole run',
           onClick: () => { showWindow(null) },
         }, 'Reset'),
-        // THE VALUE AXIS' CONTROLS ARE NOT IN THIS ROW ANY MORE. They were five buttons here - `-y`,
-        // `+y`, `↑y`, `↓y` and `y auto` - and the user replaced them on 11 October 2026: "instead of
-        // having +y -y buttons just show a vertical window to the left of the graph that I can
-        // drag-select exactly like the x-axis zoom feature". The rail beside the frame is that window,
-        // with the same two gestures the strip under the chart has: drag to select a range, click to
-        // slide the window to a place. `1` stays for the keyboard, because a rail is drag-only.
+        // THE VALUE AXIS' OWN RESET. It was not here before: the `Reset` above clears the LEG window
+        // only, and the value axis had no way back to its default at all once the rail had moved it. The
+        // user's third correction of 11 October 2026: "the reset button should detect that the default
+        // has changed and it should become enabled." `resetYEnabled` is what that means - either the
+        // reader moved the axis, or the default itself has moved out from under them as the run
+        // advanced, which a comparison against a stored window alone cannot see.
+        React.createElement('button', {
+          type: 'button', className: CLASS.windowButton, disabled: !resetYEnabled,
+          title: 'Size the value axis to the current arc ( 1 )',
+          'aria-label': 'Reset the value axis to the current arc',
+          onClick: () => { showYWindow(null, { touched: false }) },
+        }, 'Reset y'),
+        // ONE READOUT FOR TWO AXES, because the two numbers answer one question - what am I looking at -
+        // and the y half is the one the rail moves. It is the only place the axis' actual values are
+        // printed, which matters on a chart whose window is a hundredth of its span.
         React.createElement('span', {
           className: CLASS.windowReadout, 'aria-live': 'polite',
-        }, rangeLabel(range, bounds, ghostAt !== null)))
+        }, `${rangeLabel(range, bounds, ghostAt !== null)} · y ${valueWindowLabel(values, spec.digits)}`))
 
       // `overlaySegments.length`/`second.label` are part of what the picture
       // says, so they are part of what its accessible name says: a screen reader
@@ -3548,11 +3650,11 @@ window.__ModuleLoader__.load({
       // left of the graph that I can drag-select exactly like the x-axis zoom feature" - so the two
       // share `brushRangeAt` and differ only in the pixel-to-value mapping they hand it.
       //
-      // ITS SCALE IS THE AUTO EXTENT AND NOT THE DRAWN ONE, which is the whole point of an overview: if
-      // it rescaled to the window, the window's edges would sit at its ends for ever and the reader
-      // could never see how much of the extent they are looking at. `autoValues` is the extent, which
-      // is also what the window is clamped against.
-      const railExtent = autoValues === null ? { lo: 0, hi: 1 } : autoValues
+      // ITS SCALE IS THE WHOLE SPAN AND NOT THE WINDOW, which is the whole point of an overview: if it
+      // rescaled to the window, the window's edges would sit at its ends for ever and the reader could
+      // never see how much of the span they are looking at. `railExtent` is that whole span - BOTH
+      // chains, the discarded arc included - so the window drawn on the rail sits in its true place
+      // along the axis, and the part of the rail above the window's top edge IS the discarded values.
       const railInner = RAIL.width - RAIL.padLeft - RAIL.padRight
       const railInnerH = CHART.height - CHART.padTop - CHART.padBottom
       const railRef = React.useRef(null)
@@ -4518,6 +4620,7 @@ window.__ModuleLoader__.load({
       // through, its readout, and its geometry.
       brushRangeAt,
       valueWindowLabel,
+      sameWindow,
       RAIL,
       railWindowPixels,
       resolveSelection,
