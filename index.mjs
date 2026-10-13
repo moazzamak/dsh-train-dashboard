@@ -425,7 +425,10 @@ function registerRoutes(ctx, config) {
           // is nothing to chart yet. `null` when there is no command.
           commandHint: commandReady ? snapshotArgv(config).join(' ') : null,
           arm: payload?.arm ?? config.arm,
-          breakLeg: payload?.break_leg ?? null,
+          // NO `breakLeg`, and it is not a field a snapshot can bring back: the tab's kindless "NO KIND"
+          // marker was built from it, and both were removed on 13 October 2026 (see client.cjs,
+          // `readBreakMarkers`). Anything reading `/state` for a joint should read `breaks` from the
+          // series body instead, where every marker carries the kind its producer derived.
           // The client re-fetches the whole series body only when this string
           // changes. A producer that omits it gets `generated_at` as its
           // revision, which is correct: new numbers mean a new timestamp.

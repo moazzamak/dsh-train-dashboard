@@ -4,8 +4,8 @@ A training dashboard for the DeepSeek Harness (DSH). It adds a **Training
 dashboard** tab to the right pane, beside Files, Terminal and Document, and
 charts a JSON snapshot of a training run: a KPI header, one series at a time on
 its own axis, the joints that make the series incomparable marked on the chart
-with the reason for each, and the next expected transition stated ahead of the
-curve.
+with the reason for each, and the model's own growth drawn against the reading it
+buys.
 
 The plugin does **not** parse your logs. It runs a command of your own, that
 command writes the snapshot JSON described below, and the tab reads it. So the
@@ -22,7 +22,35 @@ and it never competes with your own parser for the truth about a run.
 - every word a break marker shows is your snapshot's own: the tab chooses where
   a marker sits and how it reads, never what it says
 
-Package version **0.3.0** — snapshot contract version **1**.
+Package version **0.4.0** — snapshot contract version **1**.
+
+### What changed in 0.4.0
+
+Two features were **removed** and one defect that had been hiding behind them was
+fixed. The snapshot contract number stays at **1**: every change is additive or
+ignored — a snapshot that carries a key this version no longer reads is still
+served, and still drawn as far as it can be.
+
+- **No more predictions.** The dashed *frontier* line, its register block, its
+  switch and the `frontier` key are gone. A producer's phase length is not
+  knowable in advance — a phase ends when its read goes flat, not at a fixed leg
+  count — so the projection was wrong in its premise, not merely imprecise. A
+  snapshot that still serves `frontier` is served and the key is ignored.
+- **No more NO KIND marker.** The legacy single-break key `break_leg` — one
+  constant naming a joint of an arc the snapshot no longer charts, carrying no
+  kind — is no longer folded in, and `/state` no longer republishes it as
+  `breakLeg`. A marker whose whole content is that it claims nothing, drawn on a
+  run that never trained that leg, is not a joint a reader can use.
+- **A growth now has a colour and a shape in the key.** The `growth` kind was
+  added to the chart's shape and ink tables and to no rule in the stylesheet, so
+  its register swatch fell back to the sheet's grey and its key drew no shape at
+  all — a mark on the chart the register could not decode.
+- **The KPI header reads the current bpb tags.** The producer renamed
+  `train/bpb_sealed` and `train/bpb_legval` to `train/bpb` and
+  `train/heldout_bpb` on 11 October 2026, and this tab's headline list was not
+  moved with them: the headline resolved to nothing and the first two KPI tiles
+  read `—` beside four that filled normally. Both spellings are recognised now,
+  current first, so an old snapshot on disk still charts.
 
 ---
 
@@ -31,12 +59,23 @@ Package version **0.3.0** — snapshot contract version **1**.
 | region | content |
 | --- | --- |
 | header | the run's name, the snapshot's age with a fresh/stale badge, a Refresh button |
-| KPI row | latest step, the held-out reading, step wall time, throughput, memory peak, evaluation accuracy |
+| KPI row | latest step, the held-out reading, step wall time, throughput, memory peak, evaluation accuracy, the seed model's size |
 | chips | the four metrics this tab leads with, then a `N more series` disclosure holding everything else the snapshot carries |
-| chart | ONE series at a time on its own axis, with every break marker drawn on it, over a timeline you can select |
-| register | under the chart: every break marker in full — its leg, its kind, its reason, what that kind does to the curve, and where it was read from |
-| frontier | under the register: the next expected transition, named as an expectation and not as a fact |
+| chart | ONE series at a time on its own axis, with every break marker drawn on it, over a timeline you can select — plus the seed model's size as a second dashed line against the axis on the right, the chain a rollback threw away ghosted beside the live one on a shared origin, and a floating current value for each line |
+| register | under the chart: a switch per break category, then one status line per marker — its kind's shape and colour, its word, its leg and what changed — with the reason, the meaning and the evidence behind a per-row `why` disclosure |
 | footer | the snapshot path being read |
+
+**One series at a time is deliberate.** Series carry different units — bits per
+byte, seconds, GiB, accuracy, counts — and drawing them on one axis would invite
+exactly the comparison the axis cannot support. There is exactly one exception,
+and it is the next section.
+
+**The seed model's size is that one exception**, drawn on the same frame against
+an axis of its own on the right — the growth ladder is the point of a run that
+adds capacity as it trains, so how big the model has become belongs on screen at
+the same time as the reading it buys. See
+[The seed model's size](#the-seed-models-size) for what the number is and — more
+importantly — what it deliberately is not.
 
 **The chips are a short list on purpose.** A snapshot of this run carries sixty
 series, and a chip for every one of them is a wall of controls over a chart that
@@ -57,9 +96,210 @@ which of the two it read.
 
 **One series at a time is deliberate.** Series carry different units — bits per
 byte, seconds, GiB, accuracy, counts — and drawing them on one axis would invite
-exactly the comparison the axis cannot support.
+exactly the comparison the axis cannot support. There is exactly one exception,
+and it is the next section.
 
-### Breaks, kinds and the frontier
+### The seed model's size
+
+The growth ladder is the point of a run that adds capacity as it trains, so how
+big the model has become belongs on screen **at the same time** as the reading it
+buys. A chip would have made you choose between the two, which is the one
+comparison you are trying to make. So it is drawn as a second, dashed line on the
+same frame, against an axis on the RIGHT:
+
+- the frame WIDENS by a gutter only when there is a second line, and the gutter
+  is where the second axis' tick labels live — never on top of the curve;
+- the two axes **share one set of horizontal gridlines**, and their spacing is
+  the scale's: exponential when the second line is logarithmic, regular when it
+  is not. Every line carries a value from **both** scales, so the grid is a set
+  of reference lines a reader can read twice rather than two grids interleaved —
+  see below;
+- the second axis is **logarithmic**, and is scaled to the **whole size series**
+  rather than to the window — see below;
+- the legend under the chart names both series, both units and the side of the
+  frame each one's scale sits on;
+- each line's **current value floats in the left margin**, written at the height
+  that line was drawn at and in that line's own colour — so a number and the
+  curve it belongs to are read together, with no legend in between. It sits
+  **left of the plot**, in a column of its own separated from the axis numbers by
+  position, colour and a short rail down its inner edge, because a reading that
+  shares the numbers' column is mistaken for a tick. It is the newest reading of
+  the **whole run**, not of the window: a reader zoomed into leg 300 is still
+  steering by the latest number, and a reading that vanished when they panned is
+  one they cannot rely on. A reading is only written where its line is actually
+  on screen, and the two are held at least 13 units apart and inside the frame —
+  the size axis barely moves while a bpb curve swings, so the two newest readings
+  often land at nearly one height;
+- the line is **resampled onto the selected series' x values**, so both lines are
+  drawn in one coordinate system. Where the size series has no reading, the line
+  **stops** rather than carrying the last value forward: a line that continues
+  past its last measurement claims the model was that size at legs nobody
+  measured.
+
+**One grid, two scales, and the spacing follows the scale kind.** The frame
+previously drew a grid per axis, at two different spacings over one another, and
+half of each line belonged to no label — a texture rather than a grid. There is
+now one set of lines:
+
+| second line | lines at | example from this run |
+| --- | --- | --- |
+| logarithmic | the log axis' marks — equal **ratios** apart, so larger steps in value the further up the frame | `1.9897 bpb` / `17.4M` · `2.3737` / `19.1M` · `2.7576 bpb` / `20.9M params` |
+| linear | the primary axis' own ticks — equal **steps** | evenly spaced |
+
+So the horizontal lines are at regular intervals on a linear scale and at
+exponential ones on a log scale, and both axes quote every line. A line's value
+on the primary axis is solved from that axis' own projection (by bisection, not
+by a second formula that could disagree with the drawing), so a gridline's label
+can never name a value the line is not on. Two labels that would round alike take
+one more decimal until they do not.
+
+**Each axis names its unit exactly once**, in the title rotated up its outer edge
+(`bpb`, `params`). The tick labels beside it are bare numbers — `17.4M`, not
+`17.4M params` — because a unit written on a label as well says the same word
+twice within a few pixels of itself. The scale mark the value formatter writes
+(`22.2M`) stays with the numbers, where a reader comparing two ticks needs it;
+the rotated title carries the word those letters stand for; and the legend spells
+both units out in full for anyone who wants them named.
+
+**The size axis does not follow the window, and that is deliberate.** This line
+exists to show growth, and the size only ever rises — so a floor taken from the
+samples *in the window* rises as the reader pans right and **lifts the beginning
+of the line off the bottom of the frame**. Zoomed into the late run, the early
+readings fall below the axis and stop being drawn, while every count on screen
+still says they were drawn: a series that appears to begin later than it does,
+with nothing saying a reading was dropped. Anchored to the whole series instead,
+the floor stays put under every window and the line's shape is comparable from
+one window to the next. The x window still does all the framing work it did
+before. The main axis keeps its window rescaling, because its readings are noisy
+and uncorrelated — there the rescale is the point.
+
+**Why log.** The size is the product of the growth ladder, and the ladder
+multiplies: this run steps 17.05M → 22.22M, which is **1.30×**. A linear axis
+anchored at zero draws that as 23% of the frame at most, and the ladder itself —
+every growth this pass has bought — as under 2% of it, which is a flat line near
+the top. On a log axis the same readings are 0.115 decades and the run uses
+**92% of the height**, and each growth step is the same fraction of the height
+however big the model already is.
+
+A log axis also has **no zero**: log(0) is negative infinity, so a floor of 0 is
+not a setting the axis can honour. Its floor instead sits **8% of the height below
+the run's smallest reading**, which is where a linear axis' zero would be.
+
+- the floor is solved from the data's own span, so it works on a narrow window
+  exactly as on the whole run. Placing it at a fixed fraction of the *maximum*
+  instead — the obvious first attempt — leaves a 1.30× run drawn in the top 19%
+  of the frame, the same flattening the log axis was chosen to fix.
+- a value outside the axis is **dropped**, never clamped: `train/seed_read_rows`
+  really does start at 0 rows, and folding that to the bottom of the frame would
+  draw a zero on a scale that cannot contain one. It is one switch away if you
+  want to watch the read grow from nothing.
+- the marks are evenly spaced powers of ten — `17M  19M  21M` on this run — and
+  never two of them closer than 8% of the height, because two marks that close
+  are one blur rather than a scale.
+- the axis **carries no caption**: an earlier version printed a sentence
+  explaining what a log scale is, and it was removed as clutter. The marks are
+  what say it, and the legend still names both lines, both units and both sides.
+
+The series it looks for, best source first:
+
+| tag | drawn as | unit |
+| --- | --- | --- |
+| `train/seed_model_params` | the headline: the whole model | M params |
+| `train/seed_read_rows` | the part a growth deposit moves | rows |
+| `train/seed_trainable_rows` | the fixed table beside it | rows |
+
+A producer that serves none of them gets no second line and no second axis —
+never an empty axis, which would be furniture. The same three tags are kept out
+of the chip list: a chip that selected a series already drawn underneath the
+curve would be a second way to ask for one picture.
+
+**What this number is, and what it is not.** It is a count of PARAMETERS of the
+whole model — the tick table plus the read's live rows — and two cheaper
+measurements are wrong on a run of this kind:
+
+- **the checkpoint's byte count**, because the read is a fixed allocation
+  rectangle: every leg writes the **same** file size (measured: 375,398,237 bytes
+  on legs 800 to 893) while the model inside it grows. A byte-count line would be
+  perfectly flat over a model that is getting bigger.
+- **the read's allocation**, because an allocated-but-not-live row is held at
+  exactly zero and given no update, so it "contributes nothing to the read". On
+  leg 66 of the live pass the read was allocated 4,096 rows and **385** of them
+  were live: pricing the allocation put 3.15M where the truth was 0.30M, an
+  overstatement of ten times, and mixing the two made the size series dip from
+  20.1M to 17.1M and rise again — a shape no growing model makes.
+
+So the size is counted from the two tables that do move, each at its own price:
+
+1. the **tick table**: `born-rows gate ON: N trainable rows`, where one row is an
+   embedding row of `d` numbers **and** an unembedding row of `2d + 1`, so one row
+   is `3d + 1 = 577` parameters and not one. Pricing a row at a single parameter
+   is what made this chart say 4.0M about a 22.2M model.
+2. the read's **live rows**, at the trainer's own `READ_PARAMS_PER_ROW` — a key
+   row and a value row of `2d + 1` numbers each.
+
+Both prices come from the trainer's registered constants rather than from
+arithmetic restated here. A second derivation would be free to disagree with the
+trainer about how wide the model is, and then the chart and the log would tell
+different stories about the size of one model. Cross-checked against the live
+checkpoint at leg 893: `E` (29035, 192) = 5,574,720, `U` (29035, 385) = 11,178,475,
+read 7,096 × 770 = 5,463,920, total **22,217,115** — which is what the chart says.
+
+**The live count is only ever read from a line that states it.** Two lines do:
+the gate's `read live-row gate ON: N of M allocated rows are live`, and the
+packed read's `groups G x N LIVE rows of M allocated`. A leg whose log carries
+neither — legs 1 to 65, 67 to 124 and 129 to 278 of the live pass, which were
+trained before the trainer printed a live count every leg — gets **no reading at
+all**. That becomes a gap, and it is deliberate: the live set only ever grows
+(rows are appended, never removed), so a dip in the series is always a misread,
+and the honest drawing of "this leg did not say" is nothing rather than an
+interpolation between its neighbours.
+
+**Sizing a series the snapshot never reported.** A leg whose log says nothing
+about the size is not charted at all: the series has no point there, and if NO
+leg reports a size there is no size series. Where the first readable leg is not
+the run's first, one explicit point is emitted for the leg before it at the same
+size, labelled as back-projected in the series' source note, so a growth reads as
+a **step at the leg that took it** rather than as the line's own start.
+
+The size series is **not** split at the break — unlike every metric series — and
+that is deliberate. The break is a change in the arithmetic a leg computes, which
+is why bits per byte is not comparable across it. A parameter count is a
+statement about the model's shape: it means the same thing on both sides, and
+splitting it would draw two half-lines for one continuous quantity.
+
+### Turning marker categories off
+
+A long run crosses many joints, and on a chart zoomed to fifty legs the cluster
+of markers can be exactly what is in the way. So **the key under the chart is
+also the switch**: each category is a button carrying its own shape, its word and
+its marker count.
+
+- pressing a category stops it being drawn **on the chart, on the strip under the
+  chart, and in the register** — one list, three readers, so the three views of a
+  marker cannot disagree about whether it is drawn;
+- the key swatch is drawn from the same shape table the chart draws with, so the
+  shape in the key IS the shape on the line;
+- a switched-off category **keeps its shape and its colour**, dimmed with its
+  word struck through. A kind read as "off" by hue alone would be invisible to a
+  reader who cannot separate the hues — which is the whole reason every kind has
+  a shape.
+
+**Nothing is hidden silently.** The register always states both counts — how many
+markers are drawn out of how many the snapshot carries — and adds a sentence
+naming how many your switches are holding back. The chart's accessible name
+carries the same numbers. That distinction is the point: a chart missing its
+joints looks exactly like a run with no joints, and the two call for opposite
+readings of the same curve.
+
+A category the tab has never seen is **offered as a switch under its own name**
+and is **drawn by default**: the switches store the kinds turned *off*, so a
+producer's new kind, or a marker served with no kind, can never be hidden by a
+preference expressed before it existed. The switches are remembered **per
+session** and survive the pane remounting the tab body, for the same reason the
+series choice does: a switch that resets itself on the next poll undoes your work
+while looking exactly like a refresh.
+
+### Breaks and kinds
 
 A long run crosses boundaries that are not learning, and a rise across one of
 them is not the model getting worse. The snapshot can carry them, and the tab
@@ -77,8 +317,38 @@ who cannot separate the hues, and these kinds do different things to the curve:
 | `arithmetic` | triangle | the numbers changed, so the series is not comparable across the joint at all |
 | `shape` | diamond | the leg's geometry changed with its volume held constant, so the metric stays comparable and the wall clock moves |
 | `restart` | triangle, point down | the process restarted, and the work of that window is not in the series |
-| `break` (declared by `break_leg`) | bar | the snapshot named a leg and no kind, and this tab will not guess one |
+| `rollback` | chevron, pointing left | the weights were rewound to an earlier state, so the leg numbers either side of the joint do not order the training and the reading jumps for a reason that is not the model |
+| `growth` | chevron, pointing up | the MODEL grew: rows were added to the read, so the size steps at this leg, the reading can rise while the new rows learn, and the leg costs more wall clock. Marked on **every** chart, so an event the selected series does not move is still visible on it. The one kind that is not a warning |
 | anything else | plus | a kind this tab has never seen, drawn rather than hidden |
+
+**A `rollback` is the one kind the chart draws twice, and the one kind that re-bases
+the x axis.** Everything at or before the newest rollback's leg is the chain the
+controller threw away: it stays on the chart - dropping those points would make the
+run look shorter than it is - and it is drawn as a **ghost**: same hue, dashed, half
+opacity. **Both passes are drawn from their own first leg**, so the live pass starts
+at x=0 beside the older one instead of being stranded at the far right of an axis
+that starts at the run's first leg: the reader compares pass 2's third leg with pass
+1's third leg, which is the whole reason the older values are kept on the picture.
+The window readout says so - `legs from each pass's start 0–208` - because numbers
+that no longer match the legs in the register must not be left to be inferred. A run
+that has not rolled back keeps the leg number as its x, and its readout still says
+`steps`.
+
+The key carries a third switch for the ghost, `OLDER RUN ≤N`, which takes the ghost
+off the picture and puts it back; **neither axis moves either way** - the horizontal
+one is bounded by both passes and the vertical by both passes' values - so switching
+the ghost off is a change of what is drawn and never of what the numbers mean. The
+ghost is read from the rollback MARKERS and not from the visible ones, so switching
+the `ROLLBACK` category off hides the marker and leaves the discarded values ghosted
+where they were.
+
+**A rollback draws no line of its own**, because with both passes aligned to a shared
+origin there is no leg for such a line to sit at: it would land at the far end of the
+older chain and mark nothing. What shows it on the chart is the origin itself - two
+chains from one x, the older one ghosted - and the `ROLLBACK` row in the register
+carries the record: the rule, the checkpoint it went back to, and the producer's own
+reason. Its category switch therefore hides the RECORD, and says so rather than
+promising to take a line off a chart it is not drawn on.
 
 A kind the tab has never seen is still drawn, with the plus shape and the
 producer's own name in the register; a marker whose kind the snapshot omits gets
@@ -89,24 +359,28 @@ visible even when you have zoomed somewhere else. Hovering a marker gives the
 same text the register carries, so the detail is one gesture away without being
 written across the plot.
 
-The **register** under the chart is where the markers read in full: the reason,
-the sentence your snapshot carries for that kind, the evidence the marker was
-read from, and any contradiction the snapshot attaches. Markers that fall
-outside the window on screen, or past the last point of the series, still appear
-there — the chart can only draw what its axis covers, and a marker that is
-missing from the picture without a word about it is a marker nobody finds.
+The **register** under the chart is a STATUS LIST, one line per joint: the shape
+and colour of its kind, the kind's word, the leg, and what changed there — with
+the reasoning behind a `why this joint is marked` disclosure on the row itself.
+The reason, the sentence your snapshot carries for that kind, the evidence the
+marker was read from and any contradiction it attaches are all still there, one
+press away: a register that arrives as four paragraphs per joint is not a status
+list and gets read as a wall — reported on 10 October 2026 and fixed by the
+disclosure. Markers that fall outside the window on screen, or past the last
+point of the series, still appear there — the chart can only draw what its axis
+covers, and a marker that is missing from the picture without a word about it is
+a marker nobody finds.
 
-The **frontier** is the next expected transition, drawn as a dashed line in a
-lane of its own and labelled `next corpus change expected around leg N`. It is
-deliberately not drawn like the markers above it: those are read from artifacts
-that exist, and this one is a projection. The tab says so, in the block under
-the register, and it also says why its dashed line may not be on the chart yet.
-
-**Both the markers and the frontier come from your snapshot, in your words.** The
-tab does not decide that a rise is expected, that a joint is a level shift or
-that a transition is coming; it draws what your producer derived and repeats its
-sentences, so the chart and your own record cannot tell different stories about
-one run.
+**Every marker comes from your snapshot, in your words.** The tab does not decide
+that a rise is expected, that a joint is a level shift or that a corpus is about
+to change; it draws what your producer derived and repeats its sentences, so the
+chart and your own record cannot tell different stories about one run. **And it
+predicts nothing**: this tab used to draw a projection of the next corpus
+change, and it was removed on 13 October 2026 ("next corpus change prediction
+should be removed. it's unnecessary and wrong as well") — the leg it named came
+from a phase's budget divided by one leg's volume, while a visit actually ends
+when its read goes flat. A snapshot that still serves a `frontier` block is
+simply not asked for it.
 
 ### Selecting the timeline
 
@@ -184,7 +458,6 @@ project and this plugin. This is a complete example:
   "generated_at": "2026-01-31T09:15:00Z",
   "revision": "1738314900",
   "arm": "run-7",
-  "break_leg": 500,
   "series": [
     { "tag": "train/loss", "source": "metrics.jsonl", "points": [[1, 3.204], [2, 3.011], [3, 2.876]] },
     { "tag": "train/wall_seconds", "source": "step logs", "points": [[1, 41.2], [2, 39.8], [3, 40.5]] },
@@ -203,17 +476,6 @@ project and this plugin. This is a complete example:
       "meaning": "the DATA changed, so a rise in bpb here is EXPECTED"
     }
   ],
-  "frontier": {
-    "phase_now": "corpus_b",
-    "next_phase": "corpus_c",
-    "boundary_leg": 380,
-    "next_leg": 460,
-    "legs_in_phase": 80,
-    "legs_remaining": 61,
-    "expected_to_raise_bpb": false,
-    "imminent": false,
-    "sentence": "FRONTIER: corpus_b is being trained; the next corpus transition is corpus_b to corpus_c at about leg 460."
-  },
   "counts": { "points": 9 },
   "sources": "metrics.jsonl + step logs"
 }
@@ -225,15 +487,13 @@ project and this plugin. This is a complete example:
 | `generated_at` | strongly recommended | ISO-8601 timestamp of when the numbers were **read**. Drives the age badge and the stale banner. Without it the tab reports the snapshot as stale, because it cannot know the age. |
 | `revision` | recommended | Any string that changes when the contents change: a timestamp, a file mtime, a hash. The tab fetches the series body only when this moves. If you omit it, `generated_at` is used as the revision. |
 | `arm` | optional | The run's own name, shown in the header as `run <arm>`. |
-| `break_leg` | optional | One x value to mark, for a producer that has one joint and no kind for it. It is drawn as a dashed marker labelled `BREAK`, and the tab says in the register that it is not claiming a kind for it. |
 | `breaks` | optional | An array of markers, each derived from your own artifacts. See below. |
-| `frontier` | optional | The next expected transition. See below. |
 | `series` | yes (may be empty) | The array of series to chart. |
 | `series[].tag` | yes | The series name. A slash groups it: `train/loss`, `memory/vram_peak_gib`. |
 | `series[].points` | yes | Array of `[x, y]` pairs of finite numbers. `x` is the step axis. A pair that is not two finite numbers is dropped; a series left with nothing is not offered at all. |
 | `series[].source` | optional | Short string naming where the numbers came from; shown in the chip tooltip and the legend. |
 | `annotations` | optional | Free-form array, forwarded to the browser untouched. |
-| `counts` | optional | Free-form object, e.g. `{"points": 4123}`; echoed by `/state`. |
+| `counts` | optional | Free-form object, e.g. `{"points": 4123}`; echoed by `/state`. This project's producer puts its seed-size summary here: `{"seed": {"params_per_read_row": 770, "first_params": …, "last_params": …, "last_read_live_rows": …, "last_trainable_rows": …, "legs_counted": …}}`. |
 | `sources` | optional | String naming the producer's inputs; echoed by `/state` as `snapshotSources`. |
 
 ### `breaks[]`: the markers
@@ -241,10 +501,10 @@ project and this plugin. This is a complete example:
 | field | required | what it does |
 | --- | --- | --- |
 | `leg` | **yes** | The x value the marker sits at. A marker without a readable `leg` cannot be placed on an axis: it is counted and reported under the chart rather than dropped in silence. |
-| `kind` | strongly recommended | One of `corpus`, `instrument`, `arithmetic`, `shape`, `restart` — or any other word, which is drawn and named as it is. Omitted, the marker is labelled `UNKNOWN`. |
+| `kind` | strongly recommended | One of `corpus`, `instrument`, `arithmetic`, `shape`, `restart`, `rollback` — or any other word, which is drawn and named as it is. Omitted, the marker is labelled `UNKNOWN`. |
 | `label` | recommended | A few words naming the change (`corpus_a to corpus_b`, `512 to 256 steps a leg`). Drawn on the chart, cut on a word boundary if it does not fit. |
-| `reason` | recommended | The sentence that says what happened and whether a move across it is expected. Shown in full in the register. |
-| `meaning` | recommended | What this kind of change does to the curve. Shown in the register under `WHAT THIS <KIND> CHANGE DOES TO THE CURVE:`. |
+| `reason` | recommended | The sentence that says what happened and whether a move across it is expected. Shown on the row behind its `why` disclosure. |
+| `meaning` | recommended | What this kind of change does to the curve. Shown behind the row's `why` disclosure under `WHAT THIS <KIND> CHANGE DOES TO THE CURVE:`. |
 | `support` | optional | Where the marker was read from, in a sentence a reader can check. Shown as `READ FROM:`. |
 | `derived` | optional | `false` marks a leg that is a constant in your code rather than a reading; the register then says so. Absent means nothing is claimed either way. |
 | `contradiction` | optional | Set when your own evidence contradicts the change the marker names. Shown prominently, because hiding it would leave the chart claiming a change the legs do not show. |
@@ -252,23 +512,24 @@ project and this plugin. This is a complete example:
 Markers are drawn oldest first. Several markers on one leg are fine: their
 labels are stacked so they cannot overlap.
 
-### `frontier`: the next expected transition
+**A marker states a kind, and the tab never invents one.** Every row in the
+register is a joint your producer derived from an artifact, so there is no
+"joint with no kind" state to render. This replaced an older contract: a
+snapshot could carry a bare `break_leg`, which the tab drew as a dashed marker
+with a `NO KIND` badge because a leg number alone cannot say whether the data,
+the reading, the arithmetic, the leg's shape or the process changed. That is
+gone — a `break_leg` key in a snapshot is now ignored — and a joint worth
+marking is worth a `breaks[]` entry saying which kind it is.
 
-| field | required | what it does |
-| --- | --- | --- |
-| `phase_now` | recommended | The corpus being trained now. |
-| `next_phase` | recommended | The corpus expected next. Empty means none is scheduled, and the tab says exactly that instead of naming a leg. |
-| `next_leg` | recommended | The leg the transition is expected at — a projection from your own budget, so the tab reads it as `expected around leg N`. |
-| `boundary_leg` | optional | The first leg of the current phase. With `imminent: true`, this is the leg the tab draws, because nothing is left to predict. |
-| `legs_in_phase`, `legs_remaining` | optional | Context for the frontier; shown inside `sentence` when your producer writes one. |
-| `expected_to_raise_bpb` | optional | `true` when a rise in bits per byte is expected at the transition. The tab then says so beside the expected leg. |
-| `imminent` | optional | `true` when the next leg trained is already the new corpus. The wording moves from `expected around leg N` to `changes AT LEG N`. |
-| `sentence` | recommended | Your own full statement about the frontier. Shown verbatim, under the tab's note that it is an expectation and not a measurement. |
-
-The tab always adds one caveat of its own to the frontier — that the leg is a
-projection from your budget and the rise is a direction rather than a magnitude
-— and it says why a dashed line that is past the end of the series is not on the
-chart. Everything else on screen is your text.
+**And nothing here predicts.** An earlier version of this plugin drew a
+`frontier`: the transition expected next, the leg it was expected at and whether
+a rise was expected there, from the producer's own budget. It was removed on
+13 October 2026 at the user's instruction — "next corpus change prediction
+should be removed. it's unnecessary and wrong as well" — because the projection
+divided a phase's budget by one leg's volume while a visit actually ends when its
+read goes FLAT. A `frontier` key in a snapshot is now ignored, and what a reader
+still needs — that a corpus change raises the reading and is not a regression —
+is said at each change that happened, by the marker's own `reason` and `meaning`.
 
 **Tags the tab already has labels and units for** (a convenience, not a
 requirement — any other tag is still charted, labelled by its own tag):
@@ -284,6 +545,38 @@ requirement — any other tag is still charted, labelled by its own tag):
 | `memory/vram_peak_gib` | VRAM peak | GiB |
 | `memory/vram_headroom_gib` | VRAM headroom | GiB |
 | `eval/exam_accuracy` | exam accuracy | — |
+| `sealed/bpb` | sealed bpb | bpb |
+| `sealed/ppl` | sealed ppl | ppl |
+| `sealed/ppl_log` | sealed ppl (log10) | log10 ppl |
+
+**A series taken on a cadence is drawn as its READINGS, not as a curve.** Some
+instruments do not run every step: a sealed evaluation of the saved checkpoint
+may cost more than a training step does, so a producer takes it every N legs and
+charts one point per reading. The tab measures that from the series itself — the
+share of the steps between its first and last reading that it actually carries —
+and where that share is below half, it draws the line DASHED with a CIRCLE on
+every reading. The segments between two circles are interpolation, and a reader
+who takes them for measurements reads the instrument as smoother and slower than
+it is. A per-leg family that stops early is unaffected: its readings are still
+consecutive, so it stays a line, and so does a short series that a producer has
+only just begun writing.
+
+**A chip is a name, never a sentence.** The tab used to append an explanation to
+the label of three tag families — that the sealed read runs on a cadence rather
+than every leg, and that the leg-validation families run every leg — which put a
+paragraph inside a display name and baked in a cadence the producer's own
+`counts` can change. The cadence is data and belongs in `counts` (and in the
+chip's hover title, which shows the series' `source` verbatim); the sparseness
+is drawn. Every other chip is its tag or its label above, and nothing more.
+
+Two more tags are drawn **as the second line** rather than offered as chips, and
+one more sits beside them; see [The seed model's size](#the-seed-models-size):
+
+| tag | drawn as | unit |
+| --- | --- | --- |
+| `train/seed_model_params` | seed model size, on the right-hand axis | M params |
+| `train/seed_read_rows` | the read's live rows (the fallback when no total is served) | rows |
+| `train/seed_trainable_rows` | the tick/born table | rows |
 
 Tags shaped like per-step traces (`vram_trace/…`, `anything/trace/…`,
 `something_trace`) are kept out of the chip list entirely: one chip per step
@@ -416,6 +709,25 @@ Point the profile at this directory instead. In the profile directory
 Back up `package.json` first. If the install fails, restore it, otherwise the
 profile is left declaring a dependency that is not there and can fail to boot.
 
+**After that first install, editing this directory is not enough.** `pnpm` may
+materialise a `file:` dependency as a plain COPY rather than a link — on Windows
+it does, and there is no reparse point to check — so the profile keeps serving
+the copy it installed while the file you are editing sits one directory away.
+The symptom is a plugin that silently does not change: no error, no failed boot,
+just the old code, which is the most expensive kind of wrong because everything
+looks like it worked. Copy the halves across after every edit, and check by
+size:
+
+```powershell
+$src = '<this directory>'
+$dst = "$env:USERPROFILE\.dsh\profiles\<profile>\node_modules\dsh-train-dashboard"
+Copy-Item "$src\client.cjs","$src\index.mjs" $dst -Force
+Get-FileHash "$src\client.cjs","$dst\client.cjs"   # the two hashes must match
+```
+
+A client-half change also needs a **page reload**: the browser holds the bundle
+it loaded. The host half (`index.mjs`, the routes) is read at boot.
+
 ## What it costs
 
 - **No tab open, no cost.** Nothing is polled and nothing is spawned.
@@ -452,7 +764,7 @@ the last numbers it has with their true age, and says what is being done:
 | `index.mjs` | host half: the two routes, the snapshot read, the bounded single-flight spawn |
 | `client.cjs` | browser half: the right-pane tab, the header action row trigger, and the hand-drawn SVG chart |
 | `test/host.test.mjs` | 28 tests — the deferred registration, the read path, the spawn bounds, the pass-through |
-| `test/client.test.mjs` | 54 tests — the slot wiring, the pure helpers, the freshness rules, the break markers and the frontier |
+| `test/client.test.mjs` | 98 tests — the slot wiring, the pure helpers, the freshness rules, the break markers, the seed-size overlay, its log axis and the shared grid, and the category switches |
 | `test/live-smoke.mjs` | opt-in end-to-end check against a real project and a real command |
 
 ```
@@ -544,22 +856,23 @@ Each of these is a mistake some plugin in this harness has already paid for once
   chart and how it is stacked, and never what it says. A paraphrase here would
   be a second statement of one fact, free to disagree with the record.
 - **A marker that is not drawn is still reported.** Markers past the end of the
-  series or outside the window still read in the register, a marker with no
-  readable leg is counted and reported rather than dropped, and the frontier
-  says why its dashed line is not on the chart yet. A silent absence in a chart
-  is read as "nothing happened here".
-- **The frontier is drawn as an expectation.** It is a projection from the
-  producer's own budget, in its own dashed style and its own lane, labelled
-  `expected around leg N` — and when the producer says the transition is
-  imminent the wording moves to `AT LEG N`, because there is nothing left to
-  predict. The tab adds one caveat of its own: the leg is a direction and not a
-  magnitude, and the producer may end a phase early.
+  series or outside the window still read in the register, and a marker with no
+  readable leg is counted and reported rather than dropped. A silent absence in a
+  chart is read as "nothing happened here".
+- **Nothing on the chart is a prediction.** A frontier — the next transition,
+  its leg and its expected rise — was drawn here until 13 October 2026 and is
+  removed: the leg came from a phase's budget divided by one leg's volume, while
+  a visit ends when its read goes flat, so the projection was wrong in its own
+  premise as well as unnecessary ("next corpus change prediction should be
+  removed. it's unnecessary and wrong as well"). What a reader needs about a
+  corpus change is said at each change that happened, by the marker's own reason
+  and meaning.
 - **`snapshot_version` stayed at 1 while the new keys arrived.** The contract
-  version is a claim that a reader can read the body, and `breaks` and
-  `frontier` are additive: an older reader serves them and simply draws less,
-  while a bumped version would make every deployed reader refuse the snapshot
-  outright. The host is a pass-through and a test pins that it does not reshape
-  or drop a key it does not know.
+  version is a claim that a reader can read the body, and `breaks` is additive:
+  an older reader serves it and simply draws less, while a bumped version would
+  make every deployed reader refuse the snapshot outright. The host is a
+  pass-through and a test pins that it does not reshape or drop a key it does
+  not know.
 - **An action goes in an action row, never in `shell.overlay`.** That seat is a
   frame-wide floating layer for badges, toasts and status pills, and it is
   click-through on purpose, so a BUTTON registered there is in the wrong place
@@ -603,11 +916,11 @@ Each of these is a mistake some plugin in this harness has already paid for once
   prevent. The register draws the same shape in its key, and a test reads the
   stylesheet and compares it against the shape table, because one mapping written
   twice is free to disagree with itself.
-- **An expectation is not drawn like a fact.** The frontier is the one unfilled
-  swatch, in the label colour, on a dashed line, and its sentence sits in the
-  register under a heading that calls it an expectation. A predicted leg drawn
-  like a joint read from an artifact would be a guess wearing a measurement's
-  clothes.
+- **The register is a status list, and it was read as a wall of text.** A row is a
+  line: the shape and colour of its kind, the kind's word, the leg, and what
+  changed there — with the reasoning behind a per-row `why this joint is marked`
+  disclosure. The register arrived as four paragraphs per joint and was reported
+  on 10 October 2026 as "too verbose, it's unreadable ... walls of text".
 - **A default list is a claim about what matters, and it goes stale.** The chips
   offered nine metrics in a fixed order chosen when the tab was written, and the
   snapshot had since grown to sixty series: the row became a wall of controls and
@@ -622,6 +935,155 @@ Each of these is a mistake some plugin in this harness has already paid for once
   offered at all, and where only the curve exists it is the reading. A reader
   should never be handed two chips for one picture and left to work out which is
   which.
+- **A size charted by the file's byte count would be flat over a growing model.**
+  The read is a fixed allocation rectangle, so every leg writes the same 375 MB
+  while the model inside it grows. The seed's size is counted in PARAMETERS from
+  the tables that actually move, at the trainer's own prices. A chart whose one
+  job is to show growth must not be drawn from a number that cannot grow.
+- **A ROW COUNT IS NOT A PARAMETER COUNT.** The leg log reports the tick table as
+  `29035 trainable rows`, and pricing a row at one parameter made this chart say
+  4.0M about a 22.2M model. One tick row is `3d + 1 = 577` parameters, because it
+  is an embedding row plus an unembedding row. The two prices come from the
+  trainer's own constants, and the chart is cross-checked term by term against the
+  checkpoint: 5,574,720 + 11,178,475 + 5,463,920 = 22,217,115.
+- **AN ALLOCATION IS NOT A LIVE SET.** `theme_live_mask` holds an
+  allocated-but-not-live row at exactly zero and gives it no update, so it
+  contributes nothing. On leg 66 the read was allocated 4,096 rows and 385 were
+  live — a tenfold overstatement — and treating the allocation as the live set
+  made the size series dip from 20.1M to 17.1M and rise again. The live count is
+  read only from a line that STATES it (the gate's or the packed read's), and a
+  leg carrying neither gets no reading.
+- **A SERIES THAT CAN ONLY GROW IS CHECKED FOR GROWTH.** The read's live rows are
+  appended and never removed, so a decrease in the size series is always a
+  misread rather than a fact about the model — and a reader cannot tell those
+  apart from the picture. The tests assert the whole series is non-decreasing and
+  that no point is small enough to be a partial read, which is what caught the
+  dip at leg 66.
+- **Two lines on one frame are readable only if the frame says the scales
+  differ.** The seed-size line gets its own axis on the RIGHT, a gutter the frame
+  widens into only when that line exists, its own rescaling inside the selected
+  window, and a legend naming both series, both units and both sides. Without
+  those, an overlay is an invitation to compare two numbers whose units have
+  nothing to do with each other.
+- **A unit that does not fit beside a number goes up the side, and is written
+  once.** `22.00 M params` flat beside the top tick is wider than any gutter worth
+  taking out of the plot — it ran out of the window — so each axis carries its
+  unit ROTATED up its outer edge, where the chart's height pays for it. And
+  because `formatValue` already writes 22 million as `22.0M`, the marks keep the
+  `M` and the rotated title carries the word it stands for: one fact, one place.
+- **A unit is written once per axis, and never on a tick label.** A version put
+  `params` on the topmost tick as well as on the rotated title, so the frame said
+  the same word twice a few pixels apart. The title at the outer edge carries the
+  word, the labels are bare numbers, and the legend names both units in full. A
+  unit that LEADS with the scale mark must not write it again either — `17.4M M
+  params` is what happens when the scale mark and the unit are both written from
+  scratch.
+- **A ladder that multiplies wants a log axis, and a log axis has no zero.** The
+  size steps 17.05M → 22.22M, which is 1.30×; anchored at zero that is 23% of the
+  frame with the ladder itself under 2% of it, so the growth is in the numbers and
+  absent from the picture. On a log axis the run uses 92% of the height and a
+  ratio is a constant distance wherever it happens. The floor then cannot be 0 —
+  log(0) is negative infinity — so it is solved from the data's own span to sit
+  8% of the height under the smallest reading. Putting it at a fraction of the
+  MAXIMUM instead was this feature's own first bug, and it left the run drawn in
+  the top 19% of the frame: the flattening the log axis was chosen to fix.
+- **A log axis drops what it cannot hold; it never clamps.** `train/seed_read_rows`
+  starts at 0 rows, and folding that to the bottom of the frame would draw a zero
+  on a scale that cannot contain one. Below the floor is a gap, and the series
+  that genuinely starts at zero is one switch away. The guard has to test the
+  VALUE against the floor and not merely that the floor is positive: the first
+  version checked only the latter, so a reading under the floor came back as a
+  NEGATIVE fraction — an ordinary number to the projection — and was drawn below
+  the bottom of the plot instead of being dropped. The chart reported every
+  reading as drawn while some were off the canvas, which is precisely the silent
+  absence this plugin's rules forbid.
+- **A growth line's axis is anchored to the series, not to the window.** The size
+  only rises, so a floor taken from the samples in the window rises as the reader
+  pans right and lifts the beginning of the line off the bottom of the frame.
+  Anchored to the whole series, the floor holds still and the early readings stay
+  on screen. The main axis keeps its window rescaling: its readings are noisy and
+  uncorrelated, so there the rescale is the point.
+- **ONE grid, and its spacing is the scale's.** Two grids over one frame put lines
+  at two spacings over one another, and half of each belonged to no label — a
+  texture, not a grid. There is now one set, at the log axis' marks when there is
+  a log axis and at the primary axis' regular ones otherwise, and both axes label
+  every line. On a log axis a constant DISTANCE is a constant RATIO, so the
+  interval comes out exponential for free — equal heights, growing steps in
+  value — which is exactly the spacing a log scale means.
+- **A shared line's value is solved from the projection that draws it.** The
+  primary axis' reading at a shared line is found by bisection on its own
+  projection rather than by a second formula written out beside it; a second
+  formula is free to disagree, and then a gridline's label names a value the line
+  is not on. Labels that would round alike take one more decimal until they do
+  not, because two lines carrying the same number is a scale that cannot be read.
+- **The current value floats in the left margin, and carries its own colour.**
+  Each line's newest reading is written at the height that line was drawn at, in
+  that line's own colour, with a short rail down its inner edge — so a number
+  needs no legend to be attached to a curve. It sits **left of the plot**, in a
+  column of its own: on the right it shared the overlay's tick labels' column and
+  a reader could not tell a reading from an axis value, and left-of-plot is also
+  where nothing else competes for the space. The reading is the run's newest and
+  not the window's, since a reader zoomed into leg 300 still steers by the latest
+  number; it is dropped when its line is off screen, because a floating number
+  whose line is not drawn is attached to nothing; and the two are held apart and
+  inside the frame, because the size axis barely moves while a bpb curve swings.
+- **A colour that exists only in the stylesheet is a colour that can go black.**
+  The readings first shipped with their `fill` set by CSS class alone, and over a
+  dark frame they rendered **black** — an SVG `text` with no fill is black, and a
+  sheet that is not applied is a sheet whose fills do not exist. Each element now
+  carries the same colour as a presentation attribute, where nothing can take it
+  away, while the stylesheet keeps the theme token so a theme still wins. A test
+  asserts the two agree, because one palette written twice is free to disagree
+  with itself.
+- **A custom property that is read and never set is the same defect in a
+  different coat.** The kind colours are one custom property, `--dshtd-kind`, set
+  once per kind by the sheet and read back by the chart's marks, the register's
+  swatches and badges, and the key's switches. The switches were the case that
+  proved it: the per-kind selector list named every other reader and no switch,
+  so `fill: var(--dshtd-kind)` was invalid at computed-value time, every switch
+  drew **black**, and the key could no longer answer "which colour is which
+  kind" — reported on 10 October 2026. The kinds now carry their colour on the
+  element as well, from `KIND_INK`, for the reason above; the sheet gained the
+  switch in its selector list and an explicit rule for the two kinds it left to a
+  catch-all; and a test reads the JavaScript table against the sheet's own values,
+  so the two palettes cannot drift.
+- **The floating value and the axis marks share one formatter.** The value
+  formatter scales as it writes: 22,217,000 becomes `22.2M`. Multiplying by the
+  spec's `scale` first and formatting after gives the bare `22.22` — a number
+  whose reader has to guess the units, three units away from an axis mark that
+  says `22.2M` about the same series. One call, one notation.
+- **Marks are evenly spaced powers of ten, and never closer than 8% of the
+  height.** The obvious rule — one, two and five per decade — fails on this run's
+  own range: it picks 20M and 22M, which sit 4.5% of the height apart for a 10%
+  difference in value, and two marks that close read as one blur. The steps are
+  walked from fine to coarse on a NESTED grid (1, 2 and 5 tens of each other), so
+  "the most marks that fit" is well defined, and the extreme values are marked
+  rather than thinned away.
+- **A line stops where its measurements stop.** The size series is resampled onto
+  the selected series' x values, and where it has no reading the path BREAKS
+  rather than carrying the last value forward. A line drawn past its last
+  measurement claims the model was that size at legs nobody measured. A leg that
+  reports no size gets no point, and if no leg reports one there is no series —
+  never a flat zero, which would draw a model that shrank to nothing.
+- **A switch is a control, and the count is what makes it honest.** Hiding a
+  category removes it from the chart, the strip and the register at once, from one
+  list with three readers — and every one of those views still carries how many
+  markers are drawn out of how many exist, plus a sentence naming how many the
+  switches hold back. A chart missing its joints looks exactly like a run with no
+  joints, and the two call for opposite readings of the same curve.
+- **A preference must not be able to hide something that did not exist when it
+  was expressed.** The switches store the kinds turned OFF, so a producer's new
+  kind — or a marker served with no kind — is drawn by default and offered as a
+  switch under its own name. A switched-off category also keeps its SHAPE and its
+  colour, because a kind read as "off" by hue alone is invisible to a reader who
+  cannot separate the hues.
+- **Every control is pressed by a check, not merely rendered by one.** The zoom
+  buttons were once wired the wrong way round through a passing unit suite,
+  because the tests asserted the labelled controls existed rather than what they
+  did. The category switches are therefore pressed in the tests: a hook-ordered
+  renderer drives the chart, the switch is clicked, and the markers are counted
+  before and after. A test that only renders a control cannot tell a working one
+  from a dead one.
 
 ## Licence
 

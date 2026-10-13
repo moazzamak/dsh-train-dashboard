@@ -376,14 +376,28 @@ test('the contract number stays at 1, because the new keys are additive', async 
   // once — not one this test can make, and not one to make by accident.
   assert.equal(SNAPSHOT_VERSION, 1)
 
-  const ctx = fakeContext({ text: JSON.stringify(snapshotBody()) })
+  const body = snapshotBody()
+  const ctx = fakeContext({ text: JSON.stringify(body) })
   apply(ctx, { workspace: '/workspace' })
   ctx.__injected[0].callback(ctx)
 
   const answer = await callRoute(ctx, `${ROUTE}/state`)
   assert.equal(answer.body.haveSnapshot, true,
     'a snapshot carrying the newer keys must not be refused for carrying them')
-  assert.equal(answer.body.breakLeg, 120, 'the older single-break key is still served')
+  // NO `breakLeg`, AND THAT IS THE CONTRACT NOW. The fixture still carries the
+  // legacy `break_leg` key - a pass-through host serves what the producer wrote,
+  // and `/series` is asserted above to hand `breaks` and `frontier` back untouched
+  // - but `/state` no longer republishes it as `breakLeg`. The field fed the tab's
+  // kindless "NO KIND" marker, which the user asked to remove on 13 October 2026
+  // ("also remove the NO KIND marker at leg 642 or whatever"), and both went
+  // together. A reader looking for a joint reads `breaks` from the series body,
+  // where every marker carries the kind its producer derived.
+  assert.equal('breakLeg' in answer.body, false,
+    'the kindless legacy field must not come back, or the marker it fed comes back with it')
+  assert.equal(answer.body.revision, 'abc123',
+    'the revision the client re-fetches on is still served')
+  assert.equal(answer.body.generatedAt, body.generated_at,
+    'and so is the timestamp the freshness badge reads')
 })
 
 test('a non-GET request is refused with 405 rather than served', async () => {

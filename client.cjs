@@ -108,8 +108,6 @@ window.__ModuleLoader__.load({
       markerHalo: 'dshtd-breakhalo',
       markerSwatch: 'dshtd-marker-swatch',
       markerLegText: 'dshtd-break-leg-text',
-      frontierMark: 'dshtd-frontier-mark',
-      frontierLabel: 'dshtd-frontier-label',
       breaks: 'dshtd-breaks',
       breaksHead: 'dshtd-breaks-head',
       breaksNote: 'dshtd-breaks-note',
@@ -132,12 +130,6 @@ window.__ModuleLoader__.load({
       why: 'dshtd-why',
       whySummary: 'dshtd-why-summary',
       whyBody: 'dshtd-why-body',
-      frontier: 'dshtd-frontier',
-      frontierSwatch: 'dshtd-frontier-swatch',
-      frontierTitle: 'dshtd-frontier-title',
-      frontierHead: 'dshtd-frontier-head',
-      frontierSentence: 'dshtd-frontier-sentence',
-      frontierCaveat: 'dshtd-frontier-caveat',
       line: 'dshtd-line',
       dot: 'dshtd-dot',
       // The chain a rollback discarded, drawn dimmed and dashed on the SAME axis:
@@ -160,7 +152,6 @@ window.__ModuleLoader__.load({
       toggle: 'dshtd-toggle',
       toggleIcon: 'dshtd-toggle-icon',
       toggleOff: 'dshtd-toggle-off',
-      toggleFrontier: 'dshtd-toggle-frontier',
       windowRow: 'dshtd-window-row',
       windowButton: 'dshtd-window-button',
       windowReadout: 'dshtd-window-readout',
@@ -181,6 +172,8 @@ window.__ModuleLoader__.load({
       overviewOlder: 'dshtd-overview-older',
       overviewWindow: 'dshtd-overview-window',
       empty: 'dshtd-empty',
+      //: A series taken on a cadence rather than every leg, drawn as its readings: see SPARSE_COVERAGE.
+      readingsLine: 'dshtd-readings-line',
       notice: 'dshtd-notice',
       noticeTitle: 'dshtd-notice-title',
       noticeBody: 'dshtd-notice-body',
@@ -362,6 +355,7 @@ window.__ModuleLoader__.load({
 .${CLASS.marker}[data-kind='shape'], .${CLASS.markerLabel}[data-kind='shape'], .${CLASS.breakRow}[data-kind='shape'], .${CLASS.swatch}[data-kind='shape'], .${CLASS.toggle}[data-kind='shape'] { --dshtd-kind: #e0a13f; }
 .${CLASS.marker}[data-kind='restart'], .${CLASS.markerLabel}[data-kind='restart'], .${CLASS.breakRow}[data-kind='restart'], .${CLASS.swatch}[data-kind='restart'], .${CLASS.toggle}[data-kind='restart'] { --dshtd-kind: #5aa9e6; }
 .${CLASS.marker}[data-kind='rollback'], .${CLASS.markerLabel}[data-kind='rollback'], .${CLASS.breakRow}[data-kind='rollback'], .${CLASS.swatch}[data-kind='rollback'], .${CLASS.toggle}[data-kind='rollback'] { --dshtd-kind: #d1567e; }
+.${CLASS.marker}[data-kind='growth'], .${CLASS.markerLabel}[data-kind='growth'], .${CLASS.breakRow}[data-kind='growth'], .${CLASS.swatch}[data-kind='growth'], .${CLASS.toggle}[data-kind='growth'] { --dshtd-kind: #2ec4b6; }
 .${CLASS.marker}[data-kind='break'], .${CLASS.markerLabel}[data-kind='break'], .${CLASS.breakRow}[data-kind='break'], .${CLASS.swatch}[data-kind='break'], .${CLASS.toggle}[data-kind='break'],
 .${CLASS.marker}[data-kind='unknown'], .${CLASS.markerLabel}[data-kind='unknown'], .${CLASS.breakRow}[data-kind='unknown'], .${CLASS.swatch}[data-kind='unknown'], .${CLASS.toggle}[data-kind='unknown'] { --dshtd-kind: #9aa0a6; }
 .${CLASS.marker}, .${CLASS.markerLabel}, .${CLASS.breakRow}, .${CLASS.swatch}, .${CLASS.toggle} { --dshtd-kind: #9aa0a6; }
@@ -388,18 +382,19 @@ window.__ModuleLoader__.load({
 .${CLASS.swatch}[data-kind='arithmetic'] { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .${CLASS.swatch}[data-kind='restart'] { clip-path: polygon(0 0, 100% 0, 50% 100%); }
 .${CLASS.swatch}[data-kind='rollback'] { clip-path: polygon(100% 0, 0 50%, 100% 100%, 67% 100%, 33% 50%, 67% 0); }
+/* The rollback chevron turned on its side, which is chevron-up in MARKER_SHAPES
+   and the same six points as the SVG there: the register's key and the chart's
+   mark have to be one shape or the reader cannot decode a marker from the key.
+   Its ink is the teal above, and MISSING UNTIL 13 OCTOBER 2026 - the kind was
+   added to MARKER_SHAPES and KIND_INK and to neither rule here, so a growth's
+   swatch fell to the sheet's grey fallback while the element carried its own
+   colour, and no rule meant the key drew no shape at all. */
+.${CLASS.swatch}[data-kind='growth'] { clip-path: polygon(50% 0, 100% 100%, 67% 100%, 50% 33%, 33% 100%, 0 100%); }
 .${CLASS.swatch}[data-kind='break'] { clip-path: inset(35% 0 35% 0); }
 .${CLASS.swatch}[data-kind='unknown'] {
   clip-path: polygon(35% 0, 65% 0, 65% 35%, 100% 35%, 100% 65%, 65% 65%, 65% 100%,
     35% 100%, 35% 65%, 0 65%, 0 35%, 35% 35%);
 }
-/* The frontier's own swatch: the outline of a diamond, in the label colour. An
-   expectation is not a kind of joint, so it is the one swatch that is not filled. */
-.${CLASS.frontierSwatch} { fill: none; stroke: var(--dsw-alias-label-tertiary, #8a8a8a); stroke-width: 1; }
-/* The frontier: dashed, dimmer, and labelled "expected". It must not look like
-   the markers above, which are read from artifacts that exist. */
-.${CLASS.frontierMark} { stroke: var(--dsw-alias-label-tertiary, #8a8a8a); stroke-width: 1; stroke-dasharray: 6 4; opacity: 0.9; }
-.${CLASS.frontierLabel} { fill: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 9px; font-style: italic; }
 .${CLASS.breaks} {
   display: flex; flex-direction: column; gap: 8px; margin-top: 8px;
   border-top: 1px solid var(--dsw-alias-border-l1, #2e2e2e); padding-top: 8px;
@@ -444,15 +439,6 @@ window.__ModuleLoader__.load({
   display: flex; flex-direction: column; gap: 4px; padding: 4px 0 0 12px;
   border-left: 1px solid var(--dsw-alias-border-l2, #3a3a3a);
 }
-.${CLASS.frontier} {
-  border: 1px dashed var(--dsw-alias-border-l2, #3a3a3a); border-radius: 8px;
-  background: var(--dsw-alias-bg-layer-1, #1d1d1d); padding: 8px 10px;
-  display: flex; flex-direction: column; gap: 4px;
-}
-.${CLASS.frontierTitle} { font-weight: 600; }
-.${CLASS.frontierHead} { color: var(--dsw-alias-label-primary, #f0f0f0); }
-.${CLASS.frontierSentence} { color: var(--dsw-alias-label-secondary, #b0b0b0); }
-.${CLASS.frontierCaveat} { color: var(--dsw-alias-label-tertiary, #8a8a8a); font-size: 10px; }
 .${CLASS.line} { fill: none; stroke: var(--dsw-alias-brand-primary, #4d6bfe); stroke-width: 1.6; stroke-linejoin: round; }
 /* THE CHAIN A ROLLBACK THREW AWAY. The values are real and they are on the same
    leg axis, so they stay on the chart - dimmed and dashed, which is what a ghost
@@ -475,6 +461,16 @@ window.__ModuleLoader__.load({
 }
 .${CLASS.ghostSwatch} { stroke: var(--dshtd-ghost-ink, #8a8a8a); stroke-width: 1.4; stroke-dasharray: 5 3; }
 .${CLASS.dot} { fill: var(--dsw-alias-brand-primary, #4d6bfe); }
+/* A SERIES TAKEN ON A CADENCE RATHER THAN EVERY LEG: the sealed read is one eval of the saved
+   checkpoint every twelve legs, so the segments between its readings are interpolation and not
+   measurement. Same ink and same weight as the line it is - it is the same series, and only the
+   resolution differs - with a dash that says the value between two circles was not taken. Its dash
+   is 2 3 against the ghost's 5 3, and the two never appear on one chart: a ghost is a chain a
+   rollback threw away, which is a series that WAS sampled every leg and is now history. */
+.${CLASS.readingsLine} {
+  fill: none; stroke: var(--dsw-alias-brand-primary, #4d6bfe); stroke-width: 1.6;
+  stroke-dasharray: 2 3; stroke-linejoin: round;
+}
 /* THE SECOND LINE, AND WHY IT IS DRESSED DIFFERENTLY. It is drawn on the SAME
    frame as the selected series but against the axis on the RIGHT, because the
    two carry different units and one axis cannot be true for both. So the two
@@ -524,12 +520,7 @@ window.__ModuleLoader__.load({
 .${CLASS.toggle}[data-on='false'] { opacity: 0.6; }
 .${CLASS.toggle}[data-on='false'] .${CLASS.toggleLabel} { text-decoration: line-through; }
 .${CLASS.toggleIcon} { flex: none; display: inline-block; }
-/* Every icon in the key is filled with its kind's colour - EXCEPT the frontier's,
-   which is an outline: fill none is set here rather than only on its own class,
-   because this rule is the more specific of the two and was filling the
-   expectation's diamond solid. */
-.${CLASS.toggleIcon} *:not(.${CLASS.frontierSwatch}) { fill: var(--dshtd-kind); }
-.${CLASS.toggleIcon} .${CLASS.frontierSwatch} { fill: none; stroke: var(--dsw-alias-label-tertiary, #8a8a8a); }
+.${CLASS.toggleIcon} * { fill: var(--dshtd-kind); }
 .${CLASS.toggleOff} {
   border-style: dashed; border-color: var(--dsw-alias-border-l2, #5a5a5a);
   color: var(--dsw-alias-label-tertiary, #8a8a8a);
@@ -702,6 +693,18 @@ window.__ModuleLoader__.load({
         digits: 4,
         fallbackFor: 'train/bpb_legval',
       },
+      // THE SEALED READ'S OWN NUMBERS, named rather than left to their tags. These are the metrics the
+      // run's efficiency and capability claims are measured against, and two of them are not a second
+      // measurement at all: `sealed/ppl` is `2 ** (bpb * bytes/positions)` of the bpb beside it, and
+      // `sealed/ppl_log` is that perplexity on a log axis. They keep their own chips because a reader
+      // charting perplexity against the per-leg perplexity is making a real comparison - but the names
+      // are short here, because a name that carries a sentence is a name nobody can read. The producer
+      // charted all three from one reading until 13 October 2026 and now serves the bpb alone; these
+      // entries are what an older snapshot, or a producer that still derives the family, is labelled
+      // with. See `chipSeriesLabel` for the sentence that used to be here.
+      { tag: 'sealed/bpb', label: 'sealed bpb', unit: '', digits: 4 },
+      { tag: 'sealed/ppl', label: 'sealed ppl', unit: '', digits: 1 },
+      { tag: 'sealed/ppl_log', label: 'sealed ppl (log10)', unit: '', digits: 3 },
     ]
 
     /**
@@ -710,8 +713,35 @@ window.__ModuleLoader__.load({
      * The tab's headline number, and the one the KPI header and the default chart
      * both read. Named once here so the two cannot disagree about which series the
      * reading comes from.
+     *
+     * THE PRODUCER RENAMED BOTH LEGACY NAMES, and the KPI row is where it showed.
+     * Until 11 October 2026 this producer emitted `train/bpb_sealed` for the curve
+     * JSONL's own bpb and `train/bpb_legval` for the leg-end reading. On that date
+     * it renamed them to `train/bpb` and `train/heldout_bpb`, because "sealed" was
+     * the wrong word - the SEALED read is a different instrument with its own
+     * stores, and a reader who saw `bpb_sealed` had no way to know it was the
+     * leg's own in-loop validation reading. This list was not moved with them.
+     *
+     * THE SYMPTOM IS A DASH AND THE CAUSE IS NOT THE DATA. `resolveHeadline` finds
+     * no member of this list, the headline is null, and the KPI row's first two
+     * tiles - leg and held-out bpb - render `—` while wall, throughput, VRAM and
+     * the model's size render normally, because those four are read BY NAME and
+     * survived the rename. Measured on the live snapshot, 13 October 2026:
+     * `train/heldout_bpb` carried 48 points ending at 2.09 and the headline tile
+     * read `—`.
+     *
+     * Both the CURRENT names and the LEGACY ones are listed: an old snapshot on
+     * disk still carries the old tags, and a reader must not lose a chart because
+     * a producer moved a name. Order is preference, not history - `heldout_bpb`
+     * goes furthest, the curve stops at the phase boundary, and the legacy pair
+     * sits last so a snapshot carrying both resolves to the current spelling.
      */
-    const HEADLINE_TAGS = ['train/bpb_legval', 'train/bpb_sealed']
+    const HEADLINE_TAGS = [
+      'train/heldout_bpb',       // the leg-end reading, current name
+      'train/bpb_legval',        // the same series, name used before 11 October 2026
+      'train/bpb',               // the curve JSONL's own bpb, current name
+      'train/bpb_sealed',        // the same series, name used before 11 October 2026
+    ]
 
     /**
      * The series drawn as a SECOND LINE on the main chart, best source first.
@@ -832,6 +862,31 @@ window.__ModuleLoader__.load({
      * Per-step trace tags are left out of the fallback list because each one is a
      * single step and would flood the chips.
      */
+    /**
+     * The chip label for a series this tab has no table entry for.
+     *
+     * WHY THIS IS THE TAG AGAIN. Until 13 October 2026 this appended a sentence to three tags: the
+     * sealed family's, which explained that the sealed read runs on a cadence rather than every leg,
+     * and the two leg-validation families, which said that they run every leg. The intent was to stop
+     * a reader taking a sparse line for a stopped one - reported three times on 12 October 2026 - and
+     * the effect was a chip whose NAME was a paragraph, quoting a cadence it had baked in:
+     * `sealed/bpb (the sealed read: one reading every 12 legs, next by leg 48, so it moves 12 times
+     * more slowly than the leg curve)`. The user's report of 13 October 2026 is that sentence read
+     * back: "currently it has these weird series in the chart called: sealed/bpb (the sealed read:
+     * one reading every 12 legs, next by leg 48, so it moves 12 times more slowly than the leg
+     * curve)". A cadence stated inside a display name is also a copy that cannot keep up with the
+     * controller, which moves it to 6 when retention is cautious.
+     *
+     * The two facts that sentence carried are both still on screen, and both are now where a fact
+     * about a series belongs rather than in its name: the CADENCE, served by the producer in
+     * `counts.sealed` and shown in this chip's own title, and the SPARSENESS, drawn - a series taken on
+     * a cadence is rendered as its readings, with a circle on each one (see `SPARSE_COVERAGE`). So a
+     * tag this file has never heard of keeps its own name, exactly as every other chip does.
+     */
+    function chipSeriesLabel(tag) {
+      return tag
+    }
+
     function availableSeries(payload) {
       const index = seriesIndex(payload)
       const offered = []
@@ -858,7 +913,7 @@ window.__ModuleLoader__.load({
         // same curve as itself on two axes - see OVERLAY_TAGS.
         if (isOverlayTag(tag)) continue
         if (tag.endsWith('_pre_break') || tag.endsWith('_post_break')) continue
-        offered.push({ tag, label: tag, unit: '', digits: 3, primary: false, series: item })
+        offered.push({ tag, label: chipSeriesLabel(tag), unit: '', digits: 3, primary: false, series: item })
       }
       return offered
     }
@@ -902,8 +957,7 @@ window.__ModuleLoader__.load({
     const windowByTag = new Map()
 
     /**
-     * The marker categories each session last had switched off, and whether it
-     * had the frontier switched off.
+     * The marker categories each session last had switched off.
      *
      * A third piece of state that belongs to the READER, kept here for the same
      * reason the other two are: the pane unmounts and mounts a tab body again on
@@ -918,7 +972,6 @@ window.__ModuleLoader__.load({
      * before it existed.
      */
     const hiddenKindsBySession = new Map()
-    const hideFrontierBySession = new Map()
     const hideOlderBySession = new Map()
 
     /** The categories one session has switched off, or [] for none. */
@@ -931,16 +984,6 @@ window.__ModuleLoader__.load({
     /** Remember the categories one session has switched off. */
     function rememberHiddenKinds(sessionId, kinds) {
       hiddenKindsBySession.set(sessionId ?? '', [...(kinds ?? [])])
-    }
-
-    /** Whether one session had the frontier switched off. */
-    function rememberedHideFrontier(sessionId) {
-      return hideFrontierBySession.get(sessionId ?? '') === true
-    }
-
-    /** Remember whether one session has the frontier switched off. */
-    function rememberHideFrontier(sessionId, hidden) {
-      hideFrontierBySession.set(sessionId ?? '', hidden === true)
     }
 
     /** Whether one session had the older run's values switched off. */
@@ -1256,6 +1299,34 @@ window.__ModuleLoader__.load({
      * in still sees the padded frame rather than a line.
      */
     const Y_MIN_WINDOW_FRACTION = 0.01
+    /**
+     * Below this share of the legs it spans, a series is drawn as its READINGS and not as a curve.
+     *
+     * WHY A SHARE OF THE SPAN AND NOT A GAP SIZE. A producer's series is either per-leg — a reading on
+     * every step the run took, so it covers its whole span — or per-INSTRUMENT, taken on a cadence,
+     * which is what the sealed read is: one eval of the saved checkpoint every `read_cadence` legs
+     * (12 here) against a leg curve that moves every leg. Measured on the live run, 13 October 2026:
+     * `sealed/bpb` carried 4 readings over legs 7..36 while every other family carried 42 over 42.
+     * Drawing the sparse one as a continuous line claims a value at every leg between the readings,
+     * and a reader who takes that claim seriously reads the instrument as smoother and slower-moving
+     * than it is. So the line is dashed, and every reading it HAS gets a circle. The share is what
+     * separates the two, and it separates them by a factor of four on the run that produced this:
+     * the sparse family covers 0.14 of its span and the densest per-leg family covers 1.0. A series
+     * that stops early — a truncated per-leg family, or one the producer has only just begun writing —
+     * still has consecutive readings and is NOT sparse, which is the property that keeps a short curve
+     * drawn as a curve. 0.5 is the midpoint of the two populations and is a registered constant so it
+     * can be moved with its reason rather than tuned in an expression.
+     */
+    const SPARSE_COVERAGE = 0.5
+    /**
+     * The radius of a circle marking one READING rather than the end of a curve.
+     *
+     * It is the same 2.6 the newest-point dot has always used, named here because it is now drawn on
+     * every point of a sparse series as well as on the newest point of any series: the two marks mean
+     * the same thing - a value the instrument actually took - and a second radius for the same mark
+     * would read as a second kind of mark.
+     */
+    const READING_DOT_RADIUS = 2.6
     /** Below this many pixels a drag is a click, not a selection. */
     const MIN_BRUSH_PIXELS = 6
     /**
@@ -1339,6 +1410,25 @@ window.__ModuleLoader__.load({
       }
       const ordered = before === null ? drawn : [before, ...drawn]
       return after === null ? ordered : [...ordered, after]
+    }
+
+    /**
+     * Whether a series is taken on a cadence rather than every leg.
+     *
+     * The test is COVERAGE: how many of the legs between its first and last reading it actually
+     * carries. See `SPARSE_COVERAGE` for the two populations this separates and the measurement
+     * behind the threshold. It reads the series' own points and nothing else, so a producer that
+     * serves a sparse family this file has never heard of gets the honest rendering without having
+     * to declare anything — and no producer can declare a densely-sampled series into it.
+     *
+     * @param points - the series' points, ascending in x.
+     * @returns true when the readings are a cadence apart rather than a leg apart.
+     */
+    function isSparseReadings(points) {
+      if (!Array.isArray(points) || points.length < 2) return false
+      const span = Math.abs(points[points.length - 1][0] - points[0][0])
+      if (!(span > 0)) return false
+      return points.length / (span + 1) < SPARSE_COVERAGE
     }
 
     /**
@@ -1526,12 +1616,12 @@ window.__ModuleLoader__.load({
 
 
     // ----------------------------------------------------------------------
-    // Break markers and the frontier.
+    // Break markers.
     //
-    // The chart used to carry ONE break: the producer's `break_leg`. A snapshot
-    // can now carry `breaks`, a list of markers the producer derived from its
-    // own artifacts, each with a KIND — and the kinds do not mean the same
-    // thing, which is the whole reason to draw them differently:
+    // The chart used to carry ONE break: the producer's `break_leg`, a constant.
+    // A snapshot carries `breaks` instead, a list of markers the producer derived
+    // from its own artifacts, each with a KIND — and the kinds do not mean the
+    // same thing, which is the whole reason to draw them differently:
     //
     //   corpus      the DATA changed, so a rise here is expected
     //   instrument  the READ changed, so the joint is a level shift with no
@@ -1545,6 +1635,17 @@ window.__ModuleLoader__.load({
     // text, carried through exactly. This half chooses where it sits and how it
     // reads, never what it says; a paraphrase here would be a second statement
     // of one fact, free to disagree with the producer's own view of the run.
+    //
+    // AND NOTHING HERE PREDICTS ONE. The tab used to draw a FRONTIER: the corpus
+    // change the producer expected next, as a dashed line at the leg its budget
+    // put it at, with a block of text under the register. Removed on 13 October
+    // 2026 at the user's instruction — "next corpus change prediction should be
+    // removed. it's unnecessary and wrong as well" — because the projection
+    // divided a phase's budget by one leg's volume while a visit actually ends
+    // when its read goes FLAT, so it printed a leg 686 ahead of the run as a
+    // fact. What a reader still needs to know about a corpus change — that it
+    // raises the reading and is not a regression — is said at each change that
+    // HAPPENED, by the marker's own reason and meaning.
     // ----------------------------------------------------------------------
 
     /**
@@ -1557,9 +1658,6 @@ window.__ModuleLoader__.load({
 
     /** The kind word shown when the snapshot serves a marker with no kind. */
     const UNKNOWN_KIND = 'unknown'
-
-    /** The kind word for the producer's own `break_leg`, which carries no kind. */
-    const DECLARED_KIND = 'break'
 
     /**
      * The shape each kind of break is drawn as on the chart.
@@ -1587,7 +1685,12 @@ window.__ModuleLoader__.load({
       // joint the leg numbers do not order, since the weights on the right of it
       // are older than the weights on the left.
       rollback: 'chevron',
-      [DECLARED_KIND]: 'bar',
+      // AN UPWARD BAND, which is the rollback's chevron turned on its side: the
+      // only two kinds that move the MODEL rather than the reading, one taking
+      // capacity away by rewinding and the other adding it. A growth is drawn on
+      // EVERY chart, including the ones whose own quantity it does not move, so
+      // it has to be recognisable where nothing else on the frame changed.
+      growth: 'chevron-up',
       [UNKNOWN_KIND]: 'plus',
     }
 
@@ -1661,7 +1764,10 @@ window.__ModuleLoader__.load({
       // a change to how the numbers are computed, it is the numbers themselves
       // going backwards.
       rollback: '#d1567e',
-      [DECLARED_KIND]: '#9aa0a6',
+      // Teal, and the only ink that is not a warning: a growth is the run doing
+      // the thing it is for, so it must not read as one of the four kinds that
+      // say a measurement stopped being comparable.
+      growth: '#2ec4b6',
       [UNKNOWN_KIND]: '#9aa0a6',
     }
 
@@ -1669,13 +1775,6 @@ window.__ModuleLoader__.load({
     function kindInk(kind) {
       return KIND_INK[kind] ?? KIND_INK[UNKNOWN_KIND]
     }
-
-    /**
-     * The ink of the frontier's own line, which is a label colour and not a
-     * kind's: an expectation is not a joint, so it is drawn in the same tertiary
-     * grey as the dashed line it belongs to.
-     */
-    const FRONTIER_INK = '#8a8a8a'
 
     /** Side of the marker swatch, in chart units. */
     const MARKER_SWATCH_SIZE = 7
@@ -1743,40 +1842,20 @@ window.__ModuleLoader__.load({
         // about. Absent is NOT read as "declared": that would put a warning on
         // every marker of a producer too old to serve the field.
         declaredInCode: entry.derived === false,
-        declared: false,
-      }
-    }
-
-    /**
-     * The producer's own `break_leg`, as a marker.
-     *
-     * Kept, and kept distinct: it is the one joint the snapshot declares without
-     * deriving it, and it is what a producer that serves no `breaks` array has.
-     * It carries no kind, and this tab does not guess one — the register says so
-     * in as many words rather than colouring it like a corpus change.
-     */
-    function declaredLegMarker(leg) {
-      return {
-        leg,
-        kind: DECLARED_KIND,
-        label: '',
-        reason: '',
-        meaning: '',
-        support: '',
-        contradiction: '',
-        declaredInCode: false,
-        declared: true,
       }
     }
 
     /**
      * The markers a snapshot serves, oldest leg first, and what could not be used.
      *
-     * `payload.breaks` is the producer's derived list; `payload.break_leg` is the
-     * older single-break key, folded in as its own marker so a producer that
-     * still writes only that one keeps working. A marker with no readable leg
-     * cannot be placed on an axis at all, so it is counted and reported rather
-     * than dropped in silence.
+     * `payload.breaks` is the producer's list, every entry derived from an artifact the run wrote. THE
+     * OLDER SINGLE-BREAK KEY IS NO LONGER FOLDED IN, and it was the "NO KIND" row the user asked to
+     * remove on 13 October 2026: "also remove the NO KIND marker at leg 642 or whatever". That key was
+     * `break_leg`, one constant naming a joint of an ARC the snapshot no longer charts, and because it
+     * carried no kind the register could only say so - a marker whose whole content was that it
+     * claimed nothing, drawn on a run that had not trained the leg. A marker with no readable leg
+     * cannot be placed on an axis at all, so it is counted and reported rather than dropped in
+     * silence.
      *
      * @returns `{ markers, skipped }`.
      */
@@ -1792,8 +1871,6 @@ window.__ModuleLoader__.load({
         }
         markers.push(markerFrom(entry))
       }
-      const declaredLeg = payload !== null && typeof payload === 'object' ? payload.break_leg : null
-      if (Number.isFinite(declaredLeg)) markers.push(declaredLegMarker(declaredLeg))
       markers.sort((left, right) => left.leg - right.leg)
       return { markers, skipped }
     }
@@ -1851,11 +1928,10 @@ window.__ModuleLoader__.load({
      * @param cy - centre y, in chart units.
      * @param key - React key.
      * @param ink - the fill to write ON THE SHAPE, or null to leave it to the
-     *   sheet. `'none'` is a fill value like any other: it is what the frontier's
-     *   outlined diamond is drawn with. A presentation attribute loses to any CSS
+     *   sheet. `'none'` is a fill value like any other, and a presentation attribute loses to any CSS
      *   rule that applies, so the sheet still wins wherever it is applied and the
      *   shape is never black where it is not.
-     * @param strokeInk - the outline, for the one swatch that is not filled.
+     * @param strokeInk - the outline, for a swatch drawn unfilled.
      * @returns the SVG element for the swatch.
      */
     function markerSwatch(shape, cx, cy, key, className = CLASS.markerSwatch,
@@ -1896,6 +1972,18 @@ window.__ModuleLoader__.load({
           [cx + radius - thick, cy - radius],
         ]) })
       }
+      if (shape === 'chevron-up') {
+        // AN UPWARD BAND: the shape of a growth, and the rollback's chevron
+        // turned on its side. Distinct at 7 units from every other kind's shape,
+        // and the only one that needs no word beside it to be read as the model
+        // getting bigger.
+        const thick = (radius * 2) / 3
+        return React.createElement('polygon', { ...common, points: points([
+          [cx - radius, cy + radius], [cx, cy - radius], [cx + radius, cy + radius],
+          [cx + radius - thick, cy + radius], [cx, cy - radius + thick],
+          [cx - radius + thick, cy + radius],
+        ]) })
+      }
       if (shape === 'plus') {
         const arm = radius / 3
         return React.createElement('polygon', { ...common, points: points([
@@ -1905,7 +1993,10 @@ window.__ModuleLoader__.load({
           [cx - radius, cy + arm], [cx - radius, cy - arm], [cx - arm, cy - arm],
         ]) })
       }
-      // The bar: the declared joint, whose kind the snapshot never stated.
+      // The bar, which is the fallback shape: a marker whose kind this tab has no shape for still gets
+      // a mark, and the register below names the kind in the producer's own word. It used to be the
+      // DECLARED joint's shape, for the snapshot's `break_leg`; that marker is gone (see
+      // `readBreakMarkers`), so the shape belongs to `UNKNOWN_KIND` alone.
       return React.createElement('rect', {
         ...common, x: cx - radius, y: cy - radius / 3, width: radius * 2, height: (radius * 2) / 3,
       })
@@ -1951,116 +2042,21 @@ window.__ModuleLoader__.load({
       return CHART.padTop + 9 + lane * MARKER_LANE_HEIGHT
     }
 
-    /**
-     * The frontier as this tab reads it: the next expected transition, in the
-     * producer's own words plus the numbers the compact line needs.
-     *
-     * `null` when the snapshot serves none, which is not the same as a frontier
-     * with nothing ahead of it: the register says which of the two it is.
-     */
-    function readFrontier(payload) {
-      const raw = payload !== null && typeof payload === 'object' ? payload.frontier : null
-      if (raw === null || typeof raw !== 'object') return null
-      return {
-        phaseNow: markerText(raw.phase_now),
-        nextPhase: markerText(raw.next_phase),
-        boundaryLeg: Number.isFinite(raw.boundary_leg) ? raw.boundary_leg : null,
-        nextLeg: Number.isFinite(raw.next_leg) ? raw.next_leg : null,
-        // The leg the PRODUCER says the expectation is about, when it serves one.
-        // The rule below is the same rule, and it stays as the fallback for a
-        // producer that predates the key; where both are present the producer's
-        // own answer wins, because the producer owns the budget the leg comes
-        // from and a second derivation here is free to disagree with it.
-        chartLeg: Number.isFinite(raw.chart_leg) ? raw.chart_leg : null,
-        // Where the run IS, as the producer counts it. The head line puts this
-        // before the projection, because a projection hundreds of legs ahead
-        // reads as a claim about the position otherwise ("we are not at step
-        // 690, we restarted and are at 10-ish" - the user, 10 October 2026).
-        newestLeg: Number.isFinite(raw.newest_leg) ? raw.newest_leg : null,
-        legsInPhase: Number.isFinite(raw.legs_in_phase) ? raw.legs_in_phase : null,
-        legsRemaining: Number.isFinite(raw.legs_remaining) ? raw.legs_remaining : null,
-        raiseExpected: raw.expected_to_raise_bpb === true,
-        imminent: raw.imminent === true,
-        // Whether the run is under a stop. The producer's sentence says so in
-        // full; this is what the one-line head needs.
-        stopped: raw.stopped === true,
-        sentence: markerText(raw.sentence),
-      }
-    }
-
-    /**
-     * The leg the frontier's dashed line sits on: where the change is expected.
-     *
-     * One statement of the rule, read by the chart, by the frontier's own line
-     * of text and by the register's note about why the line is not on screen.
-     * An imminent transition is at the producer's boundary leg — the next leg
-     * trained — and a predicted one is at its own projected leg.
-     */
-    function frontierLeg(frontier) {
-      if (frontier === null) return null
-      const leg = Number.isFinite(frontier.chartLeg)
-        ? frontier.chartLeg
-        : frontier.imminent
-          ? (frontier.boundaryLeg ?? frontier.nextLeg)
-          : frontier.nextLeg
-      return Number.isFinite(leg) ? leg : null
-    }
-
-    /**
-     * The frontier's one line, as an EXPECTATION and never as a fact.
-     *
-     * The leg the producer names is where its own budget says the current
-     * corpus runs out, so this reads "expected around leg N"; when the producer
-     * says the transition is imminent — the next leg to train is the new corpus
-     * — the wording moves to "at leg N", because there is nothing left to
-     * predict. A frontier with no corpus after it says exactly that, rather
-     * than leaving a leg number with nothing behind it.
-     */
-    function frontierTagText(frontier, newestLeg = null) {
-      if (frontier === null) return ''
-      const named = frontierLeg(frontier)
-      // A STOPPED RUN'S EXPECTATION IS NOT LIVE, and the one-line head says so
-      // before it says anything else: on 10 October 2026 the run died at leg 9
-      // while this line went on reading "next corpus change expected around leg
-      // 690", which is a projection for a run that will never reach it.
-      const stopped = frontier.stopped ? 'the run has STOPPED · ' : ''
-      // WHERE THE RUN IS, FIRST, and then WHERE IT IS GOING. "Expected around leg
-      // 690" printed alone beside a run at leg 12 reads as the tab thinking the
-      // run is at 690; the distance is the number a reader at leg 12 can act on.
-      const here = Number.isFinite(newestLeg) && newestLeg !== null && newestLeg > 0
-        ? `now at leg ${newestLeg} · ` : ''
-      if (frontier.imminent && named !== null) {
-        return `${stopped}${here}the corpus changes AT LEG ${named} — the next leg trained is the new one`
-      }
-      if (frontier.nextPhase === '') return `${stopped}${here}no further corpus change is scheduled ahead`
-      if (named === null) return `${stopped}${here}the next corpus change is ${frontier.phaseNow} to ${frontier.nextPhase}, leg not stated`
-      const pair = frontier.phaseNow === '' ? frontier.nextPhase : `${frontier.phaseNow} to ${frontier.nextPhase}`
-      const ahead = Number.isFinite(newestLeg) && newestLeg !== null
-        ? ` (${Math.max(named - newestLeg, 0)} leg(s) ahead)` : ''
-      return `${stopped}${here}next corpus change expected around leg ${named}${ahead} · ${pair}`
-    }
-
-    /**
-     * Why the frontier's leg is a direction and not a measurement.
-     *
-     * Stated on screen rather than left to the reader, because a predicted leg
-     * with no caveat reads as a schedule and a predicted rise reads as a
-     * measurement. Both are expectations: the leg comes from a budget divided by
-     * one leg's volume, and the direction of the rise is registered from the
-     * record — no sealed read exists for a corpus before its first leg, so how
-     * far the level moves cannot be told from it.
-     *
-     * ONE LINE, because a caveat is read once and a paragraph is not read at all:
-     * the long form that used to stand here was reported, with the rest of the
-     * register, as a wall of text.
-     */
-    const FRONTIER_CAVEAT = 'EXPECTED, NOT OBSERVED: a direction from the producer\'s budget, not a '
-      + 'measurement, and the controller may end a visit early.'
-
+    // THE FRONTIER IS GONE. This tab used to read `payload.frontier` — the next corpus change the
+    // producer expected, the leg it put it at, and whether a rise was expected there — draw it as a
+    // dashed line, switch it from the register's key, and set the producer's own sentence under this
+    // tab's caveat. Removed on 13 October 2026 at the user's instruction: "next corpus change
+    // prediction should be removed. it's unnecessary and wrong as well." It was wrong in its premise —
+    // the projection divided a phase's budget by one leg's volume, while a visit actually ends when
+    // its read goes FLAT, so a run four legs old was told its next corpus change was 686 legs away —
+    // and a chart of what happened does not need to guess at what will. WHAT A READER STILL NEEDS is
+    // that a corpus change raises the reading and is not a regression, and that is said at every
+    // change that HAPPENED: by each CORPUS marker's own reason and meaning, and by the note the
+    // producer serves as `BREAKS/what_was_expected`.
     /** Everything the chart and the register need from one snapshot body. */
     function breakView(payload) {
       const read = readBreakMarkers(payload)
-      return { markers: read.markers, skipped: read.skipped, frontier: readFrontier(payload) }
+      return { markers: read.markers, skipped: read.skipped }
     }
 
     // ----------------------------------------------------------------------
@@ -2646,11 +2642,6 @@ window.__ModuleLoader__.load({
       return !(hiddenKinds ?? []).includes(kind)
     }
 
-    /** Whether the frontier's dashed line and block are switched on. */
-    function frontierIsShown(hideFrontier) {
-      return hideFrontier !== true
-    }
-
     /** The markers whose category is switched on, in leg order. */
     function shownMarkers(markers, hiddenKinds) {
       return (markers ?? []).filter((marker) => kindIsShown(hiddenKinds, marker.kind))
@@ -2703,10 +2694,9 @@ window.__ModuleLoader__.load({
     }
 
     /** Whether any category is switched off, so the counts can say so. */
-    function anyKindHidden(markers, hiddenKinds, hideFrontier) {
+    function anyKindHidden(markers, hiddenKinds) {
       const categories = markerCategories(markers)
       return categories.some((entry) => !kindIsShown(hiddenKinds, entry.kind))
-        || (!frontierIsShown(hideFrontier) && categories.length === 0)
     }
 
     /** One category's switch label, and what it will do when pressed. */
@@ -2743,14 +2733,14 @@ window.__ModuleLoader__.load({
      * takes focus, because a range reachable only by dragging is a range a
      * keyboard user cannot choose.
      *
-     * `payload` is the whole snapshot body, so the markers and the frontier come
-     * from the SAME read as the series they annotate: taking them from the
+     * `payload` is the whole snapshot body, so the markers come from the SAME
+     * read as the series they annotate: taking them from the
      * polled state route instead would let the lines be one revision ahead of
      * the curve they sit on.
      */
     function SeriesChart({ spec, payload, overlay = null, hiddenKinds = [],
-      hideFrontier = false, hideOlder = false, onToggleKind = null,
-      onToggleFrontier = null, onToggleOlder = null }) {
+      hideOlder = false, onToggleKind = null,
+      onToggleOlder = null }) {
       const points = spec.series.points
       const breaks = React.useMemo(() => breakView(payload), [payload])
       // `null` IS the whole run, so "never zoomed" and "reset" are one state and
@@ -2800,7 +2790,6 @@ window.__ModuleLoader__.load({
       // The markers whose category is switched on, in leg order.
       const markers = React.useMemo(() => shownMarkers(breaks.markers, hiddenKinds),
         [breaks, hiddenKinds])
-      const showFrontier = frontierIsShown(hideFrontier)
       // Where the newest rollback stands, and whether the chain it threw away is
       // still on the chart. Read from `breaks.markers` - EVERY marker, not the
       // visible ones - because switching the ROLLBACK category off is a request
@@ -2815,7 +2804,7 @@ window.__ModuleLoader__.load({
       // x=0, with the older arc ghosted". So on a run that has rolled back, a leg
       // is mapped to its distance from ITS OWN pass's first leg - the older chain
       // from the series' first leg, the live chain from the leg after the rollback
-      // - and every point, marker, frontier line and window below works in that x.
+      // - and every point, marker and window below works in that x.
       // A run that has not rolled back keeps the leg number itself as x, byte for
       // byte as before.
       const origin = points.length > 0 ? points[0][0] : 0
@@ -3351,7 +3340,6 @@ window.__ModuleLoader__.load({
           className: CLASS.marker,
           'data-kind': marker.kind,
           'data-leg': String(marker.leg),
-          'data-declared': marker.declared ? 'true' : 'false',
           clipPath: `url(#${CLIP_ID})`,
         },
         React.createElement('line', {
@@ -3365,40 +3353,14 @@ window.__ModuleLoader__.load({
         React.createElement('title', null, markerTooltip(marker))))
       }
 
-      // The frontier, drawn as an expectation and not as a fact: a dashed line in
-      // the label colour rather than a kind's colour, in a lane of its own, and
-      // labelled with the word "expected". It has its own switch, and switching
-      // it off is NOT the same as switching a kind off: the register says so in
-      // words, because a reader who hid the projection must not be left thinking
-      // the run has no next corpus.
-      const expectedLeg = frontierLeg(breaks.frontier)
-      // The frontier is placed in the same x as the lines: its leg is an absolute
-      // leg, and on a run that has rolled back that is a leg of the LIVE chain, so
-      // it lands at its distance from the rewind.
-      const expectedX = expectedLeg === null ? null : chainX(expectedLeg)
-      const expectedPixel = expectedX === null ? null : projectX(expectedX)
-      const frontierInWindow = showFrontier && expectedX !== null
-        && expectedX >= range.lo && expectedX <= range.hi
-      if (frontierInWindow) {
-        children.push(React.createElement('g', {
-          key: 'frontier', className: CLASS.frontierMark,
-          'data-expectation': 'true', 'data-leg': String(expectedLeg),
-          clipPath: `url(#${CLIP_ID})`,
-        },
-        React.createElement('line', {
-          x1: expectedPixel, x2: expectedPixel,
-          y1: CHART.padTop, y2: CHART.padTop + innerHeight,
-        }),
-        React.createElement('title', null,
-          breaks.frontier.sentence === ''
-            ? frontierTagText(breaks.frontier, breaks.frontier.newestLeg)
-            : breaks.frontier.sentence)))
-      }
+      // NO FRONTIER LINE, AND NO LANE RESERVED FOR ONE. This block used to draw a dashed line at the
+      // leg the producer expected the next corpus change at, followed by a label in a lane of its own
+      // under the markers' lanes. Both are gone with the prediction: see the block comment above
+      // `KIND_ORDER` for the instruction and the measurement. The lanes below are the markers' own,
+      // which is why `frontierLane` no longer exists to push them down.
 
       // The labels, over every line: one chip per marker, so the text is never
-      // crossed by a line, and the frontier's own label in the lane below them.
-      const frontierLane = markerLayout.length === 0
-        ? 0 : Math.max(...markerLayout.map((entry) => entry.lane)) + 1
+      // crossed by a line.
       for (const [index, entry] of markerLayout.entries()) {
         const { marker } = entry
         const haloX = entry.anchor === 'start' ? entry.x : entry.x - entry.width
@@ -3420,32 +3382,6 @@ window.__ModuleLoader__.load({
           x: haloX + MARKER_SWATCH_SIZE + MARKER_SWATCH_GAP, y: labelY,
         },
         React.createElement('tspan', { className: CLASS.markerLegText }, String(marker.leg)))))
-      }
-      if (frontierInWindow) {
-        const x = expectedPixel
-        const text = String(expectedLeg)
-        const width = MARKER_SWATCH_SIZE + MARKER_SWATCH_GAP
-          + text.length * MARKER_CHAR_WIDTH + MARKER_LABEL_PAD
-        const haloX = x + width <= plot.right ? x : x - width
-        children.push(React.createElement('g', {
-          key: 'frontierlabel', className: CLASS.markerLabel,
-          'data-kind': 'frontier', 'data-leg': String(expectedLeg),
-          'data-expectation': 'true', clipPath: `url(#${CLIP_ID})`,
-        },
-        React.createElement('rect', {
-          className: CLASS.markerHalo, x: haloX, y: markerLaneY(frontierLane) - 9, width, height: 11,
-        }),
-        // The one UNFILLED swatch: an expectation is not a joint read from an
-        // artifact. Its sentence, and the caveat that its leg is a direction, are
-        // in the register under a heading that says both. `fill: none` and the
-        // outline are on the element as well as in the sheet, for the reason in
-        // KIND_INK: a sheet that is not applied was filling this diamond black.
-        markerSwatch('diamond', haloX + MARKER_SWATCH_SIZE / 2, markerLaneY(frontierLane) - 3,
-          'frontier-swatch', CLASS.frontierSwatch, 'none', FRONTIER_INK),
-        React.createElement('text', {
-          className: CLASS.frontierLabel,
-          x: haloX + MARKER_SWATCH_SIZE + MARKER_SWATCH_GAP, y: markerLaneY(frontierLane),
-        }, text)))
       }
 
       // THE SECOND LINE, UNDER THE FIRST. The selected series is the reading the
@@ -3508,21 +3444,41 @@ window.__ModuleLoader__.load({
           d: polylinePath(olderDrawn, projectX, projectY),
         }))
       }
+      // WHETHER THIS SERIES IS A CADENCE RATHER THAN A LEG - see `SPARSE_COVERAGE`. It is decided from
+      // the WHOLE series and not from what is in the window, so zooming in does not turn a per-leg
+      // family into a sparse one and out again.
+      const sparseReadings = isSparseReadings(points)
       if (liveDrawn.length >= 2) {
+        // A SERIES TAKEN ON A CADENCE IS DRAWN AS ITS READINGS. The line between two readings is not a
+        // measurement - nothing was scored on the legs between them - so it is dashed, which is what
+        // this tab already uses for a line whose values are real but whose life is not continuous
+        // (`ghostLine`), and every reading it has gets a circle, so the four points a twelve-leg
+        // cadence produces over a forty-leg run read as four readings rather than as a smooth curve.
+        // The newest reading still gets its own dot below; on a sparse series that is the last circle
+        // of this loop drawn again, in the same place and the same colour, so nothing moves.
         children.push(React.createElement('path', {
-          key: 'line', className: CLASS.line, clipPath: `url(#${CLIP_ID})`,
+          key: 'line', className: sparseReadings ? CLASS.readingsLine : CLASS.line,
+          clipPath: `url(#${CLIP_ID})`,
           d: polylinePath(liveDrawn, projectX, projectY),
         }))
+        if (sparseReadings) {
+          for (const [index, point] of liveDrawn.entries()) {
+            children.push(React.createElement('circle', {
+              key: `reading-${index}`, className: CLASS.dot,
+              cx: projectX(point[0]), cy: projectY(point[1]), r: READING_DOT_RADIUS,
+            }))
+          }
+        }
       } else if (liveDrawn.length === 1) {
         // One sample is a dot, not a line: a single M draws nothing at all.
         children.push(React.createElement('circle', {
           key: 'only', className: CLASS.dot,
-          cx: projectX(liveDrawn[0][0]), cy: projectY(liveDrawn[0][1]), r: 2.6,
+          cx: projectX(liveDrawn[0][0]), cy: projectY(liveDrawn[0][1]), r: READING_DOT_RADIUS,
         }))
       } else if (olderDrawn.length === 1) {
         children.push(React.createElement('circle', {
           key: 'only', className: CLASS.dot,
-          cx: projectX(olderDrawn[0][0]), cy: projectY(olderDrawn[0][1]), r: 2.6,
+          cx: projectX(olderDrawn[0][0]), cy: projectY(olderDrawn[0][1]), r: READING_DOT_RADIUS,
         }))
       }
 
@@ -3530,7 +3486,7 @@ window.__ModuleLoader__.load({
       if (newest !== undefined && newest[0] >= range.lo && newest[0] <= range.hi) {
         children.push(React.createElement('circle', {
           key: 'newest', className: CLASS.dot,
-          cx: projectX(newest[0]), cy: projectY(newest[1]), r: 2.6,
+          cx: projectX(newest[0]), cy: projectY(newest[1]), r: READING_DOT_RADIUS,
         }))
       }
 
@@ -3866,8 +3822,7 @@ window.__ModuleLoader__.load({
           range, bounds, chainX, liveX: liveChain.length > 0
             ? liveChain[liveChain.length - 1][0] : Math.round(bounds.hi),
         }, {
-          hiddenKinds, hideFrontier, hideOlder, onToggleKind, onToggleFrontier,
-          onToggleOlder,
+          hiddenKinds, hideOlder, onToggleKind, onToggleOlder,
         }))
     }
 
@@ -3891,8 +3846,11 @@ window.__ModuleLoader__.load({
      * `meaning`, the reason as `reason`, the evidence as `support`, and the
      * warning about a leg that is a constant in code is the producer's own. The
      * two views therefore cannot disagree: this one has no words of its own to
-     * disagree with. The only text this half writes is the one row for the
-     * snapshot's `break_leg`, which carries no kind for anyone to quote.
+     * disagree with. THE ONE ROW THIS HALF USED TO WRITE ITSELF IS GONE: a
+     * snapshot's `break_leg` carried no kind, so the register had a "NO KIND"
+     * badge for it, and on 13 October 2026 the user asked for that marker to be
+     * removed - "also remove the NO KIND marker at leg 642 or whatever". Every
+     * row now states a kind the producer derived from an artifact.
      */
     function breakRow(marker, index) {
       const kindLabel = markerKindLabel(marker)
@@ -3902,20 +3860,8 @@ window.__ModuleLoader__.load({
       // paragraphs is not one - on 10 October 2026 the register was reported as
       // "too verbose, it's unreadable ... walls of text". Everything a row knows
       // is still here, one press away, because the reason is why the row exists.
-      //
-      // "NO KIND" AND NOT "BREAK": a joint the snapshot declared without a kind
-      // is the one row whose badge must not read like a kind's word, or the
-      // reader files it under one. Its explanation is the disclosure's.
-      const headline = marker.declared ? '' : marker.label
-      // The declared joint's own wording, kept exactly: it is the producer's
-      // explanation of why this row claims no kind, and it belongs under the row
-      // for a reader who asks.
-      const reason = marker.declared
-        ? 'This joint comes from `break_leg`, which names a leg and no kind. This tab therefore claims '
-          + 'none: it cannot tell from `break_leg` alone whether the data, the reading, the arithmetic, '
-          + "the leg's shape or the process changed here, and a guess would put a kind on the chart that "
-          + 'the snapshot never stated.'
-        : marker.reason
+      const headline = marker.label
+      const reason = marker.reason
       const body = []
       if (reason !== '') body.push(React.createElement('div', { key: 'reason', className: CLASS.breakReason }, reason))
       if (marker.meaning !== '') {
@@ -3938,15 +3884,13 @@ window.__ModuleLoader__.load({
       const parts = [
         React.createElement('div', { key: 'head', className: CLASS.breakRowHead },
           React.createElement('span', { className: CLASS.swatch, 'data-kind': marker.kind }),
-          React.createElement('span', { className: CLASS.breakBadge },
-            marker.declared ? 'NO KIND' : kindLabel),
+          React.createElement('span', { className: CLASS.breakBadge }, kindLabel),
           React.createElement('span', { className: CLASS.breakLegText }, `LEG ${marker.leg}`),
           headline === '' ? null : React.createElement('span', { className: CLASS.breakWhat }, headline)),
       ]
       if (body.length > 0) {
         parts.push(React.createElement('details', { key: 'why', className: CLASS.why },
-          React.createElement('summary', { className: CLASS.whySummary },
-            marker.declared ? 'why no kind is claimed' : 'why this joint is marked'),
+          React.createElement('summary', { className: CLASS.whySummary }, 'why this joint is marked'),
           React.createElement('div', { className: CLASS.whyBody }, ...body)))
       }
       return React.createElement('div', {
@@ -3954,76 +3898,12 @@ window.__ModuleLoader__.load({
         className: CLASS.breakRow,
         'data-kind': marker.kind,
         'data-leg': String(marker.leg),
-        'data-declared': marker.declared ? 'true' : 'false',
         // The kind's colour, set here rather than left to the sheet alone: the
         // row's left border, its badge and its swatch all read `--dshtd-kind`, and
         // a swatch whose colour exists only in a sheet that is not applied came out
         // BLACK on a dark card - the "which colour is which kind" question the
         // reader could not answer on 10 October 2026. See KIND_INK.
         style: { '--dshtd-kind': kindInk(marker.kind) },
-      }, ...parts)
-    }
-
-    /**
-     * The frontier block: the producer's own sentence, under this tab's caveat.
-     *
-     * The dashed line can only be drawn when the expected leg is on the axis on
-     * screen, which on a live run it usually is not — the transition is AHEAD of
-     * the last point. A block that showed the number and no line, and said
-     * nothing about the missing line, would leave a reader hunting for a marker
-     * that is not there, so the absence is stated with its reason.
-     */
-    function frontierBlock(frontier, chart) {
-      if (frontier === null) return null
-      // The producer's own count of the newest leg, or the chart's last point
-      // when it serves none: the head needs to say where the run is before it
-      // says where it is going. See `frontierTagText`.
-      const newestLeg = frontier.newestLeg ?? (chart === undefined ? null : chart.bounds.hi)
-      const head = frontierTagText(frontier, newestLeg)
-        // "bpb", not "bits per byte": this is a status line, the unit is spelled
-        // out in the legend and in the disclosure's own sentence, and the short
-        // form is what the axis and the chips already use.
-        + (frontier.raiseExpected ? ' · a rise in bpb is EXPECTED there' : '')
-      const parts = [
-        React.createElement('div', { key: 'title', className: CLASS.frontierTitle },
-          'Frontier — the next corpus change, as an expectation'),
-        React.createElement('div', { key: 'head', className: CLASS.frontierHead }, head),
-      ]
-      const expectedLeg = frontierLeg(frontier)
-      // THE FRONTIER'S LEG IS THE RUN'S, THE AXIS IS EACH PASS'S. On a run that has
-      // rolled back, "the axis reaches leg 908" is not true of an axis that reaches
-      // 208 legs from each pass's start, so the note below is written in both: the
-      // legs the pass must run, and the leg of the run that is.
-      const asX = chart === undefined || chart.chainX === undefined
-        ? (leg) => leg : chart.chainX
-      const expectedX = expectedLeg === null ? null : asX(expectedLeg)
-      const liveX = chart === undefined
-        ? null : (chart.liveX ?? Math.round(chart.bounds.hi))
-      if (chart !== undefined && expectedX !== null) {
-        if (expectedX > chart.bounds.hi) {
-          parts.push(React.createElement('div', { key: 'absence', className: CLASS.frontierCaveat },
-            `The dashed line appears when this pass has run ${Math.round(expectedX)} legs `
-            + `(leg ${expectedLeg} of the run); it has run ${Math.round(liveX)}.`))
-        } else if (expectedX < chart.range.lo || expectedX > chart.range.hi) {
-          parts.push(React.createElement('div', { key: 'absence', className: CLASS.frontierCaveat },
-            `The dashed line is outside the window on screen (leg ${expectedLeg}); press Reset.`))
-        }
-      }
-      // THE PRODUCER'S OWN STATEMENT, AND THE CAVEAT, BEHIND ONE DISCLOSURE. The
-      // head line above already carries the status - where the run is, where the
-      // change is expected, the distance and the direction; the sentence is the
-      // authority a reader checks it against, and the caveat is a qualification.
-      // Laid out under the head they were most of a screen of prose per update.
-      parts.push(React.createElement('details', { key: 'why', className: CLASS.why },
-        React.createElement('summary', { className: CLASS.whySummary }, 'the producer\'s own words'),
-        React.createElement('div', { className: CLASS.whyBody },
-          frontier.sentence === '' ? null : React.createElement('div', {
-            key: 'sentence', className: CLASS.frontierSentence,
-          }, frontier.sentence),
-          React.createElement('div', { key: 'caveat', className: CLASS.frontierCaveat },
-            FRONTIER_CAVEAT))))
-      return React.createElement('div', {
-        className: CLASS.frontier, 'data-expectation': 'true',
       }, ...parts)
     }
 
@@ -4087,20 +3967,18 @@ window.__ModuleLoader__.load({
      * @param breaks - `breakView(payload)`.
      * @param chart - `{ range, bounds }` of the chart this register sits under.
      * @param switches - the reader's category switches: `hiddenKinds`,
-     *   `hideFrontier` and the two callbacks. Absent means everything is drawn,
+     *   `hideOlder` and the callbacks. Absent means everything is drawn,
      *   which is what a caller that knows nothing about the switches gets.
-     * @returns the block, or null when the snapshot serves no markers and no
-     *   frontier — an empty box would be chrome.
+     * @returns the block, or null when the snapshot serves no markers — an empty
+     *   box would be chrome.
      */
     function breakRegister(breaks, chart, switches = {}) {
-      const frontier = breaks.frontier
       const hiddenKinds = switches.hiddenKinds ?? []
-      const hideFrontier = switches.hideFrontier === true
       const hideOlder = switches.hideOlder === true
       // Where the newest rollback stands: the key offers the older run's switch
       // only when a rollback put a chain there to switch.
       const ghostAt = rollbackPoint(breaks.markers)
-      if (breaks.markers.length === 0 && frontier === null && breaks.skipped === 0) return null
+      if (breaks.markers.length === 0 && breaks.skipped === 0) return null
       const shown = shownMarkers(breaks.markers, hiddenKinds)
       const hidden = breaks.markers.length - shown.length
       const inWindow = markersInWindow(
@@ -4109,7 +3987,7 @@ window.__ModuleLoader__.load({
       const parts = []
       // THE HEADER IS A COUNT, or it is nothing. "0 of 0 drawn · 0 in this window"
       // is a line that says a reader has nothing to read; when the register has no
-      // markers to count, the key and the frontier below it are the whole block.
+      // markers to count, the key below it is the whole block.
       if (breaks.markers.length > 0) {
         parts.push(React.createElement('div', { key: 'head', className: CLASS.breaksHead },
           React.createElement('span', null, 'Break markers'),
@@ -4127,36 +4005,14 @@ window.__ModuleLoader__.load({
           `${hidden} marker(s) hidden by your switches; the curve is unchanged and they come back `
           + 'where they were.'))
       }
-      // The key is offered when there is anything to switch: a marker category, a
-      // frontier, or a chain a rollback threw away.
+      // The key is offered when there is anything to switch: a marker category, or
+      // a chain a rollback threw away. THE FRONTIER'S OWN SWITCH IS GONE with the
+      // prediction it hid.
       if (breaks.markers.length > 0 || ghostAt !== null) {
         parts.push(React.createElement('div', { key: 'key', className: CLASS.breaksKey },
           ...markerCategories(breaks.markers).map((entry) => categoryToggle(
             entry, kindIsShown(hiddenKinds, entry.kind), switches.onToggleKind ?? null))))
-        // The frontier gets its own switch, drawn with its own unfilled swatch so
-      // it is never mistaken for a kind of joint. It is offered even when it
-      // has no line on the chart, because its block below still reads.
-        if (frontier !== null) {
-          parts.push(React.createElement('button', {
-            key: 'key-frontier', type: 'button',
-            className: `${CLASS.toggle}${frontierIsShown(hideFrontier) ? '' : ` ${CLASS.toggleOff}`}`,
-            'data-kind': 'frontier',
-            'data-on': frontierIsShown(hideFrontier) ? 'true' : 'false',
-            'aria-pressed': frontierIsShown(hideFrontier) ? 'true' : 'false',
-            title: frontierIsShown(hideFrontier)
-              ? 'The next expected corpus change. Press to hide it — it is a projection and not a '
-                + 'marker read from an artifact.'
-              : 'The next expected corpus change is hidden. Press to draw it again.',
-            onClick: () => { if (switches.onToggleFrontier != null) switches.onToggleFrontier() },
-          },
-          React.createElement('svg', {
-            className: CLASS.toggleIcon, width: 10, height: 10,
-            viewBox: '0 0 10 10', 'aria-hidden': true,
-          }, markerSwatch('diamond', 5, 5, 'frontier-swatch', CLASS.frontierSwatch,
-            'none', FRONTIER_INK)),
-          React.createElement('span', { className: CLASS.toggleLabel }, 'EXPECTED')))
-        }
-        // AND THE OLDER RUN'S OWN SELECTOR. It is the third switch of the same
+        // AND THE OLDER RUN'S OWN SELECTOR. It is the second switch of the same
         // kind and for the same reason: the reader must be able to take the
         // discarded chain off the picture - to read the live one alone - and put
         // it back, without losing the axis the two are compared on. Offered only
@@ -4197,8 +4053,6 @@ window.__ModuleLoader__.load({
       for (const [index, marker] of shown.entries()) {
         parts.push(breakRow(marker, index))
       }
-      const block = frontierIsShown(hideFrontier) ? frontierBlock(frontier, chart) : null
-      if (block !== null) parts.push(React.createElement('div', { key: 'frontier' }, block))
       return React.createElement('div', { className: CLASS.breaks }, ...parts)
     }
 
@@ -4224,14 +4078,12 @@ window.__ModuleLoader__.load({
       // cause, and a switch that resets itself on a poll undoes the reader's
       // work while looking exactly like a refresh.
       const [hiddenKinds, setHiddenKinds] = React.useState(() => rememberedHiddenKinds(sessionId))
-      const [hideFrontier, setHideFrontier] = React.useState(() => rememberedHideFrontier(sessionId))
       const [hideOlder, setHideOlder] = React.useState(() => rememberedHideOlder(sessionId))
       const [failure, setFailure] = React.useState(null)
       const revisionRef = React.useRef(null)
 
       React.useEffect(() => { rememberSeries(sessionId, chosen) }, [sessionId, chosen])
       React.useEffect(() => { rememberHiddenKinds(sessionId, hiddenKinds) }, [sessionId, hiddenKinds])
-      React.useEffect(() => { rememberHideFrontier(sessionId, hideFrontier) }, [sessionId, hideFrontier])
       React.useEffect(() => { rememberHideOlder(sessionId, hideOlder) }, [sessionId, hideOlder])
 
       /**
@@ -4244,9 +4096,6 @@ window.__ModuleLoader__.load({
         setHiddenKinds((current) => (current.includes(kind)
           ? current.filter((item) => item !== kind)
           : [...current, kind]))
-      }, [])
-      const toggleFrontier = React.useCallback(() => {
-        setHideFrontier((current) => !current)
       }, [])
       /**
        * Take the chain a rollback threw away off the chart, or put it back.
@@ -4442,12 +4291,12 @@ window.__ModuleLoader__.load({
               + 'to go back to the default.'))
           : null)
         : React.createElement('div', { className: CLASS.chartWrap },
-          // The whole snapshot body goes in, so the break markers, the frontier
+          // The whole snapshot body goes in, so the break markers
           // and the seed model's size are read from the SAME snapshot as the
           // curve under them.
           React.createElement(SeriesChart, {
-            spec: activeSpec, payload, overlay, hiddenKinds, hideFrontier, hideOlder,
-            onToggleKind: toggleKind, onToggleFrontier: toggleFrontier,
+            spec: activeSpec, payload, overlay, hiddenKinds, hideOlder,
+            onToggleKind: toggleKind,
             onToggleOlder: toggleOlder,
           }),
           React.createElement('div', { className: CLASS.legend },
@@ -4590,6 +4439,9 @@ window.__ModuleLoader__.load({
       CSS,
       seriesIndex,
       availableSeries,
+      chipSeriesLabel,
+      isSparseReadings,
+      SPARSE_COVERAGE,
       isTraceTag,
       lastPoint,
       niceTicks,
@@ -4639,8 +4491,6 @@ window.__ModuleLoader__.load({
       rememberWindow,
       rememberedHiddenKinds,
       rememberHiddenKinds,
-      rememberedHideFrontier,
-      rememberHideFrontier,
       plotGeometry,
       clampChartPixel,
       valueAt,
@@ -4648,7 +4498,6 @@ window.__ModuleLoader__.load({
       rangeLabel,
       breakView,
       readBreakMarkers,
-      readFrontier,
       markerKindWord,
       markerKindLabel,
       markerTagText,
@@ -4656,12 +4505,8 @@ window.__ModuleLoader__.load({
       clipWords,
       layoutMarkerLabels,
       markerLaneY,
-      frontierTagText,
-      frontierLeg,
-      FRONTIER_CAVEAT,
       KIND_ORDER,
       UNKNOWN_KIND,
-      DECLARED_KIND,
       OVERLAY_TAGS,
       OVERLAY_TAG_PREFIX,
       OVERLAY_GUTTER,
@@ -4690,7 +4535,6 @@ window.__ModuleLoader__.load({
       // colour the elements write and the colour the sheet names cannot drift.
       KIND_INK,
       kindInk,
-      FRONTIER_INK,
       // The stylesheet itself, so a test can check that the colours the elements
       // write and the colours the sheet names have not drifted apart.
       CSS_SOURCE: CSS,
@@ -4708,7 +4552,6 @@ window.__ModuleLoader__.load({
       currentValueLabels,
       axisUnitTitle,
       kindIsShown,
-      frontierIsShown,
       shownMarkers,
       markersInWindow,
       markerCategories,
@@ -4736,7 +4579,6 @@ window.__ModuleLoader__.load({
       SeriesChart,
       breakRegister,
       breakRow,
-      frontierBlock,
     }
     return module.exports
   },

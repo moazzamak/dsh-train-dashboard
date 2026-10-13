@@ -412,6 +412,78 @@ test('the held-out reading comes from the best source present, and the label say
   assert.equal(t.seriesLabel(null), 'held-out bpb', 'the header still needs a name when there is no reading')
 })
 
+test('the headline resolves the RENAMED bpb tags, which is what a current producer serves', () => {
+  // THE GAP THIS CLOSES, and it shipped: the two tests above use `train/bpb_sealed`
+  // and `train/bpb_legval`, which is what the producer emitted UNTIL 11 OCTOBER 2026.
+  // It renamed both that day - `bpb_sealed` was a misnomer, since the SEALED read is
+  // a different instrument with its own stores - and now writes `train/bpb` and
+  // `train/heldout_bpb`. Every test here still passed, because they exercised the
+  // legacy spelling, while on the live run `headlineReading` returned null and the
+  // KPI row's first two tiles - leg and held-out bpb - rendered an em dash beside
+  // four tiles that filled normally. Only a snapshot carrying the CURRENT names can
+  // catch that, so this is a snapshot carrying the current names.
+  const current = {
+    series: [
+      { tag: 'train/bpb', points: [[1, 2.645], [48, 2.09]] },
+      { tag: 'train/heldout_bpb', points: [[1, 2.645], [48, 2.09]] },
+      { tag: 'phase/wiki_en/heldout_bpb', points: [[1, 2.645], [48, 2.09]] },
+    ],
+  }
+  const reading = t.headlineReading(current)
+  assert.ok(reading, 'a current snapshot must resolve a headline, or the KPI row cannot fill')
+  assert.equal(reading.tag, 'train/heldout_bpb',
+    'the leg-end reading is the headline, and it is the one that continues past the phase boundary')
+  assert.deepEqual(reading.point, [48, 2.09])
+
+  // BOTH SPELLINGS IN ONE SNAPSHOT RESOLVE TO THE CURRENT ONE. A producer that kept
+  // an alias alive for a transition must not send the tab back to the old series.
+  const both = {
+    series: [
+      { tag: 'train/bpb_legval', points: [[1, 2.4]] },
+      { tag: 'train/heldout_bpb', points: [[48, 2.09]] },
+    ],
+  }
+  assert.equal(t.headlineReading(both).tag, 'train/heldout_bpb')
+
+  // AND AN OLD SNAPSHOT ON DISK STILL CHARTS. A reader must not lose a curve because
+  // a producer moved a name; the legacy pair stays in the list behind the new one.
+  const legacy = {
+    series: [
+      { tag: 'train/bpb_sealed', points: [[689, 2.093]] },
+      { tag: 'train/bpb_legval', points: [[731, 2.409]] },
+    ],
+  }
+  assert.equal(t.headlineReading(legacy).tag, 'train/bpb_legval')
+})
+
+test('the KPI tiles fill from the tags a current producer serves', () => {
+  // THE OTHER HALF OF THE SAME DEFECT. Three of the seven tiles read a series BY
+  // NAME rather than through the headline - wall, throughput, VRAM peak - and the
+  // VRAM tile read an em dash on a leg whose own log carried `vram peak 8.71 GiB`,
+  // because the producer's snapshot filtered `memory/*` out of the GUI's feed and
+  // "filtered out" and "not measured yet" are the same dash on screen. This asserts
+  // the tags exist; the producer-side half is `KEPT_TAG_RULES` in train_dashboard.py.
+  const payload = {
+    series: [
+      { tag: 'train/wall_seconds', points: [[48, 177.5]] },
+      { tag: 'train/units_per_second', points: [[48, 47261]] },
+      { tag: 'memory/vram_peak_gib', points: [[48, 8.58]] },
+      { tag: 'train/seed_model_params', points: [[48, 24700000]] },
+      { tag: 'eval/exam_accuracy', points: [[36, 0.3164]] },
+    ],
+  }
+  for (const tag of ['train/wall_seconds', 'train/units_per_second',
+    'memory/vram_peak_gib', 'train/seed_model_params', 'eval/exam_accuracy']) {
+    const point = t.lastPoint(payload, tag)
+    assert.ok(point, `${tag} must resolve, or its tile reads an em dash`)
+    assert.equal(Number.isFinite(point[1]), true, `${tag}'s newest reading must be a number`)
+  }
+
+  // A missing tile is null rather than undefined, so the renderer's own `—` is the
+  // only thing that draws a dash and a real zero is never mistaken for one.
+  assert.equal(t.lastPoint(payload, 'memory/not_a_series'), null)
+})
+
 test('the disclosure opens itself when the charted series lives inside it', () => {
   const more = t.splitOffered(t.availableSeries({
     series: [{ tag: 'guard/factor_hold', points: [[1, 1]] }, { tag: 'train/bpb_legval', points: [[1, 2]] }],
@@ -1210,6 +1282,24 @@ function snapshotWith(overrides = {}) {
 }
 
 /** Render one series' chart the way the panel renders it. */
+/**
+ * The element the LIVE chain is drawn as, whichever class it carries.
+ *
+ * TWO CLASSES, ONE LINE. A series taken on a cadence is drawn as its readings
+ * (`dshtd-readings-line`, dashed, with a circle per reading) rather than as a
+ * continuous curve, because the legs between two readings were never scored. The
+ * chart fixture's series is sparse, so tests that asked only for `dshtd-line` found
+ * nothing and read as a broken ghost. Which class is used is not what those tests
+ * are about - they are about the SPLIT between the older chain and the live one - so
+ * they ask through here.
+ */
+function liveLine(tree) {
+  return [
+    ...elementsWithClass(tree, 'dshtd-line'),
+    ...elementsWithClass(tree, 'dshtd-readings-line'),
+  ]
+}
+
 function renderChart(payload) {
   return t.SeriesChart({ spec: chartSpec(), payload })
 }
@@ -1284,11 +1374,19 @@ test('every marker carries its kind on the chart as a shape, and names it in the
 })
 
 test('no two kinds of break share a shape, and an unseen kind still gets one', () => {
-  const kinds = [...new Set(ALL_KINDS.map((marker) => marker.kind)), t.DECLARED_KIND, t.UNKNOWN_KIND]
+  // NO `DECLARED_KIND`. The kindless marker it named - the snapshot's `break_leg` -
+  // was removed on 13 October 2026, and with it the one kind that had no word. A
+  // marker the snapshot gives no kind for is UNKNOWN_KIND now, which is the same
+  // thing the fallback already was, so the table has one fewer entry and one fewer
+  // shape to keep distinct.
+  const kinds = [...new Set(ALL_KINDS.map((marker) => marker.kind)), t.UNKNOWN_KIND]
   const shapes = kinds.map((kind) => t.markerShape(kind))
 
   assert.equal(new Set(shapes).size, kinds.length,
     `two kinds share a shape: ${kinds.map((kind, at) => `${kind}=${shapes[at]}`).join(' ')}`)
+  assert.equal(new Set(Object.values(t.MARKER_SHAPES)).size,
+    Object.keys(t.MARKER_SHAPES).length,
+    'the registered table must not alias two kinds to one shape either')
   assert.equal(t.markerShape('optimizer'), t.markerShape(t.UNKNOWN_KIND),
     'a kind this tab has never seen gets the unknown shape rather than no shape at all')
 })
@@ -1307,6 +1405,11 @@ const SHAPE_CSS = {
   triangle: 'clip-path: polygon(50% 0, 100% 100%, 0 100%)',
   'triangle-down': 'clip-path: polygon(0 0, 100% 0, 50% 100%)',
   chevron: 'clip-path: polygon(100% 0, 0 50%, 100% 100%, 67% 100%, 33% 50%, 67% 0)',
+  // THE ROLLBACK'S CHEVRON ON ITS SIDE, and the kind that proved this table earns
+  // its place: `growth` was added to MARKER_SHAPES and KIND_INK on 13 October 2026
+  // and to no rule in the sheet, so its key swatch drew no shape and fell back to
+  // the sheet's grey - the chart drew a shape the register could not show.
+  'chevron-up': 'clip-path: polygon(50% 0, 100% 100%, 67% 100%, 50% 33%, 33% 100%, 0 100%)',
   bar: 'clip-path: inset(',
   plus: 'clip-path: polygon(35% 0',
 }
@@ -1334,7 +1437,7 @@ test('the register and its key draw the same shape as the chart, kind for kind',
   const head = installDocumentStub()
   client.apply(fakeContext())
   const css = head.children.map((tag) => tag.textContent).join('\n')
-  const kinds = [...new Set(ALL_KINDS.map((marker) => marker.kind)), t.DECLARED_KIND, t.UNKNOWN_KIND]
+  const kinds = [...new Set(ALL_KINDS.map((marker) => marker.kind)), t.UNKNOWN_KIND]
 
   for (const kind of kinds) {
     const shape = t.markerShape(kind)
@@ -1440,30 +1543,37 @@ test('a marker with no readable leg is counted and reported, never dropped in si
     'a marker that cannot be placed is a gap in the picture, and the picture has to say so')
 })
 
-test('a producer that serves only break_leg keeps its marker, and no kind is invented for it', () => {
+test('a producer that serves only break_leg draws nothing, and no kind is invented for it', () => {
+  // THE OLDER SINGLE-BREAK KEY IS NO LONGER FOLDED IN. The user, 13 October 2026:
+  // "also remove the NO KIND marker at leg 642 or whatever". `break_leg` is one
+  // constant naming a joint of an ARC the snapshot no longer charts, and it carries
+  // no kind - so the row's whole content was that it claimed nothing, drawn on a run
+  // that had not trained that leg. A legacy key that silently draws a marker is
+  // worse than one that draws none: the reader cannot tell it from a joint the
+  // producer actually recorded.
   const payload = snapshotWith({ break_leg: 300 })
+  const tree = renderChart(payload)
+
+  assert.equal(elementsWithClass(tree, 'dshtd-breakmark').length, 0,
+    'the kindless legacy marker must not be drawn')
+  assert.equal(elementsWithClass(tree, 'dshtd-break-row').length, 0,
+    'and the register must not carry a NO KIND row for it')
+  assert.ok(!/NO KIND/.test(textOf(tree)),
+    'the words NO KIND are what the reader asked to stop seeing')
+})
+
+test('a snapshot with breaks draws its markers whatever break_leg also carries', () => {
+  // The key is ignored, not banned: a producer that still writes it alongside
+  // `breaks` is served its real markers, which is the whole point of a pass-through
+  // host. This is the assertion that keeps the removal above from becoming a
+  // refusal to draw anything at all.
+  const payload = snapshotWith({ breaks: [servedMarker({ leg: 100, kind: 'corpus' })], break_leg: 300 })
   const tree = renderChart(payload)
   const marks = elementsWithClass(tree, 'dshtd-breakmark')
 
-  assert.equal(marks.length, 1, 'the older single-break key must keep working on its own')
-  assert.equal(marks[0].props['data-leg'], '300')
-  assert.equal(marks[0].props['data-kind'], t.DECLARED_KIND)
-
-  const rowEl = elementsWithClass(tree, 'dshtd-break-row')[0]
-  const row = textOf(rowEl)
-  assert.ok(row.includes('NO KIND'),
-    'the badge says no kind was stated rather than filing the joint under a kind it does not have')
-  assert.equal(rowEl.props['data-kind'], t.DECLARED_KIND)
-  assert.match(row, /claims none/,
-    'break_leg names a leg and no kind, so the tab must say it is not claiming one')
-  // AND THE PROSE IS BEHIND A DISCLOSURE. The register is a status list: one line
-  // per joint, with the explanation a press away. Laid out flat, this row alone
-  // was a paragraph of meta-explanation - reported 10 October 2026 as "too
-  // verbose, it's unreadable ... walls of text".
-  const why = elementsWithClass(rowEl, 'dshtd-why')[0]
-  assert.ok(why, 'the explanation a reader may want must still be reachable')
-  assert.equal(why.type, 'details')
-  assert.notEqual(why.props.open, true, 'a row that arrives open is the wall of text this replaced')
+  assert.equal(marks.length, 1, 'the served marker is drawn')
+  assert.equal(marks[0].props['data-leg'], '100')
+  assert.equal(marks[0].props['data-kind'], 'corpus')
 })
 
 test('a snapshot with neither breaks nor break_leg draws no markers and no register', () => {
@@ -1472,165 +1582,6 @@ test('a snapshot with neither breaks nor break_leg draws no markers and no regis
   assert.equal(elementsWithClass(tree, 'dshtd-breakmark').length, 0)
   assert.equal(elementsWithClass(tree, 'dshtd-breaks').length, 0,
     'an empty register box under every chart is chrome')
-})
-
-test('the frontier is drawn as an expectation, with the snapshot\'s sentence and a caveat', () => {
-  const sentence = 'FRONTIER: a is being trained; the next corpus transition is a to b at about leg 420.'
-  const payload = snapshotWith({
-    breaks: ALL_KINDS,
-    frontier: {
-      phase_now: 'a', next_phase: 'b', boundary_leg: 300, next_leg: 420,
-      legs_in_phase: 40, legs_remaining: 3, expected_to_raise_bpb: true,
-      imminent: false, sentence,
-    },
-  })
-  const tree = renderChart(payload)
-  const marks = elementsWithClass(tree, 'dshtd-frontier-mark')
-
-  assert.equal(marks.length, 1, 'the expected transition is inside the axis, so it must be drawn')
-  assert.equal(marks[0].props['data-expectation'], 'true',
-    'the frontier line must be marked as an expectation for anything reading the DOM')
-  const frontierLabel = elementsWithClass(tree, 'dshtd-breaklabel')
-    .find((label) => label.props['data-kind'] === 'frontier')
-  assert.ok(frontierLabel, 'the frontier line needs its own label, or it is a line with no meaning')
-  // The label is the leg number plus the one UNFILLED swatch: the frontier is an
-  // expectation and not a joint read from an artifact, and its sentence is in the
-  // register under a heading that says so.
-  assert.equal(textOf(frontierLabel).trim(), '420',
-    'the frontier label is its leg number, not a sentence repeated from the register')
-  assert.equal(elementsWithClass(frontierLabel, 'dshtd-frontier-swatch').length, 1,
-    'the frontier needs the outlined swatch that distinguishes an expectation from a kind')
-
-  const block = textOf(elementsWithClass(tree, 'dshtd-frontier')[0])
-  assert.ok(block.includes(sentence), 'the snapshot\'s own frontier sentence is shown as served')
-  assert.match(block, /EXPECTED, NOT OBSERVED/)
-  assert.match(block, /a direction from the producer's budget, not a measurement/,
-    'the leg is a projection and the rise is a registered direction: the reader has to be told which')
-  assert.match(block, /a rise in bpb is EXPECTED there/)
-  // The head line is the status; the sentence and the caveat are the answer to a
-  // question the reader has afterwards. See `breakRow` for the report.
-  const why = elementsWithClass(elementsWithClass(tree, 'dshtd-frontier')[0], 'dshtd-why')[0]
-  assert.ok(why, 'the producer\'s own words must stay reachable')
-  assert.equal(why.type, 'details')
-  assert.notEqual(why.props.open, true)
-})
-
-test('a frontier past the end of the series says where its line went', () => {
-  const payload = snapshotWith({
-    frontier: {
-      phase_now: 'a', next_phase: 'b', boundary_leg: 300, next_leg: 900,
-      legs_in_phase: 40, legs_remaining: 10, expected_to_raise_bpb: false,
-      imminent: false, sentence: 'FRONTIER: a is being trained.',
-    },
-  })
-  const tree = renderChart(payload)
-
-  assert.equal(elementsWithClass(tree, 'dshtd-frontier-mark').length, 0,
-    'a leg past the last point of the series cannot be drawn')
-  const block = textOf(elementsWithClass(tree, 'dshtd-frontier')[0])
-  assert.match(block, /appears when this pass has run 900 legs \(leg 900 of the run\)/,
-    'the missing line needs its reason in one line, or the reader hunts for it')
-  assert.match(block, /it has run 500/,
-    'and the one number that explains why it is missing. The wording is the pass\'s legs AND the '
-    + 'run\'s leg, because on a chart where both passes start at 0 the two are not the same number')
-})
-
-test('an imminent frontier reads AT LEG, because there is nothing left to predict', () => {
-  const frontier = t.readFrontier(snapshotWith({
-    frontier: {
-      phase_now: 'b', next_phase: 'c', boundary_leg: 300, next_leg: 300,
-      legs_in_phase: 0, legs_remaining: 0, expected_to_raise_bpb: true,
-      imminent: true, sentence: '',
-    },
-  }))
-
-  const text = t.frontierTagText(frontier)
-  assert.match(text, /AT LEG 300/)
-  assert.ok(!/expected around/.test(text),
-    'the next leg to train is the new corpus: there is nothing to expect, it is about to happen')
-  assert.equal(t.frontierLeg(frontier), 300, 'the line belongs on the boundary leg, not a projection')
-})
-
-test('a frontier with no corpus after it says so rather than naming a leg', () => {
-  const frontier = t.readFrontier(snapshotWith({
-    frontier: {
-      phase_now: 'a', next_phase: '', boundary_leg: 300, next_leg: 300,
-      legs_in_phase: 40, legs_remaining: 0, expected_to_raise_bpb: false,
-      imminent: false, sentence: '',
-    },
-  }))
-
-  assert.match(t.frontierTagText(frontier), /no further corpus change is scheduled ahead/)
-})
-
-test('the leg the producer names wins over this tab\'s own derivation', () => {
-  // The producer knows the budget the projection comes from; this tab's rule is
-  // the same rule and stays as the fallback for a producer that predates the
-  // key. Where both are present the served leg is the one drawn, or a snapshot
-  // that states where its frontier belongs would be overruled by a copy.
-  const served = t.readFrontier(snapshotWith({
-    frontier: {
-      phase_now: 'a', next_phase: 'b', boundary_leg: 1, next_leg: 690,
-      chart_leg: 690, legs_in_phase: 689, legs_remaining: 680,
-      expected_to_raise_bpb: true, imminent: false, sentence: '',
-    },
-  }))
-  assert.equal(t.frontierLeg(served), 690,
-    'a nine-leg-old run anchors its frontier at leg 1 without this, which reads as a stale entry')
-
-  // A producer that serves no chart_leg still gets the leg from the rule.
-  const older = t.readFrontier(snapshotWith({
-    frontier: {
-      phase_now: 'a', next_phase: 'b', boundary_leg: 1, next_leg: 690,
-      legs_in_phase: 689, legs_remaining: 680,
-      expected_to_raise_bpb: true, imminent: false, sentence: '',
-    },
-  }))
-  assert.equal(t.frontierLeg(older), 690)
-})
-
-test('the frontier head says where the run is before where it is going', () => {
-  // The report, 10 October 2026: "we are not at step 690 we restarted and are at
-  // 10-ish". The projection was right and the line led with it, so a reader at
-  // leg 12 was told "expected around leg 690" with nothing saying where he stood.
-  const frontier = t.readFrontier(snapshotWith({
-    frontier: {
-      phase_now: 'wiki_en', next_phase: 'arxiv', boundary_leg: 1, next_leg: 690,
-      chart_leg: 690, newest_leg: 12, legs_in_phase: 689, legs_remaining: 677,
-      expected_to_raise_bpb: true, imminent: false, sentence: '',
-    },
-  }))
-
-  const text = t.frontierTagText(frontier, frontier.newestLeg)
-  assert.match(text, /now at leg 12/)
-  assert.match(text, /around leg 690 \(678 leg\(s\) ahead\)/)
-  assert.ok(text.indexOf('now at leg 12') < text.indexOf('690'),
-    'the position comes first, or the projection reads as the position')
-  assert.equal(frontier.newestLeg, 12)
-
-  // A producer that serves no newest leg gets the old head, unchanged.
-  assert.ok(!/now at leg/.test(t.frontierTagText(frontier)))
-})
-
-test('a stopped run says so on the frontier\'s one-line head', () => {  const stopped = t.readFrontier(snapshotWith({
-    frontier: {
-      phase_now: 'wiki_en', next_phase: 'arxiv', boundary_leg: 1, next_leg: 690,
-      chart_leg: 690, legs_in_phase: 689, legs_remaining: 680,
-      expected_to_raise_bpb: true, imminent: false, stopped: true, sentence: 's',
-    },
-  }))
-  assert.match(t.frontierTagText(stopped), /^the run has STOPPED/,
-    'an expectation for a run that stopped is a stale entry unless the head says so')
-
-  const live = t.readFrontier(snapshotWith({
-    frontier: {
-      phase_now: 'wiki_en', next_phase: 'arxiv', boundary_leg: 1, next_leg: 690,
-      chart_leg: 690, legs_in_phase: 689, legs_remaining: 680,
-      expected_to_raise_bpb: true, imminent: false, sentence: 's',
-    },
-  }))
-  assert.ok(!/STOPPED/.test(t.frontierTagText(live)),
-    'a running pass must not be announced as stopped')
 })
 
 test('markers close together are stacked, so no two labels write over each other', () => {
@@ -2662,32 +2613,6 @@ test('a switched-off category keeps its shape and says it is off in words', () =
   assert.match(off.props.title, /Press to draw them again/)
 })
 
-test('the frontier has its own switch, and switching it off is stated rather than silent', () => {
-  const payload = snapshotWith({
-    breaks: ALL_KINDS,
-    frontier: {
-      phase_now: 'a', next_phase: 'b', boundary_leg: 40, next_leg: 260,
-      legs_in_phase: 40, legs_remaining: 1, expected_to_raise_bpb: false,
-      imminent: false, sentence: 'FRONTIER: a to b at about leg 260.',
-    },
-  })
-  const shown = t.SeriesChart({ spec: chartSpec(), payload, overlay: null })
-  assert.ok(elementsWithClass(shown, 'dshtd-frontier-mark').length > 0)
-  assert.ok(elementsWithClass(shown, 'dshtd-frontier').length > 0)
-
-  const hidden = t.SeriesChart({ spec: chartSpec(), payload, overlay: null, hideFrontier: true })
-  assert.equal(elementsWithClass(hidden, 'dshtd-frontier-mark').length, 0,
-    'the dashed line must go when its switch is off')
-  assert.equal(elementsWithClass(hidden, 'dshtd-frontier').length, 0, 'and so must its block')
-
-  // The switch itself stays, so the reader can put it back.
-  const button = elementsWithClass(hidden, 'dshtd-toggle').find(
-    (toggle) => toggle.props['data-kind'] === 'frontier')
-  assert.ok(button, 'the frontier switch must not disappear with the thing it switches')
-  assert.equal(button.props['data-on'], 'false')
-  assert.match(button.props.title, /Press to draw it again/)
-})
-
 /**
  * THE CHAIN A ROLLBACK THREW AWAY, reported by the user on 10 October 2026 as
  * "grey/ghost out the recent chain's values in the chart and start populating the
@@ -2708,7 +2633,7 @@ test('the values before a rollback are ghosted on the same axis, not dropped', (
   const tree = renderChart(snapshotWith({ breaks: [ROLLBACK_MARKER] }))
 
   const ghost = elementsWithClass(tree, 'dshtd-ghost-line')
-  const live = elementsWithClass(tree, 'dshtd-line')
+  const live = liveLine(tree)
   assert.equal(ghost.length, 1, 'the chain the rollback discarded must be drawn, and as a ghost')
   assert.equal(live.length, 1, 'and the live chain must be drawn in full')
   assert.equal(t.rollbackPoint(t.readBreakMarkers(snapshotWith({ breaks: [ROLLBACK_MARKER] })).markers), 200)
@@ -2746,14 +2671,14 @@ test('the older run has its own selector, and it takes the values off the chart'
   const hidden = t.SeriesChart({ spec: chartSpec(), payload, overlay: null, hideOlder: true })
   assert.equal(elementsWithClass(hidden, 'dshtd-ghost-line').length, 0,
     'switching it off takes the ghost off the chart')
-  assert.equal(elementsWithClass(hidden, 'dshtd-line').length, 1,
+  assert.equal(liveLine(hidden).length, 1,
     'and leaves the live chain exactly as it was')
   // THE LIVE CHAIN IS THE SAME LINE EITHER WAY. A version that skipped the split
   // when the ghost was switched off drew the DISCARDED values as the live line -
   // one continuous curve across the rollback, which is the reading the ghost
   // exists to prevent - and this is the assertion that catches it.
-  assert.equal(elementsWithClass(hidden, 'dshtd-line')[0].props.d,
-    elementsWithClass(shown, 'dshtd-line')[0].props.d,
+  assert.equal(liveLine(hidden)[0].props.d,
+    liveLine(shown)[0].props.d,
     'hiding the older values must not fold them back into the live chain')
   const off = elementsWithClass(hidden, 'dshtd-toggle').find(
     (toggle) => toggle.props['data-kind'] === 'older-run')
@@ -2875,7 +2800,7 @@ test('both passes start at x=0, so the live chain is not stranded at the far rig
   const tree = t.SeriesChart({ spec, payload, overlay: null })
 
   const ghost = elementsWithClass(tree, 'dshtd-ghost-line')[0]
-  const live = elementsWithClass(tree, 'dshtd-line')[0]
+  const live = liveLine(tree)[0]
   assert.ok(ghost && live, 'both chains are on the chart')
 
   const firstX = (path) => Number.parseFloat(String(path.props.d).slice(1).split(',')[0])
@@ -2916,39 +2841,11 @@ test('a run that has not rolled back keeps the leg number as its x', () => {
   // The re-basing is a rollback's business and nothing else: a chart drawn against
   // an axis that silently restarted at 0 would misnumber every run that has not.
   const tree = t.SeriesChart({ spec: chartSpec(), payload: snapshotWith(), overlay: null })
-  const line = elementsWithClass(tree, 'dshtd-line')[0]
+  const line = liveLine(tree)[0]
   const firstX = Number.parseFloat(String(line.props.d).slice(1).split(',')[0])
   assert.equal(firstX, t.CHART.padLeft, 'the first leg is still the left edge of the plot')
   const readout = textOf(elementsWithClass(tree, 'dshtd-window-readout')[0])
   assert.match(readout, /steps 10[–-]500/, `the readout is ${readout}`)
-})
-
-test('the frontier is placed in the live pass\'s own x', () => {
-  // Its leg is an absolute leg of the running pass, so on a re-based chart it
-  // belongs at its distance from the rewind - the same place a pass that had
-  // started there would put it.
-  const payload = snapshotWith({
-    breaks: [ROLLBACK_MARKER],
-    frontier: {
-      phase_now: 'a', next_phase: 'b', boundary_leg: 200, next_leg: 260,
-      chart_leg: 260, newest_leg: 250, legs_in_phase: 60, legs_remaining: 10,
-      expected_to_raise_bpb: true, imminent: false, sentence: 'FRONTIER: a to b.',
-    },
-  })
-  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: null })
-  const mark = elementsWithClass(tree, 'dshtd-frontier-mark')[0]
-
-  assert.ok(mark, 'leg 260 is inside the live pass, so its line is on the chart')
-  const at = Number.parseFloat(String(mark.children[0].props.x1))
-  const left = t.CHART.padLeft
-  const innerWidth = t.CHART.width - t.CHART.padLeft - t.CHART.padRight
-  // x=0 is the live pass's first leg (201), so leg 260 is 59 legs in, against a
-  // window 0..299 long (the live pass's 300 legs).
-  assert.ok(at > left && at < left + innerWidth,
-    'the projection must be inside the frame, not off the end of an absolute axis')
-  assert.ok(at < left + innerWidth * 0.3,
-    'a projection 59 legs into a 300-leg window belongs in the left third, not at 87% of an '
-    + 'absolute leg axis')
 })
 
 test('a hidden category is still counted in the switch that hides it', () => {
@@ -3024,27 +2921,6 @@ test('a register row carries its kind of colour on the element too', () => {
       `the row at leg ${row.props['data-leg']} leaves its swatch and badge to a sheet that may not`
       + ' be applied, which is how they came out black')
   }
-})
-
-test('the frontier\'s swatch stays an outline in the sheet and on the element', () => {  const payload = snapshotWith({
-    breaks: ALL_KINDS,
-    frontier: {
-      phase_now: 'a', next_phase: 'b', boundary_leg: 40, next_leg: 260,
-      legs_in_phase: 40, legs_remaining: 1, expected_to_raise_bpb: false,
-      imminent: false, sentence: 'FRONTIER: a to b at about leg 260.',
-    },
-  })
-  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: null })
-  const button = elementsWithClass(tree, 'dshtd-toggle').find(
-    (toggle) => toggle.props['data-kind'] === 'frontier')
-  const swatch = elementsWithClass(button, 'dshtd-frontier-swatch')[0]
-  assert.equal(swatch.props.fill, 'none',
-    'an expectation is not a joint, so its swatch is not filled')
-  assert.equal(swatch.props.stroke, t.FRONTIER_INK)
-  // The icon rule is the more specific of the two and used to fill this diamond.
-  assert.ok(t.CSS_SOURCE.includes('*:not(.dshtd-frontier-swatch)'),
-    'the key\'s fill rule must exclude the frontier, or the outline is filled solid')
-  assert.match(t.CSS_SOURCE, /\.dshtd-toggle-icon \.dshtd-frontier-swatch \{ fill: none/)
 })
 
 // ---------------------------------------------------------------------------
@@ -3210,10 +3086,10 @@ test('the switches belong to the reader and outlive the component', () => {
   assert.deepEqual(t.rememberedHiddenKinds('session-b'), [],
     'two sessions must not fight over one set of switches')
 
-  assert.equal(t.rememberedHideFrontier('session-a'), false)
-  t.rememberHideFrontier('session-a', true)
-  assert.equal(t.rememberedHideFrontier('session-a'), true)
-  assert.equal(t.rememberedHideFrontier('session-b'), false)
+  // NO `rememberedHideFrontier`. The frontier was removed on 13 October 2026 (see
+  // the note at `readBreakMarkers`), so the switch, its store and its key are gone
+  // with it - a remembered switch for a thing that cannot be drawn is a control
+  // with nothing behind it.
 
   // A copy, so a later edit of the reader's list cannot reach back into the store.
   const list = t.rememberedHiddenKinds('session-a')
