@@ -1004,7 +1004,7 @@ test('a family chip draws its extra lines on the chart, and a lone metric draws 
       series: { tag: 'train/bpb', points } },
     payload,
   })
-  const familyPaths = elementsWithClass(familyChart, 'dshtd-ghost-line')
+  const familyPaths = elementsWithClass(familyChart, 'dshtd-family-line')
   assert.ok(familyPaths.length >= 2,
     `the held-out line and the corpus line must both be drawn, got ${familyPaths.length} extra path(s)`)
 
@@ -1015,7 +1015,7 @@ test('a family chip draws its extra lines on the chart, and a lone metric draws 
       series: { tag: 'train/gnorm', points: [[1, 0.4], [2, 0.5]] } },
     payload,
   })
-  assert.equal(elementsWithClass(loneChart, 'dshtd-ghost-line').length, 0,
+  assert.equal(elementsWithClass(loneChart, 'dshtd-family-line').length, 0,
     'a one-line metric must draw no extra family lines')
 })
 
@@ -1040,11 +1040,11 @@ test('the history switch governs the family lines, not only the ghost chain', ()
     series: { tag: 'train/bpb', points } }
 
   const shown = t.SeriesChart({ spec, payload, hideOlder: false })
-  assert.ok(elementsWithClass(shown, 'dshtd-ghost-line').length >= 2,
+  assert.ok(elementsWithClass(shown, 'dshtd-family-line').length >= 2,
     'with history on, the held-out and corpus lines are drawn')
 
   const hidden = t.SeriesChart({ spec, payload, hideOlder: true })
-  assert.equal(elementsWithClass(hidden, 'dshtd-ghost-line').length, 0,
+  assert.equal(elementsWithClass(hidden, 'dshtd-family-line').length, 0,
     'pressing the history switch must take the family lines off the chart')
 })
 
@@ -1111,7 +1111,7 @@ test('a family chart keeps the params line on its OWN right axis', () => {
   })
 
   // the family is drawn
-  assert.ok(elementsWithClass(tree, 'dshtd-ghost-line').length >= 2,
+  assert.ok(elementsWithClass(tree, 'dshtd-family-line').length >= 2,
     'the family lines must still be drawn beside an overlay')
   // AND THE OVERLAY AXIS IS THERE, named as the right axis
   const overlayAxes = elementsWithClass(tree, 'dshtd-overlay-axis')
@@ -1300,6 +1300,69 @@ test('the chart names EVERY left-axis line in the one legend that says LEFT axis
   const footer = elementsWithClass(tree, 'dshtd-legend').map((node) => textOf(node)).join(' | ')
   assert.ok(!/LEFT axis/.test(footer),
     `the footer must not repeat the chart's legend, got: ${footer}`)
+})
+
+test('every legend swatch wears the SAME ink and dash as the line it names', () => {
+  // **THE USER'S THIRD REPORT OF 16 OCTOBER 2026, AND BOTH HALVES OF IT WERE ONE FAULT.**
+  //
+  // *"There seems to be a mismatch between the colors indicated by the legend and the actual color of the
+  // line. The primary series is actually white in color and it's a solid line, whereas the legend seems to
+  // suggest that it should be some blue shade. And for the other series ... in the graph it is actually a
+  // dashed line, whereas the legend seems to suggest that it should be a solid line."*
+  //
+  // **THE SWATCH AND THE LINE WERE STYLED BY DIFFERENT MECHANISMS.** The swatch carried an inline
+  // `borderTopColor`; the line relied on `stroke: var(--dsw-alias-brand-primary, #4d6bfe)`, **which did not
+  // resolve, so a path with no stroke colour fell through to white.** And every swatch was solid while the
+  // family lines were drawn with the ghost class, which is dashed at half opacity.
+  //
+  // THIS TEST COMPARES THE TWO, so the next change to either one fails here rather than on the user's screen.
+  const points = [[1, 1.90], [2, 1.85]]
+  const payload = {
+    series: [
+      { tag: 'train/bpb', points },
+      { tag: 'train/heldout_bpb', points: [[1, 2.60], [2, 2.50]] },
+      { tag: 'sealed/bpb', points: [[1, 2.44], [12, 2.30]] },
+      { tag: 'phase/wiki_en/heldout_bpb', points: [[1, 2.60], [2, 2.50]] },
+    ],
+  }
+  const spec = { tag: 'train/bpb', label: 'bpb', digits: 3, unit: 'bpb',
+    series: { tag: 'train/bpb', points } }
+  const tree = t.SeriesChart({ spec, payload })
+
+  const index = t.seriesIndex(payload)
+  const entries = t.legendEntries(spec,
+    t.familyMembers('train/bpb', index).filter((m) => m.tag !== 'train/bpb'), index)
+  const byKey = new Map(entries.map((e) => [e.key, e]))
+
+  // THE PRIMARY LINE: drawn with the metric's ink and solid, and the legend says the same
+  const primary = elementsWithClass(tree, 'dshtd-line')[0]
+  assert.ok(primary, 'the primary line must be drawn')
+  assert.equal(primary.props.style.stroke, t.PRIMARY_INK,
+    'the primary line must carry the legend blue, not fall through to white')
+  assert.equal(byKey.get('train/bpb').ink, t.PRIMARY_INK, 'and the legend names the same blue')
+  assert.ok(!primary.props.style.strokeDasharray, 'the primary line is solid')
+  assert.ok(!byKey.get('train/bpb').dash, 'and its swatch is solid')
+
+  // EVERY FAMILY LINE: one path per member, each in its own entry's ink
+  for (const member of ['train/heldout_bpb', 'sealed/bpb', 'phase/wiki_en/heldout_bpb']) {
+    const path = elementsWithClass(tree, 'dshtd-family-line')
+      .concat(elementsWithClass(tree, 'dshtd-family-line-sparse'))
+      .find((n) => n.props.key === `family-${member}`)
+    assert.ok(path, `${member} must be drawn`)
+    const entry = byKey.get(member)
+    assert.equal(path.props.style.stroke, entry.ink,
+      `${member}: the line and its swatch must be one colour, line ${path.props.style.stroke} vs `
+      + `legend ${entry.ink}`)
+    // AND THE DASH AGREES. The sealed read is measured on a cadence, so BOTH its line and its swatch are
+    // dashed; everything else is solid in both.
+    const lineDashed = /family-line-sparse/.test(path.props.className)
+    const swatchDashed = entry.dash !== null && entry.dash !== undefined
+    assert.equal(lineDashed, swatchDashed,
+      `${member}: the legend says ${swatchDashed ? 'dashed' : 'solid'} and the chart draws `
+      + `${lineDashed ? 'dashed' : 'solid'}`)
+  }
+  // and the sealed one really is the dashed one, so this test cannot pass vacuously
+  assert.equal(byKey.get('sealed/bpb').dash, '2 3', 'the sealed read is the cadence and must be dashed')
 })
 
 test('the chart never draws a brush the rail was given', () => {  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows

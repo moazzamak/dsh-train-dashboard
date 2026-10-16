@@ -132,6 +132,8 @@ window.__ModuleLoader__.load({
       whyBody: 'dshtd-why-body',
       line: 'dshtd-line',
       dot: 'dshtd-dot',
+  familyLine: 'dshtd-family-line',
+  familyLineSparse: 'dshtd-family-line-sparse',
       // The chain a rollback discarded, drawn dimmed and dashed on the SAME axis:
       // see `rollbackPoint`.
       ghostLine: 'dshtd-ghost-line',
@@ -460,6 +462,25 @@ window.__ModuleLoader__.load({
   stroke-dasharray: 5 3; opacity: 0.5; stroke-linejoin: round;
 }
 .${CLASS.ghostSwatch} { stroke: var(--dshtd-ghost-ink, #8a8a8a); stroke-width: 1.4; stroke-dasharray: 5 3; }
+/* **A FAMILY LINE: THE HELD-OUT READING, THE SEALED READING OR A CORPUS'S OWN.**
+   MEASURED 16 October 2026, the user: *"for the other series ... in the graph it is actually a dashed line,
+   whereas the legend seems to suggest that it should be a solid line."* **The family lines were drawn with
+   the ghost line's class, whose stroke-dasharray is 5 3 at half opacity** - correct for a chain a rollback
+   threw away, and wrong for these: a held-out or corpus reading is a MEASUREMENT THAT IS STILL CURRENT, not
+   history, and dashing it said the opposite. So a family line is SOLID at full opacity, and its colour is set
+   inline from 'familyInk' because these lines are keyed on the corpus and cannot come from one variable.
+   THE DASH MOVES TO THE ONE CASE THAT HAS EARNED IT, below. */
+.${CLASS.familyLine} {
+  fill: none; stroke-width: 1.4; stroke-linejoin: round; opacity: 0.85;
+}
+/* **AND THE SEALED READ IS THE ONE FAMILY LINE THAT IS GENUINELY SPARSE**, so it gets the dash the cadence
+   deserves: one eval of a saved checkpoint every twelve legs, so the segments between its readings are
+   interpolation and not measurement. Same reasoning as 'readingsLine', same 2-3 dash, and it is decided by
+   the line's own ROLE rather than by how many points it happens to have - **a series is sparse because of
+   what was measured, not because of how much of it is on screen.** */
+.${CLASS.familyLineSparse} {
+  fill: none; stroke-width: 1.4; stroke-linejoin: round; opacity: 0.85; stroke-dasharray: 2 3;
+}
 .${CLASS.dot} { fill: var(--dsw-alias-brand-primary, #4d6bfe); }
 /* A SERIES TAKEN ON A CADENCE RATHER THAN EVERY LEG: the sealed read is one eval of the saved
    checkpoint every twelve legs, so the segments between its readings are interpolation and not
@@ -1116,6 +1137,8 @@ window.__ModuleLoader__.load({
         key: typeof spec.tag === 'string' ? spec.tag : 'primary',
         label: spec.label,
         ink: PRIMARY_INK,
+        // the chart's own line is dashed only when it is a cadence, and the swatch must say the same
+        dash: spec.series !== undefined && isSparseReadings(spec.series.points) ? '2 3' : null,
         unit: spec.unit,
         points: spec.series === undefined ? null : spec.series.points.length,
       }]
@@ -1124,6 +1147,13 @@ window.__ModuleLoader__.load({
           key: member.tag,
           label: member.role === 'corpus' ? member.corpus : member.role,
           ink: familyInk(member, index),
+          // **THE SWATCH WEARS THE LINE'S OWN DRESS, WHICH IS THE SECOND HALF OF THE USER'S REPORT:**
+          // *"in the graph it is actually a dashed line, whereas the legend seems to suggest that it should
+          // be a solid line."* A legend whose swatches all look alike describes lines it cannot tell apart.
+          // The sealed read is the one family line genuinely measured on a cadence - one eval every twelve
+          // legs - so its swatch is dashed and the rest are solid. **The dash is decided by the line's ROLE,
+          // the same test the chart uses, so the two cannot disagree.**
+          dash: member.role === 'sealed' ? '2 3' : null,
           unit: spec.unit,
           points: member.series.points.length,
         })
@@ -3733,7 +3763,12 @@ window.__ModuleLoader__.load({
           if (drawn.length >= 2) {
             children.push(React.createElement('path', {
               key: `family-${member.tag}`,
-              className: CLASS.ghostLine,
+              // **SOLID FOR A CURRENT READING, DASHED ONLY FOR THE SEALED CADENCE.** These were
+              // `CLASS.ghostLine` - `stroke-dasharray: 5 3; opacity: 0.5` - which is the dress of a chain a
+              // rollback threw away. MEASURED, the user: *"in the graph it is actually a dashed line, whereas
+              // the legend seems to suggest that it should be a solid line."* **A held-out reading is a
+              // measurement that is still current, and dashing it said the opposite.**
+              className: member.role === 'sealed' ? CLASS.familyLineSparse : CLASS.familyLine,
               // THE LINE'S COLOUR, from the same helper the legend uses - see `familyInk`. **Computed from
               // the payload's own index rather than from a captured one**, because `index` is not in this
               // scope and reading it here threw `index is not defined` and took four tests with it.
@@ -3758,6 +3793,25 @@ window.__ModuleLoader__.load({
         // of this loop drawn again, in the same place and the same colour, so nothing moves.
         children.push(React.createElement('path', {
           key: 'line', className: sparseReadings ? CLASS.readingsLine : CLASS.line,
+          // **THE STROKE IS SET HERE AS WELL AS IN THE SHEET, AND THAT IS THE FIX.**
+          //
+          // MEASURED, 16 October 2026, the user: *"The primary series is actually white in color and it's a
+          // solid line, whereas the legend seems to suggest that it should be some blue shade."*
+          //
+          // The sheet says `stroke: var(--dsw-alias-brand-primary, #4d6bfe)` - **and the fallback did not
+          // apply in the chart's own SVG, so the stroke resolved to nothing and an SVG path with no stroke
+          // renders BLACK; the white they saw is the sheet's `fill: none` against the pane.** Whatever the
+          // cause, **a colour that has to survive a variable lookup is a colour that can go missing, and the
+          // LEGEND SWATCH beside it is an inline hex that cannot.** The two disagreed because they were
+          // different mechanisms, so this now uses the same one: `PRIMARY_INK`, the same constant the swatch
+          // and the current-value label read.
+          //
+          // **AND THE DASH IS SET HERE TOO, for the same reason**: `readingsLine` dashes a series taken on a
+          // cadence and `line` is solid, and a reader must be able to trust that what the legend describes is
+          // what the frame draws without knowing which CSS class won.
+          style: sparseReadings
+            ? { stroke: PRIMARY_INK, strokeDasharray: '2 3' }
+            : { stroke: PRIMARY_INK },
           clipPath: `url(#${CLIP_ID})`,
           d: polylinePath(liveDrawn, projectX, projectY),
         }))
@@ -3765,6 +3819,9 @@ window.__ModuleLoader__.load({
           for (const [index, point] of liveDrawn.entries()) {
             children.push(React.createElement('circle', {
               key: `reading-${index}`, className: CLASS.dot,
+              // the dots are the readings and they take the line's own ink, or a sparse series draws blue
+              // circles on a white line
+              style: { fill: PRIMARY_INK },
               cx: projectX(point[0]), cy: projectY(point[1]), r: READING_DOT_RADIUS,
             }))
           }
@@ -3773,6 +3830,7 @@ window.__ModuleLoader__.load({
         // One sample is a dot, not a line: a single M draws nothing at all.
         children.push(React.createElement('circle', {
           key: 'only', className: CLASS.dot,
+          style: { fill: PRIMARY_INK },
           cx: projectX(liveDrawn[0][0]), cy: projectY(liveDrawn[0][1]), r: READING_DOT_RADIUS,
         }))
       } else if (olderDrawn.length === 1) {
@@ -4123,9 +4181,19 @@ window.__ModuleLoader__.load({
           },
           React.createElement('span', {
             className: CLASS.legendSwatch,
-            style: entry.ink === null || entry.ink === undefined
-              ? undefined
-              : { borderTopColor: entry.ink },
+            // **THE SWATCH IS DRAWN FROM THE ENTRY'S OWN INK AND DASH, SO IT CANNOT DISAGREE WITH THE LINE.**
+            // MEASURED, the user: *"the legend seems to suggest that it should be some blue shade"* while the
+            // line was white, and *"in the graph it is actually a dashed line, whereas the legend seems to
+            // suggest that it should be a solid line."* **Both were the same fault: the swatch and the line
+            // were styled by different mechanisms.** The swatch carried an inline `borderTopColor` while the
+            // line relied on a CSS variable, and every swatch was solid while the sealed line was dashed.
+            // One entry now supplies both properties to both places.
+            style: {
+              ...(entry.ink === null || entry.ink === undefined
+                ? {} : { borderTopColor: entry.ink }),
+              ...(entry.dash === null || entry.dash === undefined
+                ? {} : { borderTopStyle: 'dashed' }),
+            },
           }),
           // the unit is omitted where it simply repeats the name - see the footer's note
           (entry.unit && entry.unit !== entry.label ? `${entry.label} (${entry.unit})` : entry.label)
