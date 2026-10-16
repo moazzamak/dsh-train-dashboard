@@ -3231,15 +3231,16 @@ test('a floating value is CENTRED on its own line, and the rail marks where that
   }
 })
 
-test('the floating values sit INSIDE the frame, left-anchored against its boundary', () => {
-  // **THE USER'S CORRECTION, 16 October 2026:** *"it should be within the graph itself, not outside of the
-  // graph. So imagine the graph boundary: to the left of it is this number, and to the right of it is the
-  // actual ticks which specify the range of the graph."*
+test('the floating values sit INSIDE the frame and are RIGHT-aligned against its left edge', () => {
+  // **TWO CORRECTIONS, AND THIS TEST PINS BOTH BECAUSE THEY PULL IN DIFFERENT DIRECTIONS.**
   //
-  // MEASURED, the reading was at `CURRENT_VALUE_RAIL_X - 6 = 90` anchored `end`, so it read LEFTWARD out of
-  // the plot and into the rail's lane - the number was outside the frame and grew further outside as it got
-  // longer. **This test used to assert exactly that** (`textAnchor: 'end'`, `x < CURRENT_VALUE_RAIL_X`,
-  // "so a longer number grows leftward, into the margin"), which is why it was rewritten rather than kept.
+  // 16 October 2026, first: *"it should be within the graph itself, not outside of the graph."* Then: *"The
+  // live numbers are left aligned within the chart window. they should be right aligned."*
+  //
+  // **SO `textAnchor` IS `end` AND THE COLUMN IS STILL INSIDE `plot.left`** - the first version of this
+  // test asserted `start` at `plot.left + 6`, which satisfied the first correction and not the second, and
+  // **an earlier version asserted `end` at x=90, which satisfied the second and not the first.** Both are
+  // recorded here because each single-property test passed on a placement the user had already rejected.
   const payload = seedPayload()
   const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: t.resolveOverlay(payload) })
   const plot = t.plotGeometry({ lo: 0, hi: 1 }, t.CHART.padRight + t.OVERLAY_GUTTER)
@@ -3248,18 +3249,23 @@ test('the floating values sit INSIDE the frame, left-anchored against its bounda
     .concat(elementsWithClass(tree, 'dshtd-current-overlay'))
   assert.equal(texts.length, 2)
   for (const text of texts) {
-    assert.equal(text.props.textAnchor, 'start',
-      'anchored at its left edge, so a longer number grows RIGHTWARD into the frame')
+    assert.equal(text.props.textAnchor, 'end',
+      'RIGHT-aligned: a longer number grows LEFTWARD from a fixed right edge, so digits line up in a column')
     assert.ok(text.props.x > plot.left,
-      `the reading must be INSIDE the plot (${text.props.x} vs plot.left ${plot.left})`)
-    assert.ok(text.props.x - plot.left <= 12,
-      'and close to the boundary, which is where the user asked for it')
+      `the column is INSIDE the frame (${text.props.x} vs plot.left ${plot.left})`)
     assert.ok(text.props.x < plot.right,
       'and inside the far edge, or it is not in the frame at all')
   }
 
-  // AND THE RAIL STAYS OUTSIDE THE FRAME, marking the band without covering data. **The mark and the number
-  // are deliberately in different lanes now**: the mark says which reading this is, the number needs room.
+  // AND BOTH READINGS SHARE ONE RIGHT EDGE, which is what makes them a column rather than two strings.
+  assert.equal(texts[0].props.x, texts[1].props.x,
+    'two readings anchored at different x are not a column')
+
+  // AND THE INSET IS EXPORTED, so its size has one home and a test can state it.
+  assert.equal(texts[0].props.x, plot.left + t.CURRENT_VALUE_RIGHT_EDGE)
+
+  // **THE RAIL STAYS OUTSIDE THE FRAME**, marking the band without covering data. The mark and the number
+  // are deliberately in different lanes: the mark says which reading this is, the number needs the room.
   const rails = elementsWithClass(tree, 'dshtd-current-rail')
   assert.equal(rails.length, 2, 'one rail per reading')
   for (const rail of rails) {

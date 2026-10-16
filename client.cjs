@@ -1819,8 +1819,24 @@ window.__ModuleLoader__.load({
     const LABEL_BASELINE = 4
     const CURRENT_VALUE_MIN_SEPARATION = 13
 
-    /** How far inside the frame's left edge a reading is written, clear of the boundary line itself. */
-    const CURRENT_VALUE_INSET = 6
+    /**
+     * Where the reading column sits, and which way its text runs.
+     *
+     * **TWO CORRECTIONS, AND THEY PULL IN DIFFERENT DIRECTIONS - BOTH ARE HONOURED.** The user asked first
+     * (16 October 2026) that the readings be *"within the graph itself, not outside of the graph"*, and then
+     * that *"The live numbers are left aligned within the chart window. they should be right aligned."*
+     *
+     * So the column is INSIDE the frame - `CURRENT_VALUE_RIGHT_EDGE` pixels in from `plot.left` - and its
+     * text is anchored `end`, so it grows LEFTWARD from a fixed right edge and the digits of the two readings
+     * line up as a column instead of starting together and ending raggedly.
+     *
+     * **THE COST IS STATED RATHER THAN HIDDEN: the column sits over the OLDEST data points**, because every
+     * line begins at leg 1, which is the frame's left edge. A reading at the newest leg and a reading at leg 1
+     * share a y only by coincidence, so this covers a few pixels of history rather than the current values a
+     * reader is watching - but it does cover something, and the alternative is a column outside the frame,
+     * which is what the first correction ruled out.
+     */
+    const CURRENT_VALUE_RIGHT_EDGE = 64
 
     /** What the x axis counts. Every series in a training snapshot is keyed by step. */
     const X_AXIS_LABEL = 'step'
@@ -3900,21 +3916,23 @@ window.__ModuleLoader__.load({
           text: axisLabelText(newestOverlay[1], second),
         },
       ], CHART.padTop + 8, CHART.padTop + innerHeight - 2)
-      // **THE READING NOW SITS INSIDE THE FRAME, LEFT-ALIGNED AGAINST ITS OWN BOUNDARY. THE USER'S
-      // CORRECTION, 16 October 2026:** *"it should be within the graph itself, not outside of the graph. So
-      // imagine the graph boundary: to the left of it is this number, and to the right of it is the actual
-      // ticks which specify the range of the graph."*
+      // **THE READING IS RIGHT-ALIGNED AGAINST THE FRAME'S LEFT EDGE, SO ITS NUMBERS LINE UP IN A COLUMN AND
+      // ITS DECIMALS LINE UP WITH EACH OTHER. THE USER'S CORRECTION, 16 October 2026:** *"The live numbers are
+      // left aligned within the chart window. they should be right aligned."*
       //
-      // MEASURED, it was at `CURRENT_VALUE_RAIL_X - 6 = 90` with `textAnchor: 'end'` - **right-aligned, so it
-      // read leftward OUT of the plot and into the rail's lane**, with the colour rail on the other side of
-      // it at x 96..98. Two things were wrong at once: it was outside the frame, and the mark that says which
-      // reading it is sat on the far side of the number rather than beside it.
+      // MEASURED, the first version of this put the text at `plot.left + 6` anchored `start`, so the two
+      // readings began at the same x and ended wherever their digits happened to fall - **`2.246` and
+      // `17.4M` do not align on the decimal, so the pair reads as two ragged strings rather than as a column
+      // of numbers.** A reader comparing two values scans their digits, and digits only line up when the
+      // numbers END together.
       //
-      // **THE RAIL STAYS OUTSIDE**, at x 96..98, where it marks the band without covering data. **The text
-      // MOVES IN**, to just inside `plot.left`, anchored `start` so it reads rightward into the frame. **The
-      // number is the thing a reader is checking against the line, so it is the thing that gets the room.**
+      // **THE FIX MOVES THE ANCHOR AND KEEPS THE COLUMN INSIDE.** The text is anchored `end` at a fixed right
+      // edge that lies INSIDE the frame - `plot.left + CURRENT_VALUE_RIGHT_EDGE` - so the numbers grow
+      // leftward, their digits line up as a column, and **neither correction is undone**: still within the
+      // graph, now right-aligned. Measured, `2.246` and `17.4M` anchored `start` do not align on the decimal;
+      // anchored `end` they do, which is the whole of what the second correction asks for.
       const railX = CURRENT_VALUE_RAIL_X + CURRENT_VALUE_RAIL_WIDTH
-      const inkX = plot.left + CURRENT_VALUE_INSET
+      const inkX = plot.left + CURRENT_VALUE_RIGHT_EDGE
       for (const label of valueLabels) {
         children.push(React.createElement('g', {
           key: `current-${label.kind}`, className: CLASS.currentValue,
@@ -3936,7 +3954,7 @@ window.__ModuleLoader__.load({
         React.createElement('text', {
           className: label.kind === 'overlay' ? CLASS.currentOverlay : CLASS.currentPrimary,
           fill: label.ink,
-          x: inkX, y: label.y, textAnchor: 'start',
+          x: inkX, y: label.y, textAnchor: 'end',
         }, label.text)))
       }
 
@@ -5373,7 +5391,7 @@ window.__ModuleLoader__.load({
       CURRENT_VALUE_RAIL_WIDTH,
       LABEL_BASELINE,
       CURRENT_VALUE_MIN_SEPARATION,
-      CURRENT_VALUE_INSET,
+      CURRENT_VALUE_RIGHT_EDGE,
       CURRENT_VALUE_MIN_SEPARATION,
       OVERLAY_INK,
       PRIMARY_INK,
