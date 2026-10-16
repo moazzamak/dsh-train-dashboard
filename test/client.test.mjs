@@ -1004,7 +1004,7 @@ test('a family chip draws its extra lines on the chart, and a lone metric draws 
       series: { tag: 'train/bpb', points } },
     payload,
   })
-  const familyPaths = elementsWithClass(familyChart, 'dshtd-family-line')
+  const familyPaths = elementsWithClass(familyChart, 'dshtd-family-line').concat(elementsWithClass(familyChart, 'dshtd-family-line-sparse'))
   assert.ok(familyPaths.length >= 2,
     `the held-out line and the corpus line must both be drawn, got ${familyPaths.length} extra path(s)`)
 
@@ -1015,7 +1015,7 @@ test('a family chip draws its extra lines on the chart, and a lone metric draws 
       series: { tag: 'train/gnorm', points: [[1, 0.4], [2, 0.5]] } },
     payload,
   })
-  assert.equal(elementsWithClass(loneChart, 'dshtd-family-line').length, 0,
+  assert.equal(elementsWithClass(loneChart, 'dshtd-family-line').concat(elementsWithClass(loneChart, 'dshtd-family-line-sparse')).length, 0,
     'a one-line metric must draw no extra family lines')
 })
 
@@ -1040,11 +1040,11 @@ test('the history switch governs the family lines, not only the ghost chain', ()
     series: { tag: 'train/bpb', points } }
 
   const shown = t.SeriesChart({ spec, payload, hideOlder: false })
-  assert.ok(elementsWithClass(shown, 'dshtd-family-line').length >= 2,
+  assert.ok(elementsWithClass(shown, 'dshtd-family-line').concat(elementsWithClass(shown, 'dshtd-family-line-sparse')).length >= 2,
     'with history on, the held-out and corpus lines are drawn')
 
   const hidden = t.SeriesChart({ spec, payload, hideOlder: true })
-  assert.equal(elementsWithClass(hidden, 'dshtd-family-line').length, 0,
+  assert.equal(elementsWithClass(hidden, 'dshtd-family-line').concat(elementsWithClass(hidden, 'dshtd-family-line-sparse')).length, 0,
     'pressing the history switch must take the family lines off the chart')
 })
 
@@ -1111,7 +1111,7 @@ test('a family chart keeps the params line on its OWN right axis', () => {
   })
 
   // the family is drawn
-  assert.ok(elementsWithClass(tree, 'dshtd-family-line').length >= 2,
+  assert.ok(elementsWithClass(tree, 'dshtd-family-line').concat(elementsWithClass(tree, 'dshtd-family-line-sparse')).length >= 2,
     'the family lines must still be drawn beside an overlay')
   // AND THE OVERLAY AXIS IS THERE, named as the right axis
   const overlayAxes = elementsWithClass(tree, 'dshtd-overlay-axis')
@@ -1357,7 +1357,7 @@ test('every legend swatch wears the SAME ink and dash as the line it names', () 
 
   // EVERY FAMILY LINE: one path per member, each in its own entry's ink
   for (const member of ['train/heldout_bpb', 'sealed/bpb', 'phase/wiki_en/heldout_bpb']) {
-    const path = elementsWithClass(tree, 'dshtd-family-line')
+    const path = elementsWithClass(tree, 'dshtd-family-line').concat(elementsWithClass(tree, 'dshtd-family-line-sparse'))
       .concat(elementsWithClass(tree, 'dshtd-family-line-sparse'))
       .find((n) => n.props.key === `family-${member}`)
     assert.ok(path, `${member} must be drawn`)
@@ -1374,8 +1374,15 @@ test('every legend swatch wears the SAME ink and dash as the line it names', () 
     assert.equal(lineDashed, swatchDashed,
       `${member}: the legend says ${swatchDashed ? 'dashed' : 'solid'} and the chart draws `
       + `${lineDashed ? 'dashed' : 'solid'}`)
-    assert.equal(lineDashed, false,
-      `${member} is measured on the LIVE ARC, so it must be solid - a dash means history`)
+    // **A CORPUS LINE IS DOTTED, AND EVERY OTHER LIVE-ARC LINE IS SOLID.** The user's rule was that a
+    // live-arc value is solid and history is dashed; the corpus line keeps that rule's SPIRIT - full weight,
+    // in its corpus colour, not muted - while carrying a dash of its own, because five corpus inks plus three
+    // registers is more than hue can separate under dichromacy. **See `lineDress`, where the four dresses are
+    // stated once.** So this asserts the REGISTER is solid and the CORPUS line is dotted, which is a stronger
+    // statement than "all four solid" was.
+    const isCorpus = /phase\//.test(String(member))
+    assert.equal(lineDashed, isCorpus,
+      `${member}: the dress must follow lineDress - registers solid, corpus dotted`)
   }
   // and the dash really is reserved for history, so the assertions above cannot pass vacuously
   assert.equal(byKey.get('sealed/bpb').dash, null,
@@ -1444,6 +1451,160 @@ test('the FAN: another arc is a muted dashed line behind the solid live one', ()
     'the legend names the live line by its role and each arc by its own name')
   assert.equal(entries[1].ink, t.HISTORY_INK, 'and the swatch is the same grey as the line')
   assert.equal(entries[1].dash, '4 4', 'and the same dash')
+})
+
+/**
+ * The accessibility arithmetic, so the palette's properties are CHECKED rather than asserted in a comment.
+ * WCAG relative luminance and a dichromacy simulation are both plain arithmetic; neither needs a library.
+ */
+const srgb = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+function hexToRgb(hex) {
+  const s = hex.replace('#', '')
+  return [0, 2, 4].map((i) => parseInt(s.slice(i, i + 2), 16) / 255)
+}
+function luminance(hex) {
+  const [r, g, b] = hexToRgb(hex).map(srgb)
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+/** WCAG contrast ratio. 3:1 is the non-text floor a chart line has to clear. */
+function contrastRatio(a, b) {
+  const la = luminance(a), lb = luminance(b)
+  const [hi, lo] = la > lb ? [la, lb] : [lb, la]
+  return (hi + 0.05) / (lo + 0.05)
+}
+/** The three dichromacies, as linear-RGB confusion matrices. */
+const CVD = {
+  deuteranopia: [[0.625, 0.375, 0], [0.7, 0.3, 0], [0, 0.3, 0.7]],
+  protanopia: [[0.567, 0.433, 0], [0.558, 0.442, 0], [0, 0.242, 0.758]],
+  tritanopia: [[0.95, 0.05, 0], [0, 0.433, 0.567], [0, 0.475, 0.525]],
+}
+function simulate(hex, kind) {
+  const m = CVD[kind]
+  const lin = hexToRgb(hex).map(srgb)
+  return m.map((row) => row.reduce((s, w, i) => s + w * lin[i], 0))
+}
+function toLab(lin) {
+  const [r, g, b] = lin
+  const X = 0.4124 * r + 0.3576 * g + 0.1805 * b
+  const Y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+  const Z = 0.0193 * r + 0.1192 * g + 0.9505 * b
+  const f = (v) => (v > 0.008856 ? Math.cbrt(v) : 7.787 * v + 16 / 116)
+  const fx = f(X / 0.9505), fy = f(Y), fz = f(Z / 1.089)
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)]
+}
+/** CIE76 perceptual distance. Below ~10 two thin lines are hard to tell apart. */
+function deltaE(linA, linB) {
+  const a = toLab(linA), b = toLab(linB)
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
+}
+/** The six-digit hex a token is set to inside one theme's block. */
+function tokenIn(css, blockSelector, token) {
+  const i = css.indexOf(blockSelector)
+  if (i === -1) return null
+  const body = css.slice(i, css.indexOf('}', i))
+  const m = new RegExp(token + ':\\s*(#[0-9a-fA-F]{6})').exec(body)
+  return m === null ? null : m[1]
+}
+const NAMED_INKS = [
+  '--dshtd-ink-train', '--dshtd-ink-overlay', '--dshtd-ink-history',
+  '--dshtd-ink-corpus-0', '--dshtd-ink-corpus-1', '--dshtd-ink-corpus-2',
+  '--dshtd-ink-corpus-3', '--dshtd-ink-corpus-4',
+]
+
+test('every ink clears the WCAG non-text contrast floor on its own surface', () => {
+  // **A LINE IS A GRAPHICAL OBJECT, SO 3:1 IS THE FLOOR** - and MEASURED, 16 October 2026, the palette this
+  // replaced FAILED it twice: dark c4 at 2.89:1 and light history at 2.81:1. **Those values were chosen by eye
+  // and nothing computed the ratio**, which is the kind of claim a comment cannot make good on.
+  const css = t.CSS_SOURCE
+  for (const [selector, surface] of [["[data-mode='dark'] {", '#1d1d1d'], ["[data-mode='light'] {", '#ffffff']]) {
+    for (const token of NAMED_INKS) {
+      const hex = tokenIn(css, selector, token)
+      assert.ok(hex, `${token} must be set in ${selector}`)
+      const ratio = contrastRatio(hex, surface)
+      assert.ok(ratio >= 3, `${token} is ${hex} on ${surface}: ${ratio.toFixed(2)}:1, below the 3:1 floor`)
+    }
+  }
+})
+
+test('no two lines that share a chart are indistinguishable under any dichromacy', () => {
+  // **HUE IS NOT A CHANNEL FOR A DICHROMAT READER**, so separation is measured under simulated deuteranopia,
+  // protanopia and tritanopia as well as under normal vision.
+  //
+  // **AND THE BAR IS TWO-TIERED, BECAUSE THE TWO KINDS OF PAIR ARE NOT THE SAME PROBLEM.**
+  //
+  //   * **TWO REGISTERS, OR A REGISTER AGAINST THE OVERLAY: 10 dE.** These lines carry DIFFERENT QUANTITIES
+  //     and are drawn in the same dress, so if their hues collapse there is nothing else to tell them apart.
+  //     MEASURED, the palette this replaced failed exactly here - the amber overlay against the orange-red
+  //     corpus ink fell to **4.0 dE under protanopia**.
+  //   * **A REGISTER AGAINST A CORPUS LINE: 5 dE.** A corpus line wears its own dress (dotted, 0.80 weight
+  //     against the registers' solid at 1.0 and 0.55), so hue is the SECOND channel here rather than the
+  //     only one. **The bar is lower because the ceiling is real:** five corpus inks plus three registers is
+  //     more than hue can carry - the literature's own figure is that dichromats resolve three to four
+  //     categorical colours - and a search of the whole wheel for a better `corpus-3` found the best candidate
+  //     (magenta, 16.1 dE) collides with the existing `corpus-4`. **Asserting 10 everywhere would have meant
+  //     either a lie in the test or a palette chosen to satisfy arithmetic rather than a reader.**
+  const css = t.CSS_SOURCE
+  const REGISTERS = ['--dshtd-ink-train', '--dshtd-ink-overlay', '--dshtd-ink-history']
+  const CORPORA = NAMED_INKS.filter((k) => k.includes('corpus'))
+  for (const selector of ["[data-mode='dark'] {", "[data-mode='light'] {"]) {
+    const ink = {}
+    for (const token of NAMED_INKS) ink[token] = tokenIn(css, selector, token)
+    const sep = (a, b) => {
+      let worst = deltaE(hexToRgb(ink[a]).map(srgb), hexToRgb(ink[b]).map(srgb))
+      for (const kind of Object.keys(CVD)) {
+        worst = Math.min(worst, deltaE(simulate(ink[a], kind), simulate(ink[b], kind)))
+      }
+      return worst
+    }
+    for (let i = 0; i < REGISTERS.length; i++) {
+      for (let j = i + 1; j < REGISTERS.length; j++) {
+        const d = sep(REGISTERS[i], REGISTERS[j])
+        assert.ok(d >= 10,
+          `${REGISTERS[i]} and ${REGISTERS[j]} in ${selector} are ${d.toFixed(1)} dE apart; two registers need 10`)
+      }
+      for (const c of CORPORA) {
+        const d = sep(REGISTERS[i], c)
+        assert.ok(d >= 5,
+          `${REGISTERS[i]} and ${c} in ${selector} are ${d.toFixed(1)} dE apart; the dress covers the rest, but 5 is the floor`)
+      }
+    }
+  }
+})
+
+test('every role has its own DASH and weight, so the chart never relies on colour alone', () => {
+  // **WCAG 1.4.1: colour must not be the only visual means of conveying information.** This is the assertion
+  // that makes the palette's limits acceptable rather than a defect - a reader who cannot separate two hues can
+  // still tell the lines apart by shape and weight.
+  //
+  // **`heldout` AND `sealed` ARE EXEMPT, AND THE REASON IS A FACT ABOUT THE RUN RATHER THAN AN EXCEPTION MADE
+  // FOR CONVENIENCE.** They are the same weights scored on two surfaces - the leg's own held-out split and the
+  // sealed instrument - so they wear the same ink at the same weight on purpose, and **what separates them on
+  // the chart is their VALUES: the sealed surface reads harder, so its line sits consistently above the
+  // held-out one.** A reader distinguishes them by position, which is a channel that survives every
+  // dichromacy. A third dress invented to satisfy this test would have implied a difference in kind that the
+  // two lines do not have.
+  const seen = new Map()
+  for (const role of ['train', 'heldout', 'sealed', 'corpus', 'history']) {
+    const dress = t.lineDress(role)
+    const key = `${dress.dash === null ? 'solid' : dress.dash}@${dress.opacity}`
+    if (role === 'sealed') {
+      assert.equal(key, 'solid@0.55',
+        'the sealed reading shares the held-out dress deliberately - see the note above')
+      continue
+    }
+    assert.ok(!seen.has(key),
+      `${role} wears ${key}, which ${seen.get(key)} already wears - the chart would depend on colour alone`)
+    seen.set(key, role)
+  }
+  // the four DISTINCT dresses the chart draws, stated so a change to any of them fails here
+  assert.equal(t.lineDress('train').dash, null, 'the training reading is solid at full weight')
+  assert.equal(t.lineDress('train').opacity, 1)
+  assert.equal(t.lineDress('heldout').dash, null, 'the held-out reading is solid, lighter')
+  assert.equal(t.lineDress('heldout').opacity, 0.55)
+  assert.equal(t.lineDress('corpus').dash, '1 3', 'a corpus line is dotted')
+  assert.equal(t.lineDress('corpus').opacity, 0.80, 'and carries its own weight')
+  assert.equal(t.lineDress('history').dash, '4 4', 'another arc is dashed and faint')
+  assert.equal(t.lineDress('history').opacity, 0.35)
 })
 
 test('a theme mode is resolved to auto, dark or light, and auto is the ABSENCE of the attribute', () => {

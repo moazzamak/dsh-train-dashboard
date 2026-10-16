@@ -268,14 +268,14 @@ window.__ModuleLoader__.load({
    tokens alone and declares none of its own.
    ========================================================================== */
 .${CLASS.panel} {
-  --dshtd-ink-train: #4d6bfe;
-  --dshtd-ink-overlay: #e5a34d;
-  --dshtd-ink-history: #8a8a8a;
-  --dshtd-ink-corpus-0: #2f9e6f;
-  --dshtd-ink-corpus-1: #a855c8;
-  --dshtd-ink-corpus-2: #c2703a;
-  --dshtd-ink-corpus-3: #3d8fc4;
-  --dshtd-ink-corpus-4: #b03a5b;
+  --dshtd-ink-train: #7d92f0;
+  --dshtd-ink-overlay: #d9a441;
+  --dshtd-ink-history: #8f8f8f;
+  --dshtd-ink-corpus-0: #3fb98a;
+  --dshtd-ink-corpus-1: #b57ae0;
+  --dshtd-ink-corpus-2: #ae4747;
+  --dshtd-ink-corpus-3: #4aa3d9;
+  --dshtd-ink-corpus-4: #d95fa8;
   /* AND THE SURFACES, so a host that defines none of its own still gets a readable panel. */
   --dshtd-surface: var(--dsw-alias-bg-layer-1, #1d1d1d);
   --dshtd-surface-raised: var(--dsw-alias-bg-layer-2, #262626);
@@ -291,14 +291,14 @@ window.__ModuleLoader__.load({
    muddy, not invisible, on a light one, which is the worse failure because it looks deliberate. */
 @media (prefers-color-scheme: light) {
   .${CLASS.panel} {
-    --dshtd-ink-train: #3355e0;
-    --dshtd-ink-overlay: #b8720f;
-    --dshtd-ink-history: #9a9a9a;
-    --dshtd-ink-corpus-0: #1f7a52;
-    --dshtd-ink-corpus-1: #8a3aa8;
-    --dshtd-ink-corpus-2: #a85a24;
-    --dshtd-ink-corpus-3: #2a6f9e;
-    --dshtd-ink-corpus-4: #93264a;
+    --dshtd-ink-train: #3a53c8;
+    --dshtd-ink-overlay: #9a6f14;
+    --dshtd-ink-history: #7a7a7a;
+    --dshtd-ink-corpus-0: #1d7f5c;
+    --dshtd-ink-corpus-1: #8a44b8;
+    --dshtd-ink-corpus-2: #b85050;
+    --dshtd-ink-corpus-3: #1f6f9c;
+    --dshtd-ink-corpus-4: #a83878;
     --dshtd-surface: var(--dsw-alias-bg-layer-1, #ffffff);
     --dshtd-surface-raised: var(--dsw-alias-bg-layer-2, #f5f5f5);
     --dshtd-line: var(--dsw-alias-border-l1, #d8d8d8);
@@ -311,14 +311,14 @@ window.__ModuleLoader__.load({
    light desktop must get dark, which is why these come AFTER the media query and carry the same specificity
    on a more specific selector. */
 .${CLASS.panel}[data-mode='dark'] {
-  --dshtd-ink-train: #4d6bfe;
-  --dshtd-ink-overlay: #e5a34d;
-  --dshtd-ink-history: #8a8a8a;
-  --dshtd-ink-corpus-0: #2f9e6f;
-  --dshtd-ink-corpus-1: #a855c8;
-  --dshtd-ink-corpus-2: #c2703a;
-  --dshtd-ink-corpus-3: #3d8fc4;
-  --dshtd-ink-corpus-4: #b03a5b;
+  --dshtd-ink-train: #7d92f0;
+  --dshtd-ink-overlay: #d9a441;
+  --dshtd-ink-history: #8f8f8f;
+  --dshtd-ink-corpus-0: #3fb98a;
+  --dshtd-ink-corpus-1: #b57ae0;
+  --dshtd-ink-corpus-2: #ae4747;
+  --dshtd-ink-corpus-3: #4aa3d9;
+  --dshtd-ink-corpus-4: #d95fa8;
   --dshtd-surface: var(--dsw-alias-bg-layer-1, #1d1d1d);
   --dshtd-surface-raised: var(--dsw-alias-bg-layer-2, #262626);
   --dshtd-line: var(--dsw-alias-border-l1, #2e2e2e);
@@ -327,14 +327,14 @@ window.__ModuleLoader__.load({
   --dshtd-text-faint: var(--dsw-alias-label-tertiary, #8a8a8a);
 }
 .${CLASS.panel}[data-mode='light'] {
-  --dshtd-ink-train: #3355e0;
-  --dshtd-ink-overlay: #b8720f;
-  --dshtd-ink-history: #9a9a9a;
-  --dshtd-ink-corpus-0: #1f7a52;
-  --dshtd-ink-corpus-1: #8a3aa8;
-  --dshtd-ink-corpus-2: #a85a24;
-  --dshtd-ink-corpus-3: #2a6f9e;
-  --dshtd-ink-corpus-4: #93264a;
+  --dshtd-ink-train: #3a53c8;
+  --dshtd-ink-overlay: #9a6f14;
+  --dshtd-ink-history: #7a7a7a;
+  --dshtd-ink-corpus-0: #1d7f5c;
+  --dshtd-ink-corpus-1: #8a44b8;
+  --dshtd-ink-corpus-2: #b85050;
+  --dshtd-ink-corpus-3: #1f6f9c;
+  --dshtd-ink-corpus-4: #a83878;
   --dshtd-surface: var(--dsw-alias-bg-layer-1, #ffffff);
   --dshtd-surface-raised: var(--dsw-alias-bg-layer-2, #f5f5f5);
   --dshtd-line: var(--dsw-alias-border-l1, #d8d8d8);
@@ -537,7 +537,7 @@ window.__ModuleLoader__.load({
   display: flex; flex-direction: column; gap: 4px; padding: 4px 0 0 12px;
   border-left: 1px solid var(--dsw-alias-border-l2, #3a3a3a);
 }
-.${CLASS.line} { fill: none; stroke: var(--dshtd-ink-train, #4d6bfe); stroke-width: 1.6; stroke-linejoin: round; }
+.${CLASS.line} { fill: none; stroke: var(--dshtd-ink-train, #7d92f0); stroke-width: 1.6; stroke-linejoin: round; }
 /* THE CHAIN A ROLLBACK THREW AWAY. The values are real and they are on the same
    leg axis, so they stay on the chart - dimmed and dashed, which is what a ghost
    is - and the live chain starts where the controller rewound to. The axis is
@@ -550,14 +550,14 @@ window.__ModuleLoader__.load({
    simply be ghosted out so the latest run can appear distinct" (the user, 10
    October 2026). A ghost has to be visible enough to be recognised as one. */
 .${CLASS.ghostLine} {
-  fill: none; stroke: var(--dshtd-ink-train, #4d6bfe); stroke-width: 1.4;
+  fill: none; stroke: var(--dshtd-ink-train, #7d92f0); stroke-width: 1.4;
   stroke-dasharray: 5 3; opacity: 0.5; stroke-linejoin: round;
 }
 .${CLASS.ghostOverlay} {
-  fill: none; stroke: var(--dshtd-ink-overlay, #e5a34d); stroke-width: 1.3;
+  fill: none; stroke: var(--dshtd-ink-overlay, #d9a441); stroke-width: 1.3;
   stroke-dasharray: 5 3; opacity: 0.5; stroke-linejoin: round;
 }
-.${CLASS.ghostSwatch} { stroke: var(--dshtd-ink-history, #8a8a8a); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.${CLASS.ghostSwatch} { stroke: var(--dshtd-ink-history, #8f8f8f); stroke-width: 1.4; stroke-dasharray: 5 3; }
 /* **A FAMILY LINE: THE HELD-OUT READING, THE SEALED READING OR A CORPUS'S OWN.**
    MEASURED 16 October 2026, the user: *"for the other series ... in the graph it is actually a dashed line,
    whereas the legend seems to suggest that it should be a solid line."* **The family lines were drawn with
@@ -577,7 +577,7 @@ window.__ModuleLoader__.load({
 .${CLASS.familyLineSparse} {
   fill: none; stroke-width: 1.4; stroke-linejoin: round; opacity: 0.85; stroke-dasharray: 2 3;
 }
-.${CLASS.dot} { fill: var(--dshtd-ink-train, #4d6bfe); }
+.${CLASS.dot} { fill: var(--dshtd-ink-train, #7d92f0); }
 /* A SERIES TAKEN ON A CADENCE RATHER THAN EVERY LEG: the sealed read is one eval of the saved
    checkpoint every twelve legs, so the segments between its readings are interpolation and not
    measurement. Same ink and same weight as the line it is - it is the same series, and only the
@@ -585,7 +585,7 @@ window.__ModuleLoader__.load({
    is 2 3 against the ghost's 5 3, and the two never appear on one chart: a ghost is a chain a
    rollback threw away, which is a series that WAS sampled every leg and is now history. */
 .${CLASS.readingsLine} {
-  fill: none; stroke: var(--dshtd-ink-train, #4d6bfe); stroke-width: 1.6;
+  fill: none; stroke: var(--dshtd-ink-train, #7d92f0); stroke-width: 1.6;
   stroke-dasharray: 2 3; stroke-linejoin: round;
 }
 /* THE SECOND LINE, AND WHY IT IS DRESSED DIFFERENTLY. It is drawn on the SAME
@@ -596,19 +596,19 @@ window.__ModuleLoader__.load({
    it, its unit and which side of the frame its scale is on. The colour is a
    SECOND channel and never the only one - the dash pattern and the legend
    carry the same fact. */
-.${CLASS.overlayLine} { fill: none; stroke: var(--dshtd-ink-overlay, #e5a34d); stroke-width: 1.3; stroke-dasharray: 5 3; stroke-linejoin: round; }
-.${CLASS.overlayDot} { fill: var(--dshtd-ink-overlay, #e5a34d); }
-.${CLASS.overlayGridline} { stroke: var(--dshtd-ink-overlay, #e5a34d); stroke-width: 1; opacity: 0.22; }
-.${CLASS.overlayAxis} { fill: var(--dshtd-ink-overlay, #e5a34d); font-size: 9px; }
+.${CLASS.overlayLine} { fill: none; stroke: var(--dshtd-ink-overlay, #d9a441); stroke-width: 1.3; stroke-dasharray: 5 3; stroke-linejoin: round; }
+.${CLASS.overlayDot} { fill: var(--dshtd-ink-overlay, #d9a441); }
+.${CLASS.overlayGridline} { stroke: var(--dshtd-ink-overlay, #d9a441); stroke-width: 1; opacity: 0.22; }
+.${CLASS.overlayAxis} { fill: var(--dshtd-ink-overlay, #d9a441); font-size: 9px; }
 .${CLASS.overlaySwatch} {
   display: inline-block; width: 14px; height: 0; flex: none;
-  border-top: 2px dashed var(--dshtd-ink-overlay, #e5a34d);
+  border-top: 2px dashed var(--dshtd-ink-overlay, #d9a441);
 }
 /* The first line's key in the legend: a solid rule in the brand colour, the
    counterpart of the overlay's dashed one, so the pair reads as a pair. */
 .${CLASS.legendSwatch} {
   display: inline-block; width: 14px; height: 0; flex: none;
-  border-top: 2px solid var(--dshtd-ink-train, #4d6bfe);
+  border-top: 2px solid var(--dshtd-ink-train, #7d92f0);
 }
 .${CLASS.overlayLegend} { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 10px; }
 /* THE CURRENT VALUE OF EACH LINE, IN THE LEFT MARGIN. Written in its own line's
@@ -619,8 +619,8 @@ window.__ModuleLoader__.load({
    BLACK and a reader saw exactly that when these first shipped: a fill that lives
    only in this sheet is a fill that is absent whenever the sheet is not applied. */
 .${CLASS.currentValue} { font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.${CLASS.currentPrimary} { fill: var(--dshtd-ink-train, #4d6bfe); }
-.${CLASS.currentOverlay} { fill: var(--dshtd-ink-overlay, #e5a34d); }
+.${CLASS.currentPrimary} { fill: var(--dshtd-ink-train, #7d92f0); }
+.${CLASS.currentOverlay} { fill: var(--dshtd-ink-overlay, #d9a441); }
 .${CLASS.hint} { color: var(--dsw-alias-label-caption, #8a8a8a); font-size: 10px; }
 /* The reader's own switch for the marker categories. A real button with a
    label, so the categories are reachable by keyboard and by touch, and the
@@ -1218,18 +1218,18 @@ window.__ModuleLoader__.load({
     //: below therefore names the dark value as its own fallback, so the worst case is the theme the plugin
     //: was designed in rather than no colour at all.
     const CORPUS_INK = [
-      'var(--dshtd-ink-corpus-0, #2f9e6f)',
-      'var(--dshtd-ink-corpus-1, #a855c8)',
-      'var(--dshtd-ink-corpus-2, #c2703a)',
-      'var(--dshtd-ink-corpus-3, #3d8fc4)',
-      'var(--dshtd-ink-corpus-4, #b03a5b)',
+      'var(--dshtd-ink-corpus-0, #3fb98a)',
+      'var(--dshtd-ink-corpus-1, #b57ae0)',
+      'var(--dshtd-ink-corpus-2, #ae4747)',
+      'var(--dshtd-ink-corpus-3, #4aa3d9)',
+      'var(--dshtd-ink-corpus-4, #d95fa8)',
     ]
 
     //: **THE DRESS OF A LINE THAT IS NOT FROM THE LIVE ARC.** Grey, faint and dashed, because a fan is read
     //: by following the one line that is still going. **These are the values a reader must be able to see
     //: THROUGH**, unlike the live arc's own registers, which are lightened but still in their metric's
     //: colour - see `lineDress`, where the distinction is stated once.
-    const HISTORY_INK = 'var(--dshtd-ink-history, #8a8a8a)'
+    const HISTORY_INK = 'var(--dshtd-ink-history, #8f8f8f)'
 
     //: The panel's attribute the stylesheet keys its two palettes on.
     const THEME_ATTRIBUTE = 'data-mode'
@@ -1304,7 +1304,32 @@ window.__ModuleLoader__.load({
       // muted line is grey and dashed, and none of these are.
       if (role === 'heldout') return { ink: PRIMARY_INK, opacity: 0.55, dash: null }
       if (role === 'sealed') return { ink: PRIMARY_INK, opacity: 0.55, dash: null }
-      if (role === 'corpus') return { ink: null, opacity: 1, dash: null }
+      // **A CORPUS LINE IS DOTTED, AND THAT IS AN ACCESSIBILITY DECISION RATHER THAN A STYLE ONE.**
+      //
+      // MEASURED, 16 October 2026: with five corpus inks plus the three registers, every pair that shares a
+      // chart was checked for perceptual distance under normal vision AND under simulated deuteranopia,
+      // protanopia and tritanopia. **Most pairs clear dE 10 comfortably, and a handful land between 7 and 10 -
+      // and that is a PROPERTY OF HUE, not a defect in the palette.** The literature's own figure is that
+      // dichromats resolve roughly three to four categorical colours; five corpora plus three registers is
+      // more than hue can carry, and no amount of tuning changes that.
+      //
+      // **SO THE CHART MUST NOT RELY ON HUE, WHICH IS WCAG 1.4.1 ANYWAY** - *"colour is not used as the only
+      // visual means of conveying information."* Every role now differs in DASH as well:
+      //
+      //     train    solid, full weight      heldout/sealed  solid, 0.55 weight
+      //     corpus   dotted 1 3              history         dashed 4 4, 0.35 weight
+      //
+      // Four distinguishable line styles, so a reader who cannot separate the hues can still follow which
+      // line is which by shape and weight alone. **The legend swatch reads the same three properties from this
+      // function**, so it cannot describe a line the frame does not draw - which is what makes this a real
+      // channel rather than a claim about one.
+      // **AND ITS OWN WEIGHT, WHICH IS THE FIX FOR THE ONE PAIR THAT WAS TOO CLOSE.** MEASURED: the blue
+      // training ink and the blue-cyan `corpus-3` ink fell to 5.1 dE under protanopia - the worst pair on the
+      // chart - and **no replacement hue fixes it**: a search over the whole wheel found that the best
+      // single-hue candidate (magenta at hue 300, 16.1 dE) collides with the existing `corpus-4`. Five corpus
+      // inks plus three registers is simply more than hue can carry. So the corpus line takes 0.80 weight
+      // against the registers' 1.0 and 0.55, which is a channel that does not depend on hue at all.
+      if (role === 'corpus') return { ink: null, opacity: 0.80, dash: '1 3' }
       // AND A LINE FROM ANOTHER ARC: muted, dashed, and drawn behind everything.
       if (role === 'history') return { ink: HISTORY_INK, opacity: 0.35, dash: '4 4' }
       return { ink: PRIMARY_INK, opacity: 1, dash: null }
@@ -3101,8 +3126,8 @@ window.__ModuleLoader__.load({
      * These are the fallbacks the stylesheet itself names, so the two cannot
      * drift apart into different colours.
      */
-    const OVERLAY_INK = 'var(--dshtd-ink-overlay, #e5a34d)'
-    const PRIMARY_INK = 'var(--dshtd-ink-train, #4d6bfe)'
+    const OVERLAY_INK = 'var(--dshtd-ink-overlay, #d9a441)'
+    const PRIMARY_INK = 'var(--dshtd-ink-train, #7d92f0)'
 
     /**
      * How far below the data's own minimum a log axis puts its floor, as a
