@@ -703,8 +703,8 @@ window.__ModuleLoader__.load({
      * **`test/client.test.mjs` pins them, and that is why they stay.**
      */
     const INTERESTING = [
-      { tag: 'train/bpb', label: 'train bpb', unit: 'bpb', digits: 4 },
-      { tag: 'train/ppl', label: 'train ppl', unit: 'ppl', digits: 1 },
+      { tag: 'train/bpb', label: 'bpb', unit: 'bpb', digits: 4 },
+      { tag: 'train/ppl', label: 'ppl', unit: 'ppl', digits: 1 },
       { tag: 'train/wall_seconds', label: 'wall_seconds', unit: 's', digits: 1 },
       { tag: 'train/units_per_second', label: 'units/s', unit: 'u/s', digits: 1 },
       { tag: 'train/gnorm', label: 'gnorm', unit: '', digits: 3 },
