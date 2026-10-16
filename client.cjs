@@ -1088,6 +1088,12 @@ window.__ModuleLoader__.load({
     //: taken off, so no two lines on one chart can be confused for each other.
     const CORPUS_INK = ['#2f9e6f', '#a855c8', '#c2703a', '#3d8fc4', '#b03a5b']
 
+    //: **THE DRESS OF A LINE THAT IS NOT FROM THE LIVE ARC.** Grey, faint and dashed, because a fan is read
+    //: by following the one line that is still going. **These are the values a reader must be able to see
+    //: THROUGH**, unlike the live arc's own registers, which are lightened but still in their metric's
+    //: colour - see `lineDress`, where the distinction is stated once.
+    const HISTORY_INK = '#8a8a8a'
+
     /**
      * **THE DRESS OF ONE LINE: ITS INK, ITS OPACITY AND WHETHER IT IS DASHED.**
      *
@@ -1097,21 +1103,44 @@ window.__ModuleLoader__.load({
      * were styled in different places by different mechanisms.** A single source for ink, weight and dash
      * means the legend cannot describe a line the frame does not draw.
      *
-     * AND EACH LINE MUST BE TELLABLE FROM THE OTHERS, which the first version was not: `bpb` and `heldout`
-     * are both the metric's blue and both solid, so **two identically-drawn lines were named and still
-     * indistinguishable.** The registers differ by OPACITY - the training reading full, the held-out reading
-     * lighter - because they are the same quantity on different data, and the difference a reader is looking
-     * for is exactly how far the lighter line sits above the darker one. A colour from a different hue would
-     * have said they were different measurements.
+     * **AND THE RULE THE USER SET IS THE ONE THE DASH CARRIES: SOLID MEANS LIVE ARC, DASHED MEANS HISTORY.**
+     * See the note in the body for why the sealed line is solid and what the fan is for.
      *
      * @returns `{ink, opacity, dash}` - everything needed to draw the line AND its swatch.
      */
     function lineDress(role) {
+      // **THE DASH IS THE MARK OF NOT-CURRENT, AND THAT IS THE WHOLE RULE.**
+      //
+      // CORRECTED 16 October 2026, and it reverses a decision made an hour earlier. The user: *"I would
+      // actually prefer all values in series from the live arc, meaning something not historical but the
+      // current arc, to be solid lines instead of dashed ones. So we should use some grayed out or muted
+      // colors plus dashed lines for historical values that are not from the current arc."*
+      //
+      // **THE SEALED LINE WAS DASHED ON THE REASONING THAT IT IS TAKEN ON A CADENCE**, one eval every twelve
+      // legs, and that reasoning was wrong on the substance: **a sealed read of the live arc's own checkpoint
+      // is as current as a reading gets.** The dash does not mean "sparse" - the chart already says a series
+      // is sparse by drawing a CIRCLE on every reading it has - **it means "this did not come from the arc
+      // you are training."** So the sealed line is SOLID, like every other live-arc line.
+      //
+      // **AND THE SHAPE THIS SERVES IS A FAN.** The user's picture: *"something akin to a Monte Carlo graph
+      // where we have an initial starting point, which would be 0 in this case, the leg 0, and from there we
+      // explore the different possibilities, and in this case we want only the live arc to be solid color and
+      // obvious and everything else to be muted/grayed out and in the background."* **Every line the live
+      // arc produced is solid and coloured; a line from another arc will be muted grey and dashed**, and
+      // `HISTORY_DRESS` below is that second dress waiting for the series that need it.
+      //
+      // The opacity still separates the REGISTERS of the live arc - the training reading full, the held-out
+      // and sealed readings lighter - because they are the same quantity on different data and the thing a
+      // reader looks for is how far the lighter line sits above the darker one. **Lighter is not muted**: a
+      // muted line is grey and dashed, and none of these are.
       if (role === 'heldout') return { ink: PRIMARY_INK, opacity: 0.55, dash: null }
-      if (role === 'sealed') return { ink: PRIMARY_INK, opacity: 0.55, dash: '2 3' }
+      if (role === 'sealed') return { ink: PRIMARY_INK, opacity: 0.55, dash: null }
       if (role === 'corpus') return { ink: null, opacity: 1, dash: null }
+      // AND A LINE FROM ANOTHER ARC: muted, dashed, and drawn behind everything.
+      if (role === 'history') return { ink: HISTORY_INK, opacity: 0.35, dash: '4 4' }
       return { ink: PRIMARY_INK, opacity: 1, dash: null }
     }
+
 
     /**
      * The colour one family line is drawn in, and the reason a legend can name it.
@@ -3792,12 +3821,16 @@ window.__ModuleLoader__.load({
           if (drawn.length >= 2) {
             children.push(React.createElement('path', {
               key: `family-${member.tag}`,
-              // **SOLID FOR A CURRENT READING, DASHED ONLY FOR THE SEALED CADENCE.** These were
-              // `CLASS.ghostLine` - `stroke-dasharray: 5 3; opacity: 0.5` - which is the dress of a chain a
-              // rollback threw away. MEASURED, the user: *"in the graph it is actually a dashed line, whereas
-              // the legend seems to suggest that it should be a solid line."* **A held-out reading is a
-              // measurement that is still current, and dashing it said the opposite.**
-              className: member.role === 'sealed' ? CLASS.familyLineSparse : CLASS.familyLine,
+              // **THE CLASS NOW FOLLOWS THE SAME RULE AS THE INK AND THE DASH: LIVE ARC SOLID, HISTORY
+              // DASHED.** It read `role === 'sealed' ? sparse : solid`, which was the old rule - dash for a
+              // cadence - and the user has overruled it: *"all values in series from the live arc ... to be
+              // solid lines instead of dashed ones."* **A sealed read of the live arc's checkpoint IS the
+              // live arc**, so it takes the solid class, and only a line from another arc takes the dashed
+              // one. Leaving the old test here would have drawn the sealed line dashed from the stylesheet
+              // while the legend and the inline style both said solid - **the exact disagreement this
+              // session has already fixed twice.**
+              className: lineDress(member.role).dash === null
+                ? CLASS.familyLine : CLASS.familyLineSparse,
               // THE LINE'S COLOUR AND WEIGHT, from the same helper the legend uses - see `familyInk` and
               // `lineDress`. **Computed from the payload's own index rather than from a captured one**,
               // because `index` is not in this scope and reading it here threw `index is not defined` and
@@ -4930,6 +4963,7 @@ window.__ModuleLoader__.load({
       lineDress,
       legendEntries,
       CORPUS_INK,
+      HISTORY_INK,
       isSparseReadings,
       SPARSE_COVERAGE,
       isTraceTag,

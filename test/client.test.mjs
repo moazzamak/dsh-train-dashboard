@@ -1353,16 +1353,25 @@ test('every legend swatch wears the SAME ink and dash as the line it names', () 
     assert.equal(path.props.style.stroke, entry.ink,
       `${member}: the line and its swatch must be one colour, line ${path.props.style.stroke} vs `
       + `legend ${entry.ink}`)
-    // AND THE DASH AGREES. The sealed read is measured on a cadence, so BOTH its line and its swatch are
-    // dashed; everything else is solid in both.
+  // AND THE DASH AGREES, WHICH IS THE HALF THAT MATTERS MOST NOW. **THE RULE IS THE USER'S: SOLID MEANS
+  // LIVE ARC, DASHED MEANS HISTORY.** Every one of these four lines is measured on the live arc - the
+  // training reading, the leg-end held-out reading, the sealed read of this arc's own checkpoint, and the
+  // corpus reading - so **all four are SOLID**, and the swatch says the same.
     const lineDashed = /family-line-sparse/.test(path.props.className)
     const swatchDashed = entry.dash !== null && entry.dash !== undefined
     assert.equal(lineDashed, swatchDashed,
       `${member}: the legend says ${swatchDashed ? 'dashed' : 'solid'} and the chart draws `
       + `${lineDashed ? 'dashed' : 'solid'}`)
+    assert.equal(lineDashed, false,
+      `${member} is measured on the LIVE ARC, so it must be solid - a dash means history`)
   }
-  // and the sealed one really is the dashed one, so this test cannot pass vacuously
-  assert.equal(byKey.get('sealed/bpb').dash, '2 3', 'the sealed read is the cadence and must be dashed')
+  // and the dash really is reserved for history, so the assertions above cannot pass vacuously
+  assert.equal(byKey.get('sealed/bpb').dash, null,
+    'the sealed read is a live-arc reading and must be SOLID')
+  assert.equal(t.lineDress('history').dash, '4 4',
+    'and a line from another arc is the one that is dashed')
+  assert.equal(t.lineDress('history').ink, t.HISTORY_INK,
+    'and it is muted grey, not a metric colour')
 })
 
 test('the chart never draws a brush the rail was given', () => {  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows
