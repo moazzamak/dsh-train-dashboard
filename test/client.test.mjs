@@ -3231,7 +3231,7 @@ test('a floating value is CENTRED on its own line, and the rail marks where that
   }
 })
 
-test('the floating values sit INSIDE the frame and are RIGHT-aligned against its left edge', () => {
+test('the floating readings are RIGHT-aligned at the frame RIGHT edge, where the live values are', () => {
   // **TWO CORRECTIONS, AND THIS TEST PINS BOTH BECAUSE THEY PULL IN DIFFERENT DIRECTIONS.**
   //
   // 16 October 2026, first: *"it should be within the graph itself, not outside of the graph."* Then: *"The
@@ -3251,8 +3251,8 @@ test('the floating values sit INSIDE the frame and are RIGHT-aligned against its
   for (const text of texts) {
     assert.equal(text.props.textAnchor, 'end',
       'RIGHT-aligned: a longer number grows LEFTWARD from a fixed right edge, so digits line up in a column')
-    assert.ok(text.props.x > plot.left,
-      `the column is INSIDE the frame (${text.props.x} vs plot.left ${plot.left})`)
+    assert.ok(text.props.x < plot.right,
+      `the column is inside the frame, near its right edge (${text.props.x} vs plot.right ${plot.right})`)
     assert.ok(text.props.x < plot.right,
       'and inside the far edge, or it is not in the frame at all')
   }
@@ -3262,7 +3262,7 @@ test('the floating values sit INSIDE the frame and are RIGHT-aligned against its
     'two readings anchored at different x are not a column')
 
   // AND THE INSET IS EXPORTED, so its size has one home and a test can state it.
-  assert.equal(texts[0].props.x, plot.left + t.CURRENT_VALUE_RIGHT_EDGE)
+  assert.equal(texts[0].props.x, plot.right - t.CURRENT_VALUE_INSET)
 
   // **THE RAIL STAYS OUTSIDE THE FRAME**, marking the band without covering data. The mark and the number
   // are deliberately in different lanes: the mark says which reading this is, the number needs the room.

@@ -1820,23 +1820,29 @@ window.__ModuleLoader__.load({
     const CURRENT_VALUE_MIN_SEPARATION = 13
 
     /**
-     * Where the reading column sits, and which way its text runs.
+     * How far inside the frame's RIGHT edge the reading column's right edge sits.
      *
-     * **TWO CORRECTIONS, AND THEY PULL IN DIFFERENT DIRECTIONS - BOTH ARE HONOURED.** The user asked first
-     * (16 October 2026) that the readings be *"within the graph itself, not outside of the graph"*, and then
-     * that *"The live numbers are left aligned within the chart window. they should be right aligned."*
+     * **THE THIRD CORRECTION OF 16 October 2026, AND IT SETTLES WHERE THE COLUMN LIVES.** The user first asked
+     * that the readings be *"within the graph itself, not outside of the graph"*; then that they be
+     * *"right aligned"*; and then, seeing where that put them: *"the live hovering number (currently 1.4660
+     * etc) should be aligned to the right edge of the chart, not at the 6th leg boundary."*
      *
-     * So the column is INSIDE the frame - `CURRENT_VALUE_RIGHT_EDGE` pixels in from `plot.left` - and its
-     * text is anchored `end`, so it grows LEFTWARD from a fixed right edge and the digits of the two readings
-     * line up as a column instead of starting together and ending raggedly.
+     * **THAT LAST PHRASE IS A PLACE ON THE CHART, NOT A LEG COUNT, AND I MISREAD IT AS THE LATTER.** The frame
+     * is 502 px wide, so on a ~52-leg run the sixth leg falls about 12 percent in - which is exactly where
+     * `plot.left + 64` put the column. **The user was describing my own placement back to me, in the units the
+     * chart is drawn in.**
      *
-     * **THE COST IS STATED RATHER THAN HIDDEN: the column sits over the OLDEST data points**, because every
-     * line begins at leg 1, which is the frame's left edge. A reading at the newest leg and a reading at leg 1
-     * share a y only by coincidence, so this covers a few pixels of history rather than the current values a
-     * reader is watching - but it does cover something, and the alternative is a column outside the frame,
-     * which is what the first correction ruled out.
+     * So the column's right edge is `CURRENT_VALUE_INSET` from `plot.right` and its text is anchored `end`: the
+     * numbers grow LEFTWARD from the frame's right edge, their digits line up as a column, and **the column now
+     * sits where the live values actually are** - the newest point of every line, at the right-hand end, which
+     * is the end a reader watching a run is looking at.
+     *
+     * **AND IT RECOVERS THE ROOM THE LEFT-EDGE VERSION COST.** That version sat over the oldest data points,
+     * because every line begins at leg 1. The newest leg is where the lines END, so a column at the right edge
+     * covers the tail of the curve only where a reading is written - and it is written at the height of its own
+     * line, which is the one place a reader is already looking.
      */
-    const CURRENT_VALUE_RIGHT_EDGE = 64
+    const CURRENT_VALUE_INSET = 10
 
     /** What the x axis counts. Every series in a training snapshot is keyed by step. */
     const X_AXIS_LABEL = 'step'
@@ -3926,13 +3932,14 @@ window.__ModuleLoader__.load({
       // of numbers.** A reader comparing two values scans their digits, and digits only line up when the
       // numbers END together.
       //
-      // **THE FIX MOVES THE ANCHOR AND KEEPS THE COLUMN INSIDE.** The text is anchored `end` at a fixed right
-      // edge that lies INSIDE the frame - `plot.left + CURRENT_VALUE_RIGHT_EDGE` - so the numbers grow
-      // leftward, their digits line up as a column, and **neither correction is undone**: still within the
-      // graph, now right-aligned. Measured, `2.246` and `17.4M` anchored `start` do not align on the decimal;
-      // anchored `end` they do, which is the whole of what the second correction asks for.
+      // **THE FIX MOVES THE ANCHOR, AND THE COLUMN LIVES AT THE FRAME'S RIGHT EDGE.** The text is anchored
+      // `end` at `plot.right - CURRENT_VALUE_INSET`, so the numbers grow LEFTWARD from a fixed right edge,
+      // their digits line up as a column, and **the column sits where the live values are** - the newest
+      // point of every line, at the end a reader watching a run is looking at. Measured, `2.246` and `17.4M`
+      // anchored `start` do not align on the decimal; anchored `end` they do, which is the whole of what the
+      // second correction asked for, and the third said where the column belongs.
       const railX = CURRENT_VALUE_RAIL_X + CURRENT_VALUE_RAIL_WIDTH
-      const inkX = plot.left + CURRENT_VALUE_RIGHT_EDGE
+      const inkX = plot.right - CURRENT_VALUE_INSET
       for (const label of valueLabels) {
         children.push(React.createElement('g', {
           key: `current-${label.kind}`, className: CLASS.currentValue,
@@ -5391,7 +5398,7 @@ window.__ModuleLoader__.load({
       CURRENT_VALUE_RAIL_WIDTH,
       LABEL_BASELINE,
       CURRENT_VALUE_MIN_SEPARATION,
-      CURRENT_VALUE_RIGHT_EDGE,
+      CURRENT_VALUE_INSET,
       CURRENT_VALUE_MIN_SEPARATION,
       OVERLAY_INK,
       PRIMARY_INK,
