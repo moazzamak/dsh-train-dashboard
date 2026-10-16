@@ -1222,7 +1222,21 @@ window.__ModuleLoader__.load({
       const own = lineDress('train')
       const entries = [{
         key: typeof spec.tag === 'string' ? spec.tag : 'primary',
-        label: spec.label,
+        // **THE CHIP'S OWN LINE IS NAMED FOR ITS ROLE, LIKE EVERY OTHER LINE. THE USER'S FIFTH REPORT,
+        // 16 October 2026: *"bpb / heldout (bpb) / sealed (bpb) - the bpb (chip name in legend) is still
+        // there."***
+        //
+        // MEASURED, and the inconsistency was structural rather than cosmetic: this entry carried
+        // `spec.label` - THE METRIC'S NAME, which is also the chip's name and the tab's title - while every
+        // sibling carried its ROLE. **So the legend read `bpb`, `heldout`, `sealed`: one name repeating the
+        // thing already written above the chart, beside two that actually explain which line is which.**
+        // A reader looking at four curves learned what three of them were and was told the fourth was the
+        // metric, which the tab had already said.
+        //
+        // **`train` IS THE ROLE AND IT IS THE WORD THAT MATCHES ITS SIBLINGS**, so the legend now reads
+        // `train`, `heldout`, `sealed`, `wiki_en` - four answers to the same question, "which line is this?"
+        // - and the metric's name stays where it belongs, on the chip and the tab.
+        label: 'train',
         ink: own.ink,
         opacity: own.opacity,
         // the chart's own line is dashed only when it is a cadence, and the swatch must say the same

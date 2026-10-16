@@ -1224,8 +1224,10 @@ test('the legend names EVERY line the left axis is carrying', () => {
     t.seriesIndex({ series: [{ tag: 'phase/wiki_en/heldout_bpb', points: [[1, 2.6]] }] }),
   )
 
-  assert.deepEqual(specs.map((e) => e.label), ['bpb', 'heldout', 'sealed', 'wiki_en'],
-    'every line on the left axis is named: the metric, the two registers, and the corpus by its own name')
+  assert.deepEqual(specs.map((e) => e.label), ['train', 'heldout', 'sealed', 'wiki_en'],
+    'every line on the left axis is named by its ROLE: the training reading, the two registers, and the '
+    + 'corpus by its own name. The metric itself is NOT one of them - it is the chip and the tab title, and '
+    + 'repeating it here was the user\'s fifth report')
   // AND EACH CARRIES ITS OWN COLOUR, so the names distinguish lines a reader can actually tell apart. A
   // legend for four identical grey lines names four lines and identifies none.
   for (const entry of specs) {
@@ -1436,8 +1438,8 @@ test('the FAN: another arc is a muted dashed line behind the solid live one', ()
   const entries = t.legendEntries(
     { tag: 'train/bpb', label: 'bpb', unit: 'bpb', series: { tag: 'train/bpb', points } },
     members.filter((m) => m.tag !== 'train/bpb'), index2)
-  assert.deepEqual(entries.map((e) => e.label), ['bpb', 'c5', 'c3'],
-    'the legend names the live metric and each arc by its own name')
+  assert.deepEqual(entries.map((e) => e.label), ['train', 'c5', 'c3'],
+    'the legend names the live line by its role and each arc by its own name')
   assert.equal(entries[1].ink, t.HISTORY_INK, 'and the swatch is the same grey as the line')
   assert.equal(entries[1].dash, '4 4', 'and the same dash')
 })
@@ -2552,7 +2554,13 @@ test('the legend names both lines and both scales, and nothing more', () => {
   const legend = elementsWithClass(tree, 'dshtd-overlay-legend')[0]
   assert.ok(legend, 'two lines on two scales must be named, or the frame invites a false comparison')
   const words = textOf(legend)
-  assert.match(words, /loss/, 'the left-hand line is named')
+  // **THE LINE THAT CARRIES THE METRIC'S OWN NUMBERS IS NAMED `train`, NOT BY THE METRIC.** The spec here
+  // is `train/loss`, so this asserts that the legend says `train` and NOT `loss` - `loss` is the chip and the
+  // tab title, and repeating it beside `heldout` and `sealed` was the user's fifth report, 16 October 2026:
+  // *"bpb / heldout (bpb) / sealed (bpb) - the bpb (chip name in legend) is still there."*
+  assert.match(words, /train/, 'the left-hand line is named by its role')
+  assert.ok(!/\bloss\b/.test(words),
+    `the metric's own name is the chip and the tab title, and must not be repeated in the legend: ${words}`)
   assert.match(words, /seed model size/)
   assert.match(words, /M params/, 'with its unit')
   assert.match(words, /RIGHT axis/, 'and the side its scale sits on')
