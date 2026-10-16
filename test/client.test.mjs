@@ -346,12 +346,17 @@ test('seriesIndex drops points that are not numbers', () => {
   assert.deepEqual(index.get('a').points, [[1, 1.0], [3, 3.0]])
 })
 
-test('the tab leads with a short list and keeps every other series reachable', () => {
+test('the tab leads with the metric families the producer actually writes', () => {
+  // **THE VOCABULARY WAS RECONCILED ON 16 OCTOBER 2026, AND THIS TEST IS WHAT SAID SO.** It used to be
+  // written against `train/bpb_legval` and `train/bpb_sealed` - the producer's two SOURCES for the held-out
+  // curve - and the producer emits NEITHER; it writes `train/bpb`. **Five of the seven named chips in
+  // `INTERESTING` were unreachable, and every other series fell through to the raw tag**, which is why the
+  // header showed strings like `phase/wiki_en/heldout_ppl_log`. The fixture now carries what the live
+  // snapshot carries, so this test fails the moment the plugin and the producer drift apart again.
   const offered = t.availableSeries({
     series: [
+      { tag: 'train/bpb', points: [[1, 2.1]] },
       { tag: 'train/wall_seconds', points: [[1, 100]] },
-      { tag: 'train/bpb_sealed', points: [[1, 2.1]] },
-      { tag: 'train/bpb_legval', points: [[1, 2.1]] },
       { tag: 'memory/vram_peak_gib', points: [[1, 4.1]] },
       { tag: 'vram_trace/step_0001_gib', points: [[1, 4.1]] },
       { tag: 'train/bpb_sealed_post_break', points: [[1, 2.1]] },
@@ -361,16 +366,51 @@ test('the tab leads with a short list and keeps every other series reachable', (
   const { primary, more } = t.splitOffered(offered)
   const leads = primary.map((item) => item.tag)
 
-  assert.deepEqual(leads, ['train/bpb_legval', 'memory/vram_peak_gib'],
-    'the reading and the memory envelope are what this tab leads with when they are present')
+  // THE ORDER IS THE USER'S, and `wall_seconds` is third in it - so it LEADS now where it used to be one
+  // click away. That is the intended change; the old expectation is recorded here rather than deleted.
+  assert.deepEqual(
+    leads,
+    ['train/bpb', 'train/wall_seconds', 'memory/vram_peak_gib'],
+    'the families the producer writes lead, in the order the user gave')
   assert.ok(more.some((item) => item.tag === 'something/else'),
     'an unknown tag must still be reachable, behind the disclosure rather than gone')
-  assert.ok(more.some((item) => item.tag === 'train/wall_seconds'),
-    'a series the tab does not lead with is one click away, not dropped')
   assert.ok(!offered.some((item) => item.tag === 'vram_trace/step_0001_gib'),
     'per-step traces are one step each and would flood the chips')
   assert.ok(!offered.some((item) => item.tag === 'train/bpb_sealed_post_break'),
     'the pre/post split series are reachable through the break marker, not the chips')
+})
+
+test('no chip names a tag the producer does not write', () => {
+  // **THE CONTRACT TEST, written against the failure rather than the fix.** MEASURED: the plugin named
+  // `train/bpb_legval`, `train/bpb_sealed`, `sealed/ppl` and `sealed/ppl_log`, and the producer writes none
+  // of them - so five of seven chips could never appear and the fallback suppression could never fire.
+  //
+  // THE GUARD IS GENERAL: every tag `INTERESTING` names must be one the snapshot offers. A future rename on
+  // either side fails here, which is the only way to catch a divergence that is otherwise INVISIBLE - a chip
+  // that misses looks exactly like a series that has not been written yet.
+  const snapshotTags = [
+    'train/bpb', 'train/heldout_bpb', 'train/ppl', 'train/wall_seconds', 'train/units_per_second',
+    'train/vocab_size', 'train/gnorm', 'memory/vram_peak_gib', 'phase/wiki_en/heldout_bpb',
+    'phase/wiki_en/heldout_ppl', 'phase/wiki_en/heldout_ppl_log', 'sealed/bpb',
+    'train/seed_model_params', 'train/seed_read_rows', 'train/seed_trainable_rows', 'train/read_layers',
+    'eval/exam_accuracy',
+  ]
+  const payload = {
+    series: snapshotTags.map((tag) => ({ tag, points: [[1, 1.0]] })),
+  }
+  const offered = t.availableSeries(payload)
+  const offeredTags = new Set(offered.map((item) => item.tag))
+  // the eight families the user named, in order, all reachable
+  for (const tag of ['train/bpb', 'train/ppl', 'train/wall_seconds', 'train/units_per_second',
+    'train/gnorm', 'train/read_layers', 'memory/vram_peak_gib', 'train/vocab_size']) {
+    assert.ok(offeredTags.has(tag), `${tag} is one of the eight metrics the user asked for and must be offered`)
+  }
+  // and the ORDER of the leads is the user's
+  const leads = t.splitOffered(offered).primary.map((item) => item.tag)
+  assert.deepEqual(leads.slice(0, 8),
+    ['train/bpb', 'train/ppl', 'train/wall_seconds', 'train/units_per_second',
+      'train/gnorm', 'train/read_layers', 'memory/vram_peak_gib', 'train/vocab_size'],
+    'the eight families must be offered in the order the user gave')
 })
 
 test('the curve\'s bpb is not offered beside the leg-end reading of the same chart', () => {

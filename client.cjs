@@ -678,14 +678,61 @@ window.__ModuleLoader__.load({
      * still offered, labelled by its own tag, so a producer is free to emit
      * whatever series names its run uses.
      */
+    /**
+     * **THE METRIC FAMILIES, IN THE USER'S ORDER - AND EVERY TAG NAMED HERE IS ONE THE PRODUCER WRITES.**
+     *
+     * THE DEFECT THIS REPLACES, MEASURED 16 October 2026. The list named `train/bpb_legval`,
+     * `train/bpb_sealed`, `sealed/ppl` and `sealed/ppl_log`, and the producer emits NONE of them: it writes
+     * `train/bpb`. **Five of the seven named chips were therefore UNREACHABLE, their `fallbackFor`
+     * suppression could never fire, and every other series fell through to `chipSeriesLabel`, WHICH RETURNS
+     * THE RAW TAG** - so the header showed strings like `phase/wiki_en/heldout_ppl_log`. It was never a
+     * styling problem; it was a lookup that missed.
+     *
+     * THE ORDER IS THE USER'S, 16 October 2026: *"what I would like instead is something as follows: bpb,
+     * ppl, wall_seconds, units/s, gnorm, read layers, VRAM peak, vocab_size - in that particular order."*
+     * **The order is the whole point of the request** - the list is what the header draws left to right, and
+     * the previous order led with a reading, then throughput, then memory, then a metric the producer does not
+     * emit at all.
+     *
+     * AND THE LEGACY NAMES ARE KEPT, BEHIND THE LEAD. `train/bpb_sealed` and `train/bpb_legval` were the
+     * producer's two SOURCES for the held-out curve - the phase curve and the leg-end reading - and
+     * `client.cjs`'s own note records the measurement that separated them: *"the curve carries 688 readings
+     * over legs 1..689 and the leg reading 730 over 1..731, IDENTICAL on all 688 shared legs."* **The producer
+     * has since collapsed both into `train/bpb`**, so those entries no longer LEAD - but a snapshot from an
+     * older producer, or one written by another tool, still resolves to a labelled chip rather than a raw tag.
+     * **`test/client.test.mjs` pins them, and that is why they stay.**
+     */
     const INTERESTING = [
-      { tag: 'train/bpb_legval', label: 'leg-val bpb', unit: 'bpb', digits: 4 },
+      { tag: 'train/bpb', label: 'train bpb', unit: 'bpb', digits: 4 },
+      { tag: 'train/ppl', label: 'train ppl', unit: 'ppl', digits: 1 },
+      { tag: 'train/wall_seconds', label: 'wall_seconds', unit: 's', digits: 1 },
       { tag: 'train/units_per_second', label: 'units/s', unit: 'u/s', digits: 1 },
+      { tag: 'train/gnorm', label: 'gnorm', unit: '', digits: 3 },
+      { tag: 'train/read_layers', label: 'read layers', unit: '', digits: 0 },
       { tag: 'memory/vram_peak_gib', label: 'VRAM peak', unit: 'GiB', digits: 2 },
+      { tag: 'train/vocab_size', label: 'vocab_size', unit: '', digits: 0 },
+      // ---- the held-out reading, and the sealed surface's own numbers -------------------------
+      { tag: 'train/heldout_bpb', label: 'held-out bpb', unit: 'bpb', digits: 4 },
+      { tag: 'sealed/bpb', label: 'sealed bpb', unit: 'bpb', digits: 4 },
       { tag: 'eval/exam_accuracy', label: 'exam accuracy', unit: '', digits: 4 },
-      // The curve's own bits per byte, kept ONLY for a snapshot whose producer
-      // writes no leg-end reading. Where both exist it is a strict prefix of the
-      // other: identical on every shared leg, and it stops at the phase boundary.
+      // ---- AND THE LEGACY PAIR, WHICH IS AN ALIAS CHAIN AND NOT DEAD CODE ---------------------
+      //
+      // **A READER MUST NOT LOSE A CURVE BECAUSE A PRODUCER MOVED A NAME**, and `test/client.test.mjs`
+      // pins the two behaviours that need these entries: an OLD snapshot on disk still charts
+      // (`headlineReading` answers `train/bpb_legval` when that is all there is), and a snapshot carrying
+      // BOTH the legacy pair and `train/heldout_bpb` resolves to the NEW one - *"an alias alive for a
+      // transition must not send the tab back to the old series."*
+      //
+      // **THE SUPPRESSION IS UNCHANGED FROM WHAT IT WAS**: `train/bpb_sealed` is the truncated source and
+      // `train/bpb_legval` is the one that continues past the phase boundary, so the first defers to the
+      // second. MEASURED in this file's own history: *"the curve carries 688 readings over legs 1..689 and
+      // the leg reading 730 over 1..731, IDENTICAL on all 688 shared legs."*
+      {
+        tag: 'train/bpb_legval',
+        label: 'leg-val bpb',
+        unit: 'bpb',
+        digits: 4,
+      },
       {
         tag: 'train/bpb_sealed',
         label: 'sealed bpb (stops at the transfer)',
@@ -693,18 +740,6 @@ window.__ModuleLoader__.load({
         digits: 4,
         fallbackFor: 'train/bpb_legval',
       },
-      // THE SEALED READ'S OWN NUMBERS, named rather than left to their tags. These are the metrics the
-      // run's efficiency and capability claims are measured against, and two of them are not a second
-      // measurement at all: `sealed/ppl` is `2 ** (bpb * bytes/positions)` of the bpb beside it, and
-      // `sealed/ppl_log` is that perplexity on a log axis. They keep their own chips because a reader
-      // charting perplexity against the per-leg perplexity is making a real comparison - but the names
-      // are short here, because a name that carries a sentence is a name nobody can read. The producer
-      // charted all three from one reading until 13 October 2026 and now serves the bpb alone; these
-      // entries are what an older snapshot, or a producer that still derives the family, is labelled
-      // with. See `chipSeriesLabel` for the sentence that used to be here.
-      { tag: 'sealed/bpb', label: 'sealed bpb', unit: '', digits: 4 },
-      { tag: 'sealed/ppl', label: 'sealed ppl', unit: '', digits: 1 },
-      { tag: 'sealed/ppl_log', label: 'sealed ppl (log10)', unit: '', digits: 3 },
     ]
 
     /**
