@@ -1173,6 +1173,90 @@ test('a held-out or sealed reading is a LINE on the bpb chart and NOT a chip any
     'the held-out and sealed readings are lines on the one bpb graph')
 })
 
+test('the default value window covers the HELD-OUT line and not only the training one', () => {
+  // **THE USER'S SECOND REPORT OF 16 OCTOBER 2026: *"the y-axis zoom seems to only focus the training data,
+  // not the held out one. it should be both."***
+  //
+  // MEASURED, and this is a REAL and visible defect rather than a preference: `currentArc` was
+  // `valueRange(insideLive)` - the live chain and NOTHING else. **On this run the held-out curve sits ABOVE
+  // the training curve at every leg** (2.246 against 1.755 on leg 12), so a frame scaled to the training
+  // chain alone drew the training line near the bottom and **left the held-out line off the top of the
+  // frame entirely** - the upper half of the chart was empty and a reader had no way to know a second line
+  // was there without dragging the axis by hand.
+  //
+  // THE FIXTURE PUTS THE TWO LINES CLEARLY APART, because a fixture where they nearly coincide could not
+  // tell the fix from the bug.
+  const points = [[1, 1.90], [2, 1.80], [3, 1.75]]
+  const payload = {
+    series: [
+      { tag: 'train/bpb', points },
+      { tag: 'train/heldout_bpb', points: [[1, 2.60], [2, 2.40], [3, 2.25]] },
+    ],
+  }
+  const tree = t.SeriesChart({
+    spec: { tag: 'train/bpb', label: 'bpb', digits: 3, unit: 'bpb',
+      series: { tag: 'train/bpb', points } },
+    payload,
+  })
+  const readout = elementsWithClass(tree, 'dshtd-window-readout').map((n) => n.children.join('')).join(' ')
+
+  // the held-out values are IN the window: the readout's upper bound must reach them
+  assert.match(readout, /2\.[2-9]/, `the window must reach the held-out reading, got: ${readout}`)
+  // and the training values are still in it
+  assert.match(readout, /1\.[6-9]/, `the window must still contain the training reading, got: ${readout}`)
+})
+
+test('the legend names EVERY line the left axis is carrying', () => {
+  // **THE USER'S FIRST REPORT OF 16 OCTOBER 2026: *"The legend shows only bpb(bpb) for the left axis. it
+  // should show all series present for the left axis."***
+  //
+  // MEASURED: the legend rendered `activeSpec.label` and `activeSpec.unit` - ONE entry - and printed the
+  // label twice, once as the name and once as the unit, **which is the literal `bpb(bpb)` they quoted.** A
+  // chart drawing four lines and naming one of them is a chart with three anonymous curves on it.
+  const specs = t.legendEntries(
+    { tag: 'train/bpb', label: 'bpb', unit: 'bpb', series: { points: [[1, 1.9], [2, 1.8]] } },
+    [
+      { tag: 'train/heldout_bpb', role: 'heldout', series: { points: [[1, 2.6], [2, 2.4]] } },
+      { tag: 'sealed/bpb', role: 'sealed', series: { points: [[12, 2.44]] } },
+      { tag: 'phase/wiki_en/heldout_bpb', role: 'corpus', corpus: 'wiki_en',
+        series: { points: [[1, 2.6], [2, 2.4]] } },
+    ],
+    t.seriesIndex({ series: [{ tag: 'phase/wiki_en/heldout_bpb', points: [[1, 2.6]] }] }),
+  )
+
+  assert.deepEqual(specs.map((e) => e.label), ['bpb', 'heldout', 'sealed', 'wiki_en'],
+    'every line on the left axis is named: the metric, the two registers, and the corpus by its own name')
+  // AND EACH CARRIES ITS OWN COLOUR, so the names distinguish lines a reader can actually tell apart. A
+  // legend for four identical grey lines names four lines and identifies none.
+  for (const entry of specs) {
+    assert.ok(typeof entry.ink === 'string' && entry.ink.startsWith('#'),
+      `${entry.label} has no colour, so its swatch cannot match its line: ${entry.ink}`)
+  }
+  assert.notEqual(specs[1].ink, specs[3].ink, 'the held-out line and a corpus line are different colours')
+  // the corpus line is named for its corpus, which is what its colour is keyed on
+  assert.equal(specs[3].label, 'wiki_en')
+})
+
+test('a corpus keeps its colour when the payload reorders its series', () => {
+  // **A COLOUR THAT MOVES WHEN THE PRODUCER REORDERS IS WORSE THAN NO COLOUR.** A reader learns "green is
+  // wiki_en" and is then lied to. `familyInk` keys on the corpus's position in the SORTED list of corpora
+  // present, so the mapping is stable while the set of corpora is.
+  const forward = t.seriesIndex({ series: [
+    { tag: 'phase/wiki_en/heldout_bpb', points: [[1, 2.6]] },
+    { tag: 'phase/arxiv/heldout_bpb', points: [[9, 2.2]] },
+  ] })
+  const reversed = t.seriesIndex({ series: [
+    { tag: 'phase/arxiv/heldout_bpb', points: [[9, 2.2]] },
+    { tag: 'phase/wiki_en/heldout_bpb', points: [[1, 2.6]] },
+  ] })
+  const wiki = { role: 'corpus', corpus: 'wiki_en' }
+  assert.equal(t.familyInk(wiki, forward), t.familyInk(wiki, reversed),
+    'the same corpus must wear the same colour whatever order the series arrive in')
+  assert.notEqual(t.familyInk(wiki, forward),
+    t.familyInk({ role: 'corpus', corpus: 'arxiv' }, forward),
+    'and two corpora must not share one colour')
+})
+
 test('the chart never draws a brush the rail was given', () => {  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows
   // a horizontal indication in the graph. It should show it vertically or not at all."
   //

@@ -1061,6 +1061,76 @@ window.__ModuleLoader__.load({
       return Array.isArray(members) && members.length > 1
     }
 
+    //: The colours a corpus line can wear. **THE USER ASKED FOR THE CORPUS LINES TO BE *"color coded to
+    //: corpus"*, AND FIVE IS THE NUMBER OF PHASES THIS RUN HAS.** They are distinct from the metric inks -
+    //: blue for the reading, amber for the overlay - and from the grey of a line the history switch has
+    //: taken off, so no two lines on one chart can be confused for each other.
+    const CORPUS_INK = ['#2f9e6f', '#a855c8', '#c2703a', '#3d8fc4', '#b03a5b']
+
+    /**
+     * The colour one family line is drawn in, and the reason a legend can name it.
+     *
+     * **KEYED ON THE CORPUS'S POSITION IN THE SORTED LIST OF THE CORPORA PRESENT**, and not on the order the
+     * payload happens to serve them. **A colour that moves when the producer reorders its series is worse
+     * than no colour at all**, because a reader learns "green is wiki_en" and is then lied to. Sorting makes
+     * the mapping stable while the set of corpora is, and it changes only when a corpus is genuinely added.
+     *
+     * @param member - one entry from `familyMembers`.
+     * @param index - the payload's series index, used to find which corpora are present.
+     * @returns a CSS colour for the line, or `null` to leave it to the stylesheet.
+     */
+    function familyInk(member, index) {
+      if (member === null || member === undefined) return null
+      if (member.role === 'heldout' || member.role === 'sealed') return PRIMARY_INK
+      if (member.role !== 'corpus') return null
+      const corpora = []
+      for (const [tag] of index) {
+        const match = /^phase\/([^/]+)\//.exec(tag)
+        if (match !== null && !corpora.includes(match[1])) corpora.push(match[1])
+      }
+      corpora.sort()
+      const at = corpora.indexOf(member.corpus)
+      return at === -1 ? null : CORPUS_INK[at % CORPUS_INK.length]
+    }
+
+    /**
+     * **WHAT THE LEFT AXIS IS CARRYING, NAMED. THE USER'S FIRST REPORT OF 16 OCTOBER 2026.**
+     *
+     * *"The legend shows only bpb(bpb) for the left axis. it should show all series present for the left
+     * axis."* MEASURED: the legend rendered `activeSpec.label` and `activeSpec.unit` - **one entry, for the
+     * chip's own series** - so a chart drawing a training curve, a held-out curve, a sealed curve and a
+     * corpus curve named one of the four and left a reader to guess what the other three lines were.
+     *
+     * **THE NAME IS THE REGISTER OR THE CORPUS, WHICH IS WHAT THE COLOUR ALREADY MEANS.** `train`,
+     * `heldout` and `sealed` name themselves; a corpus line is named for its corpus, because that is the
+     * thing its colour is keyed on. **The chip's own line is named by its label**, which is the metric - so a
+     * reader sees `bpb`, `heldout`, `sealed`, `wiki_en` and can read the chart.
+     *
+     * @param spec - the chip's own spec, whose series is the chart's main line.
+     * @param members - the family EXCLUDING the chip's own line, from `familyMembers`.
+     * @param index - the payload's series index, for the corpus colours.
+     * @returns `[{key, label, ink, unit, points}]` - one entry per line drawn on the left axis.
+     */
+    function legendEntries(spec, members, index) {
+      const entries = [{
+        key: typeof spec.tag === 'string' ? spec.tag : 'primary',
+        label: spec.label,
+        ink: PRIMARY_INK,
+        unit: spec.unit,
+        points: spec.series === undefined ? null : spec.series.points.length,
+      }]
+      for (const member of members) {
+        entries.push({
+          key: member.tag,
+          label: member.role === 'corpus' ? member.corpus : member.role,
+          ink: familyInk(member, index),
+          unit: spec.unit,
+          points: member.series.points.length,
+        })
+      }
+      return entries
+    }
+
     /**
      * Whether the disclosure must be open regardless of what the reader clicked.
      *
@@ -2987,6 +3057,17 @@ window.__ModuleLoader__.load({
         // the chip's own line is already the main chain; the extras are what this adds
         return members.filter((member) => member.tag !== tag)
       }, [payload, spec.tag, spec.series])
+      //: Every point this chart draws beside its own line, whether or not the history switch is showing them.
+      //:
+      //: **THE WINDOW IS SCALED TO THESE, WHICH IS A FIX RATHER THAN A DETAIL.** MEASURED by the user, 16
+      //: October 2026: *"the y-axis zoom seems to only focus the training data, not the held out one. it
+      //: should be both."* **`currentArc` was `valueRange(insideLive)` - the live chain and nothing else -
+      //: so the held-out curve, which sits ABOVE the training curve on every leg of this run, was drawn
+      //: above the top of the frame.** A reader saw one line and an empty upper half.
+      //:
+      //: **AND IT IS COMPUTED REGARDLESS OF `hideOlder`, deliberately**: the axis must not jump because a
+      //: reader pressed a switch, and the values are still said to be *"in the window"* while hidden. The
+      //: switch controls what is DRAWN, not what the frame is scaled to.
       const familyPoints = React.useMemo(
         () => family.flatMap((member) => member.series.points), [family])
       const bounds = React.useMemo(
@@ -3067,8 +3148,25 @@ window.__ModuleLoader__.load({
       // scaling the rail to the live chain made the discarded arc unreachable, and scaling it to
       // everything made the default window useless.
       const liveScalePoints = insideLive.length > 0 ? insideLive : pointsToDraw(liveChain, range)
-      const currentArc = valueRange(liveScalePoints)
-      const fullValues = valueRange([...olderChain, ...liveChain])
+      // **THE FAMILY'S LINES ARE IN THE DEFAULT WINDOW, AND LEAVING THEM OUT WAS THE BUG THE USER FOUND.**
+      // MEASURED 16 October 2026: *"the y-axis zoom seems to only focus the training data, not the held out
+      // one. it should be both."* **The held-out curve sits ABOVE the training curve on every leg of this
+      // run**, so a window scaled to the training chain alone drew one line near the bottom of the frame and
+      // left the upper half empty - the held-out line was off the top of it entirely.
+      //
+      // **THE FAMILY POINTS GO IN WITHOUT RE-BASING**, because unlike the ghost chain they are not part of a
+      // rolled-back prefix: a corpus line is an absolute leg with an absolute value, and `familyPoints` is
+      // already in the chart's own x. MEASURED against the live snapshot, the default window moves from
+      // `1.755..2.240` - the training chain alone - to `1.755..2.603`, which is the pair the reader asked to
+      // see at once.
+      //
+      // **AND THEY GO INTO `currentArc` RATHER THAN INTO `railExtent`**, because `currentArc` IS the default
+      // window: putting them only in the rail's extent would have widened the rail and left the frame
+      // exactly as wrong as it was.
+      const currentArc = valueRange([...liveScalePoints, ...familyPoints])
+      // The rail keeps the ghost chain as well, so a reader can still drag out into what a rollback threw
+      // away - which is why the two are separate values and not one.
+      const fullValues = valueRange([...olderChain, ...liveChain, ...familyPoints])
       // The rail's own extent, with a unit fallback so the render below has a range whatever happens:
       // `valueRange` is null only for no points, and the rail is not drawn at all in that case.
       const railExtent = fullValues ?? currentArc ?? { lo: 0, hi: 1 }
@@ -3609,26 +3707,25 @@ window.__ModuleLoader__.load({
           d: polylinePath(olderDrawn, projectX, projectY),
         }))
       }
-      // **THE FAMILY S LINES: THE HELD-OUT READING AND ONE LINE PER CORPUS, ON THE SAME AXIS AS THE
-      // TRAINING CURVE.** This is what makes the chip a metric rather than a series - a reader sees the
-      // training reading, what the same model scores on data it has not seen, and what each corpus's own
-      // held-out surface said while that corpus was training, without choosing between them.
+      // **THE FAMILY S LINES: THE HELD-OUT READING, THE SEALED READING AND ONE LINE PER CORPUS, ON THE SAME
+      // AXIS AS THE TRAINING CURVE.** This is what makes the chip a metric rather than a series - a reader
+      // sees the training reading, what the same model scores on data it has not seen, and what each corpus's
+      // own held-out surface said while that corpus was training, without choosing between them.
       //
       // THEY ARE DRAWN IN ABSOLUTE LEGS, NOT RE-BASED, because a corpus line's whole point is WHERE IN THE
       // RUN it happened. `splitOlder`/`olderOrigin` exist for the compare view's re-basing, and applying
       // them here would slide a phase's readings onto the live x and draw a corpus's history as though it
       // had happened alongside the current training.
       //
-      // **AND THEY OBEY THE HISTORY SWITCH, WHICH IS WHAT THE USER ASKED THE BUTTON FOR.**
+      // **EACH LINE IS DRAWN IN A COLOUR THAT SAYS WHICH LINE IT IS, AND UNTIL NOW THEY WERE ALL THE SAME
+      // GREY.** MEASURED 16 October 2026, the user: *"the legend shows only bpb(bpb) for the left axis. it
+      // should show all series present for the left axis."* **A legend for four identical grey lines would
+      // have named four lines and distinguished none of them**, so the colour had to come first: the
+      // held-out and sealed registers take the metric's own ink, and **each corpus gets its own colour from a
+      // palette keyed on its SORTED position**, so `wiki_en` keeps its colour as corpora are added and a
+      // reader learns the mapping once.
       //
-      // MEASURED, and this was a real gap rather than a detail: the family lines were drawn unconditionally,
-      // so the one control that says "take the history off the picture" reached the ghost chain and NOT the
-      // corpus lines - a reader who pressed it still had the old data on the chart and no way to tell why.
-      //
-      // **THEY OBEY `hideOlder` ITSELF AND NOT `ghostIsShown`.** `ghostIsShown` is `ghostAt !== null &&
-      // hideOlder !== true`, and `ghostAt` is the ROLLBACK marker - so on a run that has never been rolled
-      // back it is false, and gating on it would hide every corpus line on exactly the runs where they are
-      // the only history there is. The switch is the reader's intent; the marker is an event.
+      // AND THEY FOLLOW THE HISTORY SWITCH, which is what the user asked the button for.
       const familyIsShown = hideOlder !== true
       if (familyIsShown && family.length > 0) {
         for (const member of family) {
@@ -3637,6 +3734,10 @@ window.__ModuleLoader__.load({
             children.push(React.createElement('path', {
               key: `family-${member.tag}`,
               className: CLASS.ghostLine,
+              // THE LINE'S COLOUR, from the same helper the legend uses - see `familyInk`. **Computed from
+              // the payload's own index rather than from a captured one**, because `index` is not in this
+              // scope and reading it here threw `index is not defined` and took four tests with it.
+              style: { stroke: familyInk(member, seriesIndex(payload)) },
               clipPath: `url(#${CLIP_ID})`,
               d: polylinePath(drawn, projectX, projectY),
             }))
@@ -4531,10 +4632,41 @@ window.__ModuleLoader__.load({
             onToggleKind: toggleKind,
             onToggleOlder: toggleOlder,
           }),
+          // **AND THE LEGEND NAMES EVERY LINE ON THE LEFT AXIS, WHICH IS THE USER'S FIRST REPORT.**
+          //
+          // *"The legend shows only bpb(bpb) for the left axis. it should show all series present for the
+          // left axis."* This rendered `activeSpec` alone - one entry, and it showed the label TWICE, once
+          // as the name and once as the unit, which is the `bpb(bpb)` they saw. **A chart drawing four lines
+          // and naming one of them is a chart with three anonymous curves on it.**
+          //
+          // The entries come from `legendEntries`, which is a pure function of the spec, the family and the
+          // payload's index - **so what the legend names and what the chart draws cannot drift apart**, which
+          // is the failure mode this whole change exists to close.
           React.createElement('div', { className: CLASS.legend },
-            React.createElement('span', { className: CLASS.legendItem },
-              `${activeSpec.series.points.length} points · unit ${activeSpec.unit || 'none'}`
-              + (activeSpec.series.source ? ` · ${activeSpec.series.source}` : ''))))
+            ...(() => {
+              const index = seriesIndex(payload)
+              const members = familyMembers(activeSpec.tag, index)
+                .filter((member) => member.tag !== activeSpec.tag)
+              return legendEntries(activeSpec, members, index).map((entry) =>
+                React.createElement('span', {
+                  key: `legend-${entry.key}`, className: CLASS.legendItem,
+                  'data-series': entry.key,
+                },
+                React.createElement('span', {
+                  className: CLASS.legendSwatch,
+                  style: entry.ink === null || entry.ink === undefined
+                    ? undefined
+                    : { borderTopColor: entry.ink },
+                }),
+                // **THE UNIT IS OMITTED WHEN IT REPEATS THE NAME.** The user's own words for the old legend
+                // were *"bpb(bpb)"* - the label and the unit were the same string, so the entry said the
+                // metric's name twice and nothing else. `bpb (bpb)` is still that shape, so the unit is
+                // dropped where it adds nothing: **a legend should not spend its width restating itself.**
+                (entry.unit && entry.unit !== entry.label
+                  ? `${entry.label} (${entry.unit})`
+                  : entry.label)
+                + (entry.points === null ? '' : ` · ${entry.points} points`)))
+            })()))
 
       const notice = failure !== null
         ? React.createElement('div', { className: CLASS.notice },
@@ -4674,6 +4806,9 @@ window.__ModuleLoader__.load({
       chipSeriesLabel,
       familyMembers,
       isFamily,
+      familyInk,
+      legendEntries,
+      CORPUS_INK,
       isSparseReadings,
       SPARSE_COVERAGE,
       isTraceTag,
