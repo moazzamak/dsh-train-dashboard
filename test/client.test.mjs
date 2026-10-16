@@ -1374,6 +1374,66 @@ test('every legend swatch wears the SAME ink and dash as the line it names', () 
     'and it is muted grey, not a metric colour')
 })
 
+test('the FAN: another arc is a muted dashed line behind the solid live one', () => {
+  // **THE USER'S MONTE CARLO PICTURE, 16 October 2026: *"something akin to a Monte Carlo graph where we have
+  // an initial starting point, which would be 0 in this case, the leg 0, and from there we explore the
+  // different possibilities, and in this case we want only the live arc to be solid color and obvious and
+  // everything else to be muted/grayed out and in the background."***
+  //
+  // THE PRODUCER SERVES THE OTHER ARCS AS `history/<arc>/<stem>` - it decides WHICH arcs, because no property
+  // of a curve on disk says whether it is a predecessor of this run. This is the client half: they are
+  // ordinary family members with `role: 'history'`, so `lineDress` dresses them and the history switch takes
+  // them off with everything else.
+  const points = [[1, 2.60], [2, 2.50], [3, 2.40]]
+  const payload = {
+    series: [
+      { tag: 'train/bpb', points },
+      { tag: 'history/c5/heldout_bpb', points: [[1, 2.645], [30, 2.10], [60, 2.062]] },
+      { tag: 'history/c3/heldout_bpb', points: [[1, 2.645], [22, 2.134]] },
+    ],
+  }
+  const index = t.seriesIndex(payload)
+  const members = t.familyMembers('train/bpb', index)
+
+  // THEY JOIN THE FAMILY, WITH THE ARC IN THE MEMBER SO THE LEGEND CAN NAME IT
+  const history = members.filter((m) => m.role === 'history')
+  assert.deepEqual(history.map((m) => m.arc), ['c5', 'c3'],
+    'each history line carries the arc it came from')
+
+  const tree = t.SeriesChart({
+    spec: { tag: 'train/bpb', label: 'bpb', digits: 3, unit: 'bpb',
+      series: { tag: 'train/bpb', points } },
+    payload,
+  })
+
+  // THE LIVE ARC IS SOLID AND IN FULL COLOUR
+  const live = elementsWithClass(tree, 'dshtd-line')[0]
+  assert.equal(live.props.style.stroke, t.PRIMARY_INK, 'the live arc keeps the metric blue')
+  assert.ok(!live.props.style.strokeDasharray, 'and it is SOLID')
+
+  // AND EVERY OTHER ARC IS MUTED, FAINT AND DASHED - AND *DRAWN*, which is the half that broke: the four
+  // history paths rendered with `stroke: null` because `familyInk` knew only the corpus role, so the fan
+  // would have drawn invisible lines under a legend that named them.
+  for (const arc of ['c5', 'c3']) {
+    const path = elementsWithClass(tree, 'dshtd-family-line-sparse')
+      .find((n) => n.props.key === `family-history/${arc}/heldout_bpb`)
+    assert.ok(path, `${arc}'s history line must be drawn`)
+    assert.equal(path.props.style.stroke, t.HISTORY_INK,
+      `${arc} must be muted grey, not strokeless and not a metric colour`)
+    assert.equal(path.props.style.strokeDasharray, '4 4', `${arc} must be dashed`)
+  }
+
+  // AND THE LEGEND NAMES EACH ARC, with the same ink the chart draws
+  const index2 = t.seriesIndex(payload)
+  const entries = t.legendEntries(
+    { tag: 'train/bpb', label: 'bpb', unit: 'bpb', series: { tag: 'train/bpb', points } },
+    members.filter((m) => m.tag !== 'train/bpb'), index2)
+  assert.deepEqual(entries.map((e) => e.label), ['bpb', 'c5', 'c3'],
+    'the legend names the live metric and each arc by its own name')
+  assert.equal(entries[1].ink, t.HISTORY_INK, 'and the swatch is the same grey as the line')
+  assert.equal(entries[1].dash, '4 4', 'and the same dash')
+})
+
 test('the chart never draws a brush the rail was given', () => {  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows
   // a horizontal indication in the graph. It should show it vertically or not at all."
   //

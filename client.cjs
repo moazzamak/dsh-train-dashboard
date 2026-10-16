@@ -1074,6 +1074,29 @@ window.__ModuleLoader__.load({
         if (item.points.length === 0) continue
         members.push({ tag: otherTag, role: 'corpus', corpus, series: item })
       }
+      // **AND THE FAN: THE OTHER ARCS' CURVES, ONE MUTED LINE EACH, BEHIND THE LIVE ARC.**
+      //
+      // The user's picture, 16 October 2026: *"something akin to a Monte Carlo graph where we have an initial
+      // starting point, which would be 0 in this case, the leg 0, and from there we explore the different
+      // possibilities, and in this case we want only the live arc to be solid color and obvious and
+      // everything else to be muted/grayed out and in the background."*
+      //
+      // **THE PRODUCER SERVES THESE AS `history/<arc>/<stem>`, AND THE ARC IS IN THE TAG SO THE LEGEND CAN
+      // NAME IT.** Which arcs are served is the producer's decision and not this file's - see its
+      // `HISTORY_ARCS`, where the rule is stated once, because **no property of a curve on disk says whether
+      // it is a predecessor of this run** and a glob would draw unrelated experiments as history.
+      //
+      // **THEY ARE ORDINARY MEMBERS WITH `role: 'history'`**, so `lineDress` dresses them grey and dashed,
+      // the legend names each arc, and the history switch takes them off the chart with everything else -
+      // there is no second drawing path for them and therefore nothing to keep in step.
+      for (const [otherTag, item] of index) {
+        const match = /^history\/([^/]+)\/(.+)$/.exec(otherTag)
+        if (match === null) continue
+        const [, arc, name] = match
+        if (name !== `heldout_${stem}` && name !== stem) continue
+        if (item.points.length === 0) continue
+        members.push({ tag: otherTag, role: 'history', arc, series: item })
+      }
       return members
     }
 
@@ -1157,6 +1180,14 @@ window.__ModuleLoader__.load({
     function familyInk(member, index) {
       if (member === null || member === undefined) return null
       if (member.role === 'heldout' || member.role === 'sealed') return PRIMARY_INK
+      // **A LINE FROM ANOTHER ARC IS GREY, AND THIS BRANCH WAS MISSING FOR AN HOUR.** MEASURED: the four
+      // history paths rendered with NO STROKE AT ALL - `stroke: null` - because this function knew only the
+      // corpus role and returned `null` for anything else, and an SVG path with no stroke colour is the
+      // white-line defect this session already fixed once. **The legend swatch was grey throughout**, because
+      // it reads `lineDress` directly - so for one round the fan would have drawn four invisible lines under
+      // a legend that named them. The two must agree, which is why `lineDress` is the source and this only
+      // fills in the one role whose colour is keyed on something else.
+      if (member.role === 'history') return HISTORY_INK
       if (member.role !== 'corpus') return null
       const corpora = []
       for (const [tag] of index) {
@@ -1203,7 +1234,11 @@ window.__ModuleLoader__.load({
         const dress = lineDress(member.role)
         entries.push({
           key: member.tag,
-          label: member.role === 'corpus' ? member.corpus : member.role,
+          // **A FAN LINE IS NAMED FOR ITS ARC**, because the arc is the whole difference between it and the
+          // live curve - `c5` and `c3` are the useful words, and `history` is not. A corpus line is named for
+          // its corpus for the same reason: the name is whatever the line's colour and dress are keyed on.
+          label: member.role === 'corpus' ? member.corpus
+            : (member.role === 'history' ? member.arc : member.role),
           ink: dress.ink === null ? familyInk(member, index) : dress.ink,
           opacity: dress.opacity,
           // **THE SWATCH WEARS THE LINE'S OWN DRESS - ink, weight and dash - WHICH IS BOTH HALVES OF THE
