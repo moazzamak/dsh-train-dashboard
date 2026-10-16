@@ -1089,6 +1089,31 @@ window.__ModuleLoader__.load({
     const CORPUS_INK = ['#2f9e6f', '#a855c8', '#c2703a', '#3d8fc4', '#b03a5b']
 
     /**
+     * **THE DRESS OF ONE LINE: ITS INK, ITS OPACITY AND WHETHER IT IS DASHED.**
+     *
+     * ONE FUNCTION DECIDES ALL THREE, AND THAT IS THE POINT. The user reported the mismatch twice - *"the
+     * primary series is actually white ... whereas the legend suggests blue"*, then *"in the graph it is
+     * actually a dashed line, whereas the legend suggests solid"* - **and both times the swatch and the line
+     * were styled in different places by different mechanisms.** A single source for ink, weight and dash
+     * means the legend cannot describe a line the frame does not draw.
+     *
+     * AND EACH LINE MUST BE TELLABLE FROM THE OTHERS, which the first version was not: `bpb` and `heldout`
+     * are both the metric's blue and both solid, so **two identically-drawn lines were named and still
+     * indistinguishable.** The registers differ by OPACITY - the training reading full, the held-out reading
+     * lighter - because they are the same quantity on different data, and the difference a reader is looking
+     * for is exactly how far the lighter line sits above the darker one. A colour from a different hue would
+     * have said they were different measurements.
+     *
+     * @returns `{ink, opacity, dash}` - everything needed to draw the line AND its swatch.
+     */
+    function lineDress(role) {
+      if (role === 'heldout') return { ink: PRIMARY_INK, opacity: 0.55, dash: null }
+      if (role === 'sealed') return { ink: PRIMARY_INK, opacity: 0.55, dash: '2 3' }
+      if (role === 'corpus') return { ink: null, opacity: 1, dash: null }
+      return { ink: PRIMARY_INK, opacity: 1, dash: null }
+    }
+
+    /**
      * The colour one family line is drawn in, and the reason a legend can name it.
      *
      * **KEYED ON THE CORPUS'S POSITION IN THE SORTED LIST OF THE CORPORA PRESENT**, and not on the order the
@@ -1133,27 +1158,31 @@ window.__ModuleLoader__.load({
      * @returns `[{key, label, ink, unit, points}]` - one entry per line drawn on the left axis.
      */
     function legendEntries(spec, members, index) {
+      // the chip's own line is the TRAINING reading, and it wears the train dress - see `lineDress`
+      const own = lineDress('train')
       const entries = [{
         key: typeof spec.tag === 'string' ? spec.tag : 'primary',
         label: spec.label,
-        ink: PRIMARY_INK,
+        ink: own.ink,
+        opacity: own.opacity,
         // the chart's own line is dashed only when it is a cadence, and the swatch must say the same
-        dash: spec.series !== undefined && isSparseReadings(spec.series.points) ? '2 3' : null,
+        dash: spec.series !== undefined && isSparseReadings(spec.series.points) ? '2 3' : own.dash,
         unit: spec.unit,
         points: spec.series === undefined ? null : spec.series.points.length,
       }]
       for (const member of members) {
+        const dress = lineDress(member.role)
         entries.push({
           key: member.tag,
           label: member.role === 'corpus' ? member.corpus : member.role,
-          ink: familyInk(member, index),
-          // **THE SWATCH WEARS THE LINE'S OWN DRESS, WHICH IS THE SECOND HALF OF THE USER'S REPORT:**
-          // *"in the graph it is actually a dashed line, whereas the legend seems to suggest that it should
-          // be a solid line."* A legend whose swatches all look alike describes lines it cannot tell apart.
-          // The sealed read is the one family line genuinely measured on a cadence - one eval every twelve
-          // legs - so its swatch is dashed and the rest are solid. **The dash is decided by the line's ROLE,
-          // the same test the chart uses, so the two cannot disagree.**
-          dash: member.role === 'sealed' ? '2 3' : null,
+          ink: dress.ink === null ? familyInk(member, index) : dress.ink,
+          opacity: dress.opacity,
+          // **THE SWATCH WEARS THE LINE'S OWN DRESS - ink, weight and dash - WHICH IS BOTH HALVES OF THE
+          // USER'S REPORT.** *"the legend seems to suggest that it should be some blue shade"* while the
+          // line was white, and *"in the graph it is actually a dashed line, whereas the legend seems to
+          // suggest that it should be a solid line."* **The dash is decided by the line's ROLE, the same
+          // call the chart makes, so the two cannot disagree.**
+          dash: dress.dash,
           unit: spec.unit,
           points: member.series.points.length,
         })
@@ -3769,10 +3798,24 @@ window.__ModuleLoader__.load({
               // the legend seems to suggest that it should be a solid line."* **A held-out reading is a
               // measurement that is still current, and dashing it said the opposite.**
               className: member.role === 'sealed' ? CLASS.familyLineSparse : CLASS.familyLine,
-              // THE LINE'S COLOUR, from the same helper the legend uses - see `familyInk`. **Computed from
-              // the payload's own index rather than from a captured one**, because `index` is not in this
-              // scope and reading it here threw `index is not defined` and took four tests with it.
-              style: { stroke: familyInk(member, seriesIndex(payload)) },
+              // THE LINE'S COLOUR AND WEIGHT, from the same helper the legend uses - see `familyInk` and
+              // `lineDress`. **Computed from the payload's own index rather than from a captured one**,
+              // because `index` is not in this scope and reading it here threw `index is not defined` and
+              // took four tests with it. **THE OPACITY RIDES HERE TOO**, so that a register's lighter draw
+              // is a property of the line and not of a CSS class that could drift from the swatch.
+              style: {
+                stroke: familyInk(member, seriesIndex(payload)),
+                opacity: lineDress(member.role).opacity,
+                // **THE DASH IS SET HERE AS WELL AS ON THE CLASS, AND THAT IS NOT BELT-AND-BRACES.**
+                // MEASURED: the sealed line wore the sparse class and drew dashed, while its swatch took the
+                // dash from the legend entry - **two sources for one property, which is the exact fault the
+                // user reported twice.** Reading the LINE alone then said "solid" where the legend said
+                // "dashed", because the dash lived in the stylesheet and nowhere else on the element. One
+                // entry now supplies the dash to the line and the swatch alike, and the class is left as the
+                // fallback for a renderer that drops inline SVG styles.
+                ...(lineDress(member.role).dash === null
+                  ? {} : { strokeDasharray: lineDress(member.role).dash }),
+              },
               clipPath: `url(#${CLIP_ID})`,
               d: polylinePath(drawn, projectX, projectY),
             }))
@@ -4193,6 +4236,11 @@ window.__ModuleLoader__.load({
                 ? {} : { borderTopColor: entry.ink }),
               ...(entry.dash === null || entry.dash === undefined
                 ? {} : { borderTopStyle: 'dashed' }),
+              // **AND THE WEIGHT, or two solid blue swatches describe two lines a reader still cannot tell
+              // apart.** The held-out register is drawn lighter on the chart and its swatch is lighter here
+              // for the same reason.
+              ...(entry.opacity === null || entry.opacity === undefined || entry.opacity === 1
+                ? {} : { opacity: String(entry.opacity) }),
             },
           }),
           // the unit is omitted where it simply repeats the name - see the footer's note
@@ -4879,6 +4927,7 @@ window.__ModuleLoader__.load({
       familyMembers,
       isFamily,
       familyInk,
+      lineDress,
       legendEntries,
       CORPUS_INK,
       isSparseReadings,
