@@ -33,6 +33,7 @@ import {
   hasCommand,
   inject,
   normalizeConfig,
+  normalizeTheme,
   snapshotArgv,
 } from '../index.mjs'
 
@@ -506,4 +507,63 @@ test('state says whether this profile can rebuild at all', async () => {
   assert.equal(answer.body.canRefresh, false,
     'the tab must be able to tell "waiting" apart from "nobody will ever build this"')
   assert.deepEqual(ctx.__spawned, [], 'no subprocess provider, so nothing may be spawned')
+})
+
+// ---------------------------------------------------------------------------
+// The theme mode, which is the host's half of the dark/light/auto contract.
+// ---------------------------------------------------------------------------
+
+test('a theme mode is normalized to auto, dark or light, and never to nothing', () => {
+  // **THE FAILURE THIS PREVENTS IS A PANEL WITH NO PALETTE.** MEASURED, 16 October 2026: every colour
+  // fallback in the client's stylesheet was a DARK value and nothing read a mode at all, so a light desktop
+  // with the host's tokens absent rendered a near-black panel with near-white text on it.
+  //
+  // A mode that arrives misspelled, wrongly cased, padded with spaces, or as a number must land on `auto`
+  // rather than on `undefined`: **`auto` means "the stylesheet's media query decides", which is a working
+  // panel, while `undefined` means the client writes no attribute AND has nothing to fall back to.**
+  assert.equal(normalizeTheme('dark'), 'dark')
+  assert.equal(normalizeTheme('light'), 'light')
+  assert.equal(normalizeTheme('auto'), 'auto')
+  // the forgiving cases
+  assert.equal(normalizeTheme('  DARK  '), 'dark', 'case and padding are not the reader\'s problem')
+  assert.equal(normalizeTheme('Light'), 'light')
+  // and everything that is not a mode
+  for (const bad of [undefined, null, '', 'darkish', 42, {}, [], true]) {
+    assert.equal(normalizeTheme(bad), 'auto',
+      `${JSON.stringify(bad)} is not a mode and must fall back to auto, not to nothing`)
+  }
+})
+
+test('the config carries the theme, and defaults it to auto', () => {
+  assert.equal(normalizeConfig({}).theme, 'auto',
+    'a row that says nothing about the theme gets the system\'s, which is what auto means')
+  assert.equal(normalizeConfig({ theme: 'light' }).theme, 'light')
+  assert.equal(normalizeConfig({ theme: 'nonsense' }).theme, 'auto')
+  // AND THE OTHER KEYS ARE UNTOUCHED, because a theme must not be able to change how a run is read.
+  const c = normalizeConfig({ workspace: '/srv/x', theme: 'light' })
+  assert.equal(c.workspace, '/srv/x')
+  assert.equal(c.refreshSeconds, 30)
+})
+
+test('the state route serves the theme, so the client can wear it', async () => {
+  // **ON THE POLLED ROUTE AND NOT ON `/series`.** A pinned theme has to reach a tab that is already open;
+  // `/series` is fetched only when the revision moves, so a theme served there would not arrive until the
+  // next leg - which is minutes on this run.
+  const ctx = fakeContext()
+  apply(ctx, { workspace: '/workspace', theme: 'light' })
+  // **THE DEFERRED INJECTION HAS TO BE FIRED, OR NO ROUTE EXISTS.** `apply` registers through
+  // `ctx.inject(['webServer'], ...)` on purpose - reading the carrier during `apply` sees `undefined`, and
+  // Cordis resolves an absent injected service leniently, so the plugin loads, the tab opens and every fetch
+  // 404s. The first tests in this file pin that form; a new test has to drive it the same way.
+  ctx.__injected[0].callback(ctx)
+  const answer = await callRoute(ctx, `${ROUTE}/state`)
+  assert.equal(answer.status, 200)
+  assert.equal(answer.body.theme, 'light', 'the state route carries the mode the config named')
+  // AND AN UNCONFIGURED ROW SERVES `auto`, which is the value that leaves the stylesheet's media query in
+  // charge - the client writes no attribute for it. See `themeAttribute`.
+  const plain = fakeContext()
+  apply(plain, { workspace: '/workspace' })
+  plain.__injected[0].callback(plain)
+  const bare = await callRoute(plain, `${ROUTE}/state`)
+  assert.equal(bare.body.theme, 'auto', 'a row that says nothing gets the system theme')
 })

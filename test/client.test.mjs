@@ -1229,9 +1229,11 @@ test('the legend names EVERY line the left axis is carrying', () => {
     + 'corpus by its own name. The metric itself is NOT one of them - it is the chip and the tab title, and '
     + 'repeating it here was the user\'s fifth report')
   // AND EACH CARRIES ITS OWN COLOUR, so the names distinguish lines a reader can actually tell apart. A
-  // legend for four identical grey lines names four lines and identifies none.
+  // legend for four identical grey lines names four lines and identifies none. **The ink is a theme token
+  // now, not a literal** - so the assertion is that every entry HAS one and that they are distinct, which is
+  // the property the legend depends on; the exact hex belongs to the stylesheet, in both themes.
   for (const entry of specs) {
-    assert.ok(typeof entry.ink === 'string' && entry.ink.startsWith('#'),
+    assert.ok(typeof entry.ink === 'string' && entry.ink.length > 0,
       `${entry.label} has no colour, so its swatch cannot match its line: ${entry.ink}`)
   }
   assert.notEqual(specs[1].ink, specs[3].ink, 'the held-out line and a corpus line are different colours')
@@ -1442,6 +1444,60 @@ test('the FAN: another arc is a muted dashed line behind the solid live one', ()
     'the legend names the live line by its role and each arc by its own name')
   assert.equal(entries[1].ink, t.HISTORY_INK, 'and the swatch is the same grey as the line')
   assert.equal(entries[1].dash, '4 4', 'and the same dash')
+})
+
+test('a theme mode is resolved to auto, dark or light, and auto is the ABSENCE of the attribute', () => {
+  // **THE FAILURE THIS PREVENTS IS A PANEL WITH NO PALETTE.** MEASURED, 16 October 2026: every colour fallback
+  // in this client's stylesheet was a DARK value and nothing read a mode, so a light desktop with the host's
+  // tokens absent rendered a near-black panel with near-white text on it.
+  //
+  // **`auto` IS DELIBERATELY `undefined` RATHER THAN THE STRING `'auto'`**, and this is the assertion that
+  // matters most: the stylesheet's base block IS the dark palette and its `prefers-color-scheme: light` block
+  // overrides it, so a panel carrying NO attribute follows the system by construction. **Writing
+  // `data-mode="auto"` would match neither selector and therefore fall through to the base palette**, which
+  // is dark on a light desktop - the exact defect, reintroduced by a well-meaning extra attribute.
+  assert.equal(t.themeMode('dark'), 'dark')
+  assert.equal(t.themeMode('light'), 'light')
+  assert.equal(t.themeMode('auto'), 'auto')
+  assert.equal(t.themeMode('  LIGHT '), 'light')
+  assert.equal(t.themeAttribute('auto'), undefined,
+    'auto must write NO attribute, so the media query decides')
+  assert.equal(t.themeAttribute(undefined), undefined, 'and an absent field is auto')
+  assert.equal(t.themeAttribute('nonsense'), undefined, 'and so is a typo')
+  assert.equal(t.themeAttribute('dark'), 'dark', 'a pinned mode is written out')
+  assert.equal(t.themeAttribute('light'), 'light')
+})
+
+test('the panel wears the mode the host served, and wears nothing when it said auto', () => {
+  // The end of the contract: the mode reaches the panel element, which is the node the stylesheet's
+  // `[data-mode]` selectors and its `prefers-color-scheme` block are both written against.
+  const pinned = t.Panel({ theme: 'light' })
+  assert.equal(pinned.props[t.THEME_ATTRIBUTE], 'light',
+    'a pinned mode must reach the panel, or the reader\'s choice does nothing')
+
+  const auto = t.Panel({ theme: 'auto' })
+  assert.equal(auto.props[t.THEME_ATTRIBUTE], undefined,
+    'auto writes no attribute, which is what leaves the media query in charge')
+
+  // AND AN OLDER HOST THAT SERVES NO THEME FIELD AT ALL IS `auto`, not an error: the field is additive, so a
+  // client newer than its host must still render.
+  const old = t.Panel({})
+  assert.equal(old.props[t.THEME_ATTRIBUTE], undefined,
+    'a host that has never been told a mode means "follow the system"')
+
+  // AND THE STYLESHEET REALLY KEYS ON THAT ATTRIBUTE, in both directions, or the attribute is decoration.
+  for (const mode of ['dark', 'light']) {
+    assert.ok(t.CSS_SOURCE.includes(`[data-mode='${mode}']`),
+      `the sheet must define a palette for data-mode="${mode}", or pinning it does nothing`)
+  }
+  assert.ok(t.CSS_SOURCE.includes('prefers-color-scheme: light'),
+    'and the sheet must follow the system when no mode is pinned')
+  // THE TOKENS THE PANEL'S OWN INKS READ ARE DEFINED, which is what makes a theme reach a line rather than
+  // only the chrome around it.
+  for (const token of ['--dshtd-ink-train', '--dshtd-ink-overlay', '--dshtd-ink-history',
+    '--dshtd-ink-corpus-0']) {
+    assert.ok(t.CSS_SOURCE.includes(`${token}:`), `the sheet must define ${token}`)
+  }
 })
 
 test('the chart never draws a brush the rail was given', () => {  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows
@@ -2994,11 +3050,20 @@ test('a floating value carries its colour itself, so it can never render black',
     'the two rails carry one ink each, and they are the two lines\' colours')
 
   // And the stylesheet still names the same colours, so it cannot drift into a
-  // different palette from the attributes.
-  assert.ok(t.CSS_SOURCE.includes(t.OVERLAY_INK),
-    'the stylesheet must name the same overlay ink the element writes')
-  assert.ok(t.CSS_SOURCE.includes(t.PRIMARY_INK),
-    'and the same primary ink')
+  // different palette from the attributes. **THE MECHANISM CHANGED ON 16 OCTOBER 2026 AND THE INTENT DID
+  // NOT**: the inks are CSS variable REFERENCES now, so the sheet carries the TOKEN rather than the literal
+  // hex - and the hex lives in the sheet twice, once per theme. The assertion therefore follows the
+  // indirection instead of looking for a string the sheet no longer contains, and it checks the token is
+  // actually DEFINED, because a reference to an undefined variable is the white-line defect again.
+  const tokenOf = (ink) => /var\((--[a-z0-9-]+)/.exec(ink)?.[1]
+  for (const [name, ink] of [['overlay', t.OVERLAY_INK], ['primary', t.PRIMARY_INK]]) {
+    const token = tokenOf(ink)
+    assert.ok(token, `${name} ink must be a theme token so both modes can restate it: ${ink}`)
+    assert.ok(t.CSS_SOURCE.includes(`${token}:`),
+      `the stylesheet must DEFINE ${token}, or every line falls back to the browser default`)
+    assert.ok(t.CSS_SOURCE.includes(`var(${token},`),
+      `and the sheet's own rules must read ${token} through the same fallback`)
+  }
 })
 
 test('the two rails cannot meet, however close the two readings are', () => {

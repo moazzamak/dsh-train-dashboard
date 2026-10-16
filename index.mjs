@@ -80,6 +80,9 @@ const DEFAULTS = {
   command: [],
   snapshotPath: 'train-dashboard.snapshot.json',
   arm: '',
+  // `auto` follows the reader's operating system; `dark` and `light` pin the panel to one palette. See
+  // `normalizeConfig` for why this is config rather than a client-side media query.
+  theme: 'auto',
   refreshSeconds: 30,
   timeoutSeconds: 120,
 }
@@ -115,9 +118,33 @@ export function normalizeConfig(raw) {
     command: Array.isArray(config.command) ? config.command.map((word) => String(word)) : [],
     snapshotPath: String(config.snapshotPath ?? DEFAULTS.snapshotPath),
     arm: String(config.arm ?? DEFAULTS.arm),
+    // **THE THEME MODE, AND WHY IT IS CONFIG AND NOT A MEDIA QUERY IN THE CLIENT.**
+    //
+    // `auto` follows the reader's operating system; `dark` and `light` pin it. MEASURED, 16 October 2026:
+    // every colour fallback in the client's stylesheet was a DARK value and nothing read a mode, so a light
+    // desktop with the host's tokens absent got a near-black panel with near-white text on it.
+    //
+    // **THE CLIENT TOUCHES NO DOM** - no `document`, no `matchMedia`, no `documentElement` anywhere in
+    // `client.cjs`, which is a deliberate property: it renders a tree, and a test reads that tree without a
+    // browser. So the mode reaches it as config, the same way `arm` and `snapshotPath` do.
+    //
+    // **AND `auto` IS RESOLVED BY CSS RATHER THAN BY THIS VALUE.** The client writes the mode onto the panel
+    // as `data-mode` ONLY when it is pinned; an absent attribute leaves the stylesheet's
+    // `prefers-color-scheme` block in charge. **That keeps ONE source of truth for "follow the system"**
+    // instead of a JavaScript branch that has to agree with a media query, which is two places that drift.
+    //
+    // Anything unrecognised becomes `auto`: a typo in a row config should leave a reader with the system's
+    // theme, not with a panel that has no palette.
+    theme: normalizeTheme(config.theme),
     refreshSeconds: Number.isFinite(refresh) && refresh > 0 ? refresh : DEFAULTS.refreshSeconds,
     timeoutSeconds: Number.isFinite(timeout) && timeout > 0 ? timeout : DEFAULTS.timeoutSeconds,
   }
+}
+
+/** `auto`, `dark` or `light`; anything else is `auto`. See the note in `normalizeConfig`. */
+export function normalizeTheme(raw) {
+  const word = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  return word === 'dark' || word === 'light' ? word : 'auto'
 }
 
 /**
@@ -408,6 +435,11 @@ function registerRoutes(ctx, config) {
           service: 'train-dashboard',
           workspace: config.workspace,
           snapshotPath: config.snapshotPath,
+          // **THE THEME MODE REACHES THE CLIENT HERE, AND ONLY HERE.** It is served on the small polled route
+          // rather than on `/series`, because `/series` is fetched only when the revision moves: a theme
+          // pinned while the tab sat open would otherwise not arrive until the next leg. See `normalizeConfig`
+          // for why this is config and not a client-side media query.
+          theme: config.theme,
           haveSnapshot: payload !== null,
           // A CODE, not a phrase: the client chooses between "let me build
           // one", "I cannot read what is there" and "nobody configured a

@@ -246,6 +246,102 @@ window.__ModuleLoader__.load({
     const RAIL = { width: 26, height: CHART.height, padLeft: 3, padRight: 3, gap: 6 }
 
     const CSS = `
+/* ==========================================================================
+   THE PLUGIN'S OWN COLOUR TOKENS, AND WHY THEY ARE SCOPED TO THE PANEL.
+
+   MEASURED, 16 October 2026, and this is the defect the block exists for: every fallback in this sheet was
+   a DARK-THEME value - #1d1d1d for a surface, #f0f0f0 for a label, #111 for the deepest layer - and the
+   plugin read no theme mode at all. **A fallback is what a token resolves to WHEN THE HOST DOES NOT DEFINE
+   IT**, and that is not hypothetical here: this session has already watched
+   \`--dsw-alias-brand-primary\` fail to resolve and draw a chart line in the browser's default stroke. In
+   light mode with absent tokens the plugin rendered a near-black panel with near-white text on it: legible
+   by luck in the theme it was written in, and wrong in the other.
+
+   SO EVERY COLOUR THE PLUGIN OWNS IS DECLARED TWICE, and the two declarations are the dark and light values
+   of the same name. \`prefers-color-scheme\` chooses between them, and the panel's \`data-mode\` attribute
+   overrides it - see \`themeMode\` and \`THEME_ATTRIBUTE\`, which let a reader pin the mode rather than
+   following the operating system.
+
+   SCOPED TO \`.\${CLASS.panel}\` AND NOT TO \`:root\`, deliberately: a plugin that writes custom properties onto
+   the document root is writing into a page it does not own. The trigger button is a SEPARATE root - it is
+   mounted into the session header's action row, not into the panel - so it takes its colours from the host's
+   tokens alone and declares none of its own.
+   ========================================================================== */
+.${CLASS.panel} {
+  --dshtd-ink-train: #4d6bfe;
+  --dshtd-ink-overlay: #e5a34d;
+  --dshtd-ink-history: #8a8a8a;
+  --dshtd-ink-corpus-0: #2f9e6f;
+  --dshtd-ink-corpus-1: #a855c8;
+  --dshtd-ink-corpus-2: #c2703a;
+  --dshtd-ink-corpus-3: #3d8fc4;
+  --dshtd-ink-corpus-4: #b03a5b;
+  /* AND THE SURFACES, so a host that defines none of its own still gets a readable panel. */
+  --dshtd-surface: var(--dsw-alias-bg-layer-1, #1d1d1d);
+  --dshtd-surface-raised: var(--dsw-alias-bg-layer-2, #262626);
+  --dshtd-line: var(--dsw-alias-border-l1, #2e2e2e);
+  --dshtd-text: var(--dsw-alias-label-primary, #f0f0f0);
+  --dshtd-text-dim: var(--dsw-alias-label-secondary, #b0b0b0);
+  --dshtd-text-faint: var(--dsw-alias-label-tertiary, #8a8a8a);
+}
+/* THE LIGHT VALUES. The inks are DARKER and more saturated rather than merely different: a #4d6bfe line on
+   a white card is legible, and the SAME hue at the same weight is what keeps the legend swatch matching the
+   line - see \`lineDress\`, which is the one place a line's ink is decided. The corpus palette is re-picked
+   rather than reused for the same reason: #2f9e6f and #a855c8 are tuned against a dark surface and go
+   muddy, not invisible, on a light one, which is the worse failure because it looks deliberate. */
+@media (prefers-color-scheme: light) {
+  .${CLASS.panel} {
+    --dshtd-ink-train: #3355e0;
+    --dshtd-ink-overlay: #b8720f;
+    --dshtd-ink-history: #9a9a9a;
+    --dshtd-ink-corpus-0: #1f7a52;
+    --dshtd-ink-corpus-1: #8a3aa8;
+    --dshtd-ink-corpus-2: #a85a24;
+    --dshtd-ink-corpus-3: #2a6f9e;
+    --dshtd-ink-corpus-4: #93264a;
+    --dshtd-surface: var(--dsw-alias-bg-layer-1, #ffffff);
+    --dshtd-surface-raised: var(--dsw-alias-bg-layer-2, #f5f5f5);
+    --dshtd-line: var(--dsw-alias-border-l1, #d8d8d8);
+    --dshtd-text: var(--dsw-alias-label-primary, #1a1a1a);
+    --dshtd-text-dim: var(--dsw-alias-label-secondary, #4a4a4a);
+    --dshtd-text-faint: var(--dsw-alias-label-tertiary, #6b6b6b);
+  }
+}
+/* AND AN EXPLICIT PIN WINS OVER THE OPERATING SYSTEM, in both directions. A reader who asks for dark on a
+   light desktop must get dark, which is why these come AFTER the media query and carry the same specificity
+   on a more specific selector. */
+.${CLASS.panel}[data-mode='dark'] {
+  --dshtd-ink-train: #4d6bfe;
+  --dshtd-ink-overlay: #e5a34d;
+  --dshtd-ink-history: #8a8a8a;
+  --dshtd-ink-corpus-0: #2f9e6f;
+  --dshtd-ink-corpus-1: #a855c8;
+  --dshtd-ink-corpus-2: #c2703a;
+  --dshtd-ink-corpus-3: #3d8fc4;
+  --dshtd-ink-corpus-4: #b03a5b;
+  --dshtd-surface: var(--dsw-alias-bg-layer-1, #1d1d1d);
+  --dshtd-surface-raised: var(--dsw-alias-bg-layer-2, #262626);
+  --dshtd-line: var(--dsw-alias-border-l1, #2e2e2e);
+  --dshtd-text: var(--dsw-alias-label-primary, #f0f0f0);
+  --dshtd-text-dim: var(--dsw-alias-label-secondary, #b0b0b0);
+  --dshtd-text-faint: var(--dsw-alias-label-tertiary, #8a8a8a);
+}
+.${CLASS.panel}[data-mode='light'] {
+  --dshtd-ink-train: #3355e0;
+  --dshtd-ink-overlay: #b8720f;
+  --dshtd-ink-history: #9a9a9a;
+  --dshtd-ink-corpus-0: #1f7a52;
+  --dshtd-ink-corpus-1: #8a3aa8;
+  --dshtd-ink-corpus-2: #a85a24;
+  --dshtd-ink-corpus-3: #2a6f9e;
+  --dshtd-ink-corpus-4: #93264a;
+  --dshtd-surface: var(--dsw-alias-bg-layer-1, #ffffff);
+  --dshtd-surface-raised: var(--dsw-alias-bg-layer-2, #f5f5f5);
+  --dshtd-line: var(--dsw-alias-border-l1, #d8d8d8);
+  --dshtd-text: var(--dsw-alias-label-primary, #1a1a1a);
+  --dshtd-text-dim: var(--dsw-alias-label-secondary, #4a4a4a);
+  --dshtd-text-faint: var(--dsw-alias-label-tertiary, #6b6b6b);
+}
 /* The trigger is one entry in the session header's action row, beside the
    shipped jobs and subagent controls, so its metrics are theirs: a borderless
    transparent button of at least 28px, tertiary label colour at rest and
@@ -441,7 +537,7 @@ window.__ModuleLoader__.load({
   display: flex; flex-direction: column; gap: 4px; padding: 4px 0 0 12px;
   border-left: 1px solid var(--dsw-alias-border-l2, #3a3a3a);
 }
-.${CLASS.line} { fill: none; stroke: var(--dsw-alias-brand-primary, #4d6bfe); stroke-width: 1.6; stroke-linejoin: round; }
+.${CLASS.line} { fill: none; stroke: var(--dshtd-ink-train, #4d6bfe); stroke-width: 1.6; stroke-linejoin: round; }
 /* THE CHAIN A ROLLBACK THREW AWAY. The values are real and they are on the same
    leg axis, so they stay on the chart - dimmed and dashed, which is what a ghost
    is - and the live chain starts where the controller rewound to. The axis is
@@ -454,14 +550,14 @@ window.__ModuleLoader__.load({
    simply be ghosted out so the latest run can appear distinct" (the user, 10
    October 2026). A ghost has to be visible enough to be recognised as one. */
 .${CLASS.ghostLine} {
-  fill: none; stroke: var(--dsw-alias-brand-primary, #4d6bfe); stroke-width: 1.4;
+  fill: none; stroke: var(--dshtd-ink-train, #4d6bfe); stroke-width: 1.4;
   stroke-dasharray: 5 3; opacity: 0.5; stroke-linejoin: round;
 }
 .${CLASS.ghostOverlay} {
-  fill: none; stroke: var(--dshtd-overlay, #e5a34d); stroke-width: 1.3;
+  fill: none; stroke: var(--dshtd-ink-overlay, #e5a34d); stroke-width: 1.3;
   stroke-dasharray: 5 3; opacity: 0.5; stroke-linejoin: round;
 }
-.${CLASS.ghostSwatch} { stroke: var(--dshtd-ghost-ink, #8a8a8a); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.${CLASS.ghostSwatch} { stroke: var(--dshtd-ink-history, #8a8a8a); stroke-width: 1.4; stroke-dasharray: 5 3; }
 /* **A FAMILY LINE: THE HELD-OUT READING, THE SEALED READING OR A CORPUS'S OWN.**
    MEASURED 16 October 2026, the user: *"for the other series ... in the graph it is actually a dashed line,
    whereas the legend seems to suggest that it should be a solid line."* **The family lines were drawn with
@@ -481,7 +577,7 @@ window.__ModuleLoader__.load({
 .${CLASS.familyLineSparse} {
   fill: none; stroke-width: 1.4; stroke-linejoin: round; opacity: 0.85; stroke-dasharray: 2 3;
 }
-.${CLASS.dot} { fill: var(--dsw-alias-brand-primary, #4d6bfe); }
+.${CLASS.dot} { fill: var(--dshtd-ink-train, #4d6bfe); }
 /* A SERIES TAKEN ON A CADENCE RATHER THAN EVERY LEG: the sealed read is one eval of the saved
    checkpoint every twelve legs, so the segments between its readings are interpolation and not
    measurement. Same ink and same weight as the line it is - it is the same series, and only the
@@ -489,7 +585,7 @@ window.__ModuleLoader__.load({
    is 2 3 against the ghost's 5 3, and the two never appear on one chart: a ghost is a chain a
    rollback threw away, which is a series that WAS sampled every leg and is now history. */
 .${CLASS.readingsLine} {
-  fill: none; stroke: var(--dsw-alias-brand-primary, #4d6bfe); stroke-width: 1.6;
+  fill: none; stroke: var(--dshtd-ink-train, #4d6bfe); stroke-width: 1.6;
   stroke-dasharray: 2 3; stroke-linejoin: round;
 }
 /* THE SECOND LINE, AND WHY IT IS DRESSED DIFFERENTLY. It is drawn on the SAME
@@ -500,19 +596,19 @@ window.__ModuleLoader__.load({
    it, its unit and which side of the frame its scale is on. The colour is a
    SECOND channel and never the only one - the dash pattern and the legend
    carry the same fact. */
-.${CLASS.overlayLine} { fill: none; stroke: var(--dshtd-overlay, #e5a34d); stroke-width: 1.3; stroke-dasharray: 5 3; stroke-linejoin: round; }
-.${CLASS.overlayDot} { fill: var(--dshtd-overlay, #e5a34d); }
-.${CLASS.overlayGridline} { stroke: var(--dshtd-overlay, #e5a34d); stroke-width: 1; opacity: 0.22; }
-.${CLASS.overlayAxis} { fill: var(--dshtd-overlay, #e5a34d); font-size: 9px; }
+.${CLASS.overlayLine} { fill: none; stroke: var(--dshtd-ink-overlay, #e5a34d); stroke-width: 1.3; stroke-dasharray: 5 3; stroke-linejoin: round; }
+.${CLASS.overlayDot} { fill: var(--dshtd-ink-overlay, #e5a34d); }
+.${CLASS.overlayGridline} { stroke: var(--dshtd-ink-overlay, #e5a34d); stroke-width: 1; opacity: 0.22; }
+.${CLASS.overlayAxis} { fill: var(--dshtd-ink-overlay, #e5a34d); font-size: 9px; }
 .${CLASS.overlaySwatch} {
   display: inline-block; width: 14px; height: 0; flex: none;
-  border-top: 2px dashed var(--dshtd-overlay, #e5a34d);
+  border-top: 2px dashed var(--dshtd-ink-overlay, #e5a34d);
 }
 /* The first line's key in the legend: a solid rule in the brand colour, the
    counterpart of the overlay's dashed one, so the pair reads as a pair. */
 .${CLASS.legendSwatch} {
   display: inline-block; width: 14px; height: 0; flex: none;
-  border-top: 2px solid var(--dsw-alias-brand-primary, #4d6bfe);
+  border-top: 2px solid var(--dshtd-ink-train, #4d6bfe);
 }
 .${CLASS.overlayLegend} { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 10px; }
 /* THE CURRENT VALUE OF EACH LINE, IN THE LEFT MARGIN. Written in its own line's
@@ -523,8 +619,8 @@ window.__ModuleLoader__.load({
    BLACK and a reader saw exactly that when these first shipped: a fill that lives
    only in this sheet is a fill that is absent whenever the sheet is not applied. */
 .${CLASS.currentValue} { font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.${CLASS.currentPrimary} { fill: var(--dsw-alias-brand-primary, #4d6bfe); }
-.${CLASS.currentOverlay} { fill: var(--dshtd-overlay, #e5a34d); }
+.${CLASS.currentPrimary} { fill: var(--dshtd-ink-train, #4d6bfe); }
+.${CLASS.currentOverlay} { fill: var(--dshtd-ink-overlay, #e5a34d); }
 .${CLASS.hint} { color: var(--dsw-alias-label-caption, #8a8a8a); font-size: 10px; }
 /* The reader's own switch for the marker categories. A real button with a
    label, so the categories are reachable by keyboard and by touch, and the
@@ -1109,13 +1205,63 @@ window.__ModuleLoader__.load({
     //: corpus"*, AND FIVE IS THE NUMBER OF PHASES THIS RUN HAS.** They are distinct from the metric inks -
     //: blue for the reading, amber for the overlay - and from the grey of a line the history switch has
     //: taken off, so no two lines on one chart can be confused for each other.
-    const CORPUS_INK = ['#2f9e6f', '#a855c8', '#c2703a', '#3d8fc4', '#b03a5b']
+    //: **THE LINE INKS ARE CSS VARIABLE REFERENCES, NOT HEX LITERALS, AND THAT IS WHAT MAKES THEM THEME
+    //: AWARE.** MEASURED, 16 October 2026: these were chosen against a dark card and written as literals,
+    //: so on a light one a `#2f9e6f` corpus line went muddy rather than legible - **a worse failure than an
+    //: invisible line, because it looks deliberate.** The value now lives in the stylesheet twice, once per
+    //: theme (see the panel's token block; `[data-mode]` pins it and `prefers-color-scheme` follows the
+    //: system), and everything that drew a line, a dot, a swatch or a value label reads it from there.
+    //:
+    //: **THE FALLBACK IS THE DARK VALUE AND IT IS NOT DECORATION.** A renderer with no stylesheet - which is
+    //: what the test environment is - resolves nothing, and a `stroke` of `var(--x)` with no fallback is an
+    //: invalid paint, which is the white-line defect this file already carries a note about. Every reference
+    //: below therefore names the dark value as its own fallback, so the worst case is the theme the plugin
+    //: was designed in rather than no colour at all.
+    const CORPUS_INK = [
+      'var(--dshtd-ink-corpus-0, #2f9e6f)',
+      'var(--dshtd-ink-corpus-1, #a855c8)',
+      'var(--dshtd-ink-corpus-2, #c2703a)',
+      'var(--dshtd-ink-corpus-3, #3d8fc4)',
+      'var(--dshtd-ink-corpus-4, #b03a5b)',
+    ]
 
     //: **THE DRESS OF A LINE THAT IS NOT FROM THE LIVE ARC.** Grey, faint and dashed, because a fan is read
     //: by following the one line that is still going. **These are the values a reader must be able to see
     //: THROUGH**, unlike the live arc's own registers, which are lightened but still in their metric's
     //: colour - see `lineDress`, where the distinction is stated once.
-    const HISTORY_INK = '#8a8a8a'
+    const HISTORY_INK = 'var(--dshtd-ink-history, #8a8a8a)'
+
+    //: The panel's attribute the stylesheet keys its two palettes on.
+    const THEME_ATTRIBUTE = 'data-mode'
+
+    /**
+     * **WHICH PALETTE THE PANEL WEARS: `auto`, `dark` or `light`.**
+     *
+     * `auto` IS THE DEFAULT AND IT MEANS THE OPERATING SYSTEM'S PREFERENCE, not the host's tokens - because
+     * the tokens are what the plugin reads when they exist, and this is what it does when they do not, which
+     * is the whole case this block exists for. MEASURED, 16 October 2026: every fallback in the sheet was a
+     * dark-theme value and nothing read a mode, so a light desktop with absent tokens got a near-black panel
+     * with near-white text on it.
+     *
+     * **`auto` IS DELIBERATELY THE ABSENCE OF THE ATTRIBUTE.** The stylesheet's base block IS the dark
+     * palette and its `prefers-color-scheme: light` block overrides it, so a panel carrying no attribute
+     * follows the system by construction - and the attribute is written only when a reader PINS a mode.
+     * **That keeps ONE source of truth for "follow the system"**: a mode string of `auto` handled in
+     * JavaScript would be a second place that has to agree with the media query, and two places drift.
+     *
+     * @param raw - whatever the host's config carried: any case, any surrounding space.
+     * @returns `'auto'`, `'dark'` or `'light'`. Anything unrecognised is `auto`, because **a typo in a config
+     *   row should leave a reader with the system's theme rather than with no palette at all.**
+     */
+    function themeMode(raw) {
+      const word = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+      return word === 'dark' || word === 'light' ? word : 'auto'
+    }
+
+    /** The `data-mode` value for a mode, or `undefined` so React writes no attribute at all. */
+    function themeAttribute(mode) {
+      return themeMode(mode) === 'auto' ? undefined : themeMode(mode)
+    }
 
     /**
      * **THE DRESS OF ONE LINE: ITS INK, ITS OPACITY AND WHETHER IT IS DASHED.**
@@ -2955,8 +3101,8 @@ window.__ModuleLoader__.load({
      * These are the fallbacks the stylesheet itself names, so the two cannot
      * drift apart into different colours.
      */
-    const OVERLAY_INK = '#e5a34d'
-    const PRIMARY_INK = '#4d6bfe'
+    const OVERLAY_INK = 'var(--dshtd-ink-overlay, #e5a34d)'
+    const PRIMARY_INK = 'var(--dshtd-ink-train, #4d6bfe)'
 
     /**
      * How far below the data's own minimum a log axis puts its floor, as a
@@ -4655,7 +4801,7 @@ window.__ModuleLoader__.load({
      * The panel: polls the small state route, fetches the series only when the
      * revision moves, and keeps showing the last good payload throughout.
      */
-    function Panel({ sessionId } = {}) {
+    function Panel({ sessionId, theme } = {}) {
       const [state, setState] = React.useState(null)
       const [payload, setPayload] = React.useState(null)
       // The reader's choice is restored rather than defaulted, because this
@@ -4925,7 +5071,17 @@ window.__ModuleLoader__.load({
         ? React.createElement('div', { className: CLASS.empty }, 'No series to draw yet.')
         : React.createElement(React.Fragment, null, kpis, chips, chart)
 
-      return React.createElement('div', { className: CLASS.panel },
+      // **THE MODE COMES FROM THE HOST'S STATE ROUTE, AND IT IS `auto` WHEN THE FIELD IS ABSENT** - which is
+      // what an older host serves, and what a host that has never been told a mode should mean. `auto` writes
+      // NO attribute, so the stylesheet's `prefers-color-scheme` block decides; see `themeMode`.
+      //
+      // **THE `theme` PROP WINS WHEN IT IS GIVEN**, because the host is what knows the mode it was configured
+      // with and the state field is a convenience for it. A caller that passes neither - which is every
+      // existing mount - gets `auto`, so nothing that was working changes behaviour.
+      return React.createElement('div', {
+        className: CLASS.panel,
+        [THEME_ATTRIBUTE]: themeAttribute(theme ?? state?.theme),
+      },
         head, notice, stale, body,
         React.createElement('div', { className: CLASS.footnote },
           state?.snapshotPath ? `reading ${state.snapshotPath}` : 'reading the configured snapshot'))
@@ -5040,6 +5196,9 @@ window.__ModuleLoader__.load({
       legendEntries,
       CORPUS_INK,
       HISTORY_INK,
+      themeMode,
+      themeAttribute,
+      THEME_ATTRIBUTE,
       isSparseReadings,
       SPARSE_COVERAGE,
       isTraceTag,
