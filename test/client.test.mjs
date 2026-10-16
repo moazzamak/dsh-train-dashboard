@@ -1107,6 +1107,63 @@ test('a family chart keeps the params line on its OWN right axis', () => {
     'the right axis must name itself, so a reader knows the params line is not on the bpb scale')
 })
 
+test('the bpb chip carries the train, held-out AND sealed readings on ONE graph', () => {
+  // **THE USER'S CORRECTION, 16 October 2026: *"I asked specifically to combine the train + sealed/heldout
+  // into a single graph for each metric."*** They had asked for it once, and the first pass left
+  // `held-out bpb` and `sealed bpb` as chips BESIDE `train bpb` - so the ONE graph the request was about was
+  // still THREE graphs. This test is written against that failure.
+  //
+  // MEASURED against the live snapshot: `sealed/bpb` carries 9 points against the training series' 24,
+  // because the sealed read runs on a cadence and not every leg. **A shorter line across the same axis is the
+  // honest picture of a quantity measured every twelfth leg**, and the chart already dashes a series taken on
+  // a cadence.
+  const index = t.seriesIndex({
+    series: [
+      { tag: 'train/bpb', points: [[1, 2.9], [2, 2.7]] },
+      { tag: 'train/heldout_bpb', points: [[1, 2.6], [2, 2.5]] },
+      { tag: 'sealed/bpb', points: [[12, 2.44], [24, 2.31]] },
+      { tag: 'phase/wiki_en/heldout_bpb', points: [[1, 2.6], [2, 2.5]] },
+    ],
+  })
+  const members = t.familyMembers('train/bpb', index)
+  assert.deepEqual(members.map((m) => m.tag),
+    ['train/bpb', 'train/heldout_bpb', 'sealed/bpb', 'phase/wiki_en/heldout_bpb'],
+    'the train, held-out, sealed and corpus readings are ONE graph, which is what was asked for')
+  assert.deepEqual(members.map((m) => m.role), ['train', 'heldout', 'sealed', 'corpus'],
+    'and each line says which register it is')
+})
+
+test('a held-out or sealed reading is NOT led as a chip of its own', () => {
+  // **THE OTHER HALF OF THE SAME CORRECTION.** Putting the series on the bpb chart is not enough if the
+  // header still leads with them as separate chips - the reader then sees the same quantity twice under two
+  // names, which is the shape of the defect this file was just fixed for. They stay REACHABLE, one click
+  // away, because a reader may still want one alone.
+  const payload = {
+    series: [
+      { tag: 'train/bpb', points: [[1, 2.9]] },
+      { tag: 'train/heldout_bpb', points: [[1, 2.6]] },
+      { tag: 'sealed/bpb', points: [[12, 2.44]] },
+      { tag: 'train/gnorm', points: [[1, 0.4]] },
+    ],
+  }
+  const { primary, more } = t.splitOffered(t.availableSeries(payload))
+  const leads = primary.map((item) => item.tag)
+  assert.ok(leads.includes('train/bpb'), 'the bpb graph leads')
+  assert.ok(leads.includes('train/gnorm'), 'a one-line metric leads')
+  assert.ok(!leads.includes('train/heldout_bpb'),
+    `the held-out reading is a LINE on the bpb chart, not a chip beside it: ${leads}`)
+  assert.ok(!leads.includes('sealed/bpb'),
+    `the sealed reading is a LINE on the bpb chart, not a chip beside it: ${leads}`)
+  // AND THEY ARE NOT DELETED. A reader who wants one of them alone can still reach it, and it carries a
+  // NAME rather than a raw tag - a raw tag in the header is the defect this was all fixed for.
+  const behind = more.map((item) => item.tag)
+  assert.ok(behind.includes('train/heldout_bpb'), 'the held-out reading stays reachable')
+  assert.ok(behind.includes('sealed/bpb'), 'the sealed reading stays reachable')
+  const sealed = more.find((item) => item.tag === 'sealed/bpb')
+  assert.ok(!/^sealed\//.test(sealed.label),
+    `a family-only series must still carry a readable label, got: ${sealed.label}`)
+})
+
 test('the chart never draws a brush the rail was given', () => {  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows
   // a horizontal indication in the graph. It should show it vertically or not at all."
   //

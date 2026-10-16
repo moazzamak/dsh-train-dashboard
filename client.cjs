@@ -711,9 +711,19 @@ window.__ModuleLoader__.load({
       { tag: 'train/read_layers', label: 'read layers', unit: '', digits: 0 },
       { tag: 'memory/vram_peak_gib', label: 'VRAM peak', unit: 'GiB', digits: 2 },
       { tag: 'train/vocab_size', label: 'vocab_size', unit: '', digits: 0 },
-      // ---- the held-out reading, and the sealed surface's own numbers -------------------------
-      { tag: 'train/heldout_bpb', label: 'held-out bpb', unit: 'bpb', digits: 4 },
-      { tag: 'sealed/bpb', label: 'sealed bpb', unit: 'bpb', digits: 4 },
+      // ---- AND THE FAMILY-ONLY SERIES, WHICH MUST NAME THEMSELVES BUT MUST NOT LEAD --------------
+      //
+      // **THE USER'S SECOND CORRECTION, 16 October 2026: *"I asked specifically to combine the train +
+      // sealed/heldout into a single graph for each metric."*** They had asked for it once, and the first
+      // pass left `held-out bpb` and `sealed bpb` as chips BESIDE `train bpb` - **so the one graph the
+      // request was about was still three graphs.** These tags are still series the host serves and they
+      // must still have a NAME (a raw tag as a label is the defect this file was just fixed for), but
+      // **`familyOnly: true` keeps them BEHIND THE DISCLOSURE**: they belong on the bpb chart, and they are
+      // one click away for a reader who wants one of them alone.
+      { tag: 'train/heldout_bpb', label: 'held-out bpb (on the bpb chart)', unit: 'bpb', digits: 4,
+        familyOnly: true },
+      { tag: 'sealed/bpb', label: 'sealed bpb (on the bpb chart)', unit: 'bpb', digits: 4,
+        familyOnly: true },
       { tag: 'eval/exam_accuracy', label: 'exam accuracy', unit: '', digits: 4 },
       // ---- AND THE LEGACY PAIR, WHICH IS AN ALIAS CHAIN AND NOT DEAD CODE ---------------------
       //
@@ -935,7 +945,11 @@ window.__ModuleLoader__.load({
       for (const spec of INTERESTING) {
         if (suppressed.has(spec.tag)) continue
         if (index.has(spec.tag)) {
-          offered.push({ ...spec, primary: true, series: index.get(spec.tag) })
+          // **`familyOnly` KEEPS A SERIES OFF THE LEADS WITHOUT MAKING IT UNREACHABLE.** A held-out or
+          // sealed reading is a LINE on its metric's chart now, so leading with it as well would put the
+          // same quantity on screen twice under two names - which is the shape of the defect the header was
+          // just fixed for. It stays one click away instead, because a reader may still want it alone.
+          offered.push({ ...spec, primary: spec.familyOnly !== true, series: index.get(spec.tag) })
           known.add(spec.tag)
         }
       }
@@ -1004,10 +1018,29 @@ window.__ModuleLoader__.load({
         members.push({ tag, role: 'train', series: own })
       }
       // the leg-end held-out reading, when the family has one
+      //
+      // **BOTH `train/heldout_<stem>` AND THE PLAIN `train/<stem>` ARE TRIED FOR `bpb`, because the two
+      // registers are named differently by the producer and BOTH belong on this chart.** MEASURED: the
+      // snapshot carries `train/heldout_bpb` (the leg's own validation read) and `train/bpb` (the training
+      // read), and the user asked for those two to be ONE graph: *"combine the train + sealed/heldout into a
+      // single graph for each metric."* For `ppl` the held-out twin is `phase/<corpus>/heldout_ppl`, which
+      // the corpus loop below finds; a `train/heldout_ppl` would be found here if the producer ever writes
+      // one.
       const held = `train/heldout_${stem}`
       const heldItem = index.get(held)
       if (heldItem !== undefined && heldItem.points.length > 0) {
         members.push({ tag: held, role: 'heldout', series: heldItem })
+      }
+      // **AND THE SEALED READ, WHICH IS A THIRD REGISTER OF THE SAME METRIC AND NOT A SECOND CHART.**
+      // MEASURED: `sealed/bpb` carries 9 points against the training series' 24, because the sealed read
+      // runs on a cadence rather than every leg - so it draws as a shorter line across the same axis, which
+      // is exactly the user's *"sealed/heldout ... in a single graph."* **It is deliberately allowed to be
+      // SPARSE**: a line of nine real readings is the honest picture of a quantity measured every twelfth
+      // leg, and the chart already dashes a series taken on a cadence (`isSparseReadings`).
+      const sealed = `sealed/${stem}`
+      const sealedItem = index.get(sealed)
+      if (sealedItem !== undefined && sealedItem.points.length > 0) {
+        members.push({ tag: sealed, role: 'sealed', series: sealedItem })
       }
       // AND ONE LINE PER CORPUS, colour-coded by corpus.
       //
