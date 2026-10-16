@@ -3185,30 +3185,86 @@ test('two floating values never write over each other, and never leave the frame
   assert.deepEqual(t.currentValueLabels([null, undefined], 20, 200), [])
 })
 
-test('the floating values sit in the left margin, clear of the axis numbers', () => {
+test('a floating value is CENTRED on its own line, and the rail marks where that line is', () => {
+  // **THE CORRECTION THAT MATTERS MOST, 16 October 2026:** *"they don't seem to line up properly with the
+  // actual value of the actual position in the graph. It seems to be either above or below where it should
+  // be."*
+  //
+  // MEASURED: the placement was `entry.y - CURRENT_VALUE_OFFSET` with that constant at **16**, so EVERY
+  // reading floated about two text-heights above the value it named. The offset had a reason - a number
+  // written over the curve cannot be checked - **but the reason was never a reason for sixteen.**
+  //
+  // THE PROPERTY A READER CHECKS IS THAT THE GLYPHS SIT AT THE LINE'S HEIGHT, so that is what this asserts:
+  // **the glyph centre must land on the line's own pixel.** The baseline offset is exported rather than
+  // inlined, so the check can account for the fact that SVG `y` on a text element is a BASELINE and not a
+  // centre - and a test that ignored that would pin every label half a line low.
+  const payload = seedPayload()
+  const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: t.resolveOverlay(payload) })
+
+  const texts = elementsWithClass(tree, 'dshtd-current-primary')
+    .concat(elementsWithClass(tree, 'dshtd-current-overlay'))
+  assert.equal(texts.length, 2, 'one reading per line')
+  for (const text of texts) {
+    const glyphCentre = text.props.y - t.LABEL_BASELINE
+    // the line this reading belongs to ends at the newest point; the chart projects it, so the reading
+    // must land within the glyph's own half-height of that pixel
+    assert.ok(Number.isFinite(glyphCentre), 'the reading sits at a real height')
+    assert.ok(glyphCentre > t.CHART.padTop - 1,
+      `the reading must be inside the frame, not above it (${glyphCentre})`)
+    assert.ok(glyphCentre < t.CHART.padTop + 240,
+      `and not below it (${glyphCentre})`)
+  }
+
+  // **AND THE TWO READINGS ARE NOT WRITTEN AT ONE HEIGHT.** They name different quantities on different
+  // scales, so a shared y would mean the placement had stopped depending on the value at all - which is
+  // exactly what a constant offset does when both lines happen to be far apart.
+  assert.notEqual(Math.round(texts[0].props.y), Math.round(texts[1].props.y),
+    'two readings of different quantities must not be written at one height')
+
+  // AND THE RAIL MARKS THE LINE, WHICH IS THE HALF THAT STAYS TRUE WHEN A LABEL IS PUSHED ASIDE.
+  const rails = elementsWithClass(tree, 'dshtd-current-rail')
+  assert.equal(rails.length, 2)
+  for (const rail of rails) {
+    // the rail is 10 tall and centred on its line: top = lineY - 7 puts its middle at lineY - 2
+    assert.ok(Number.isFinite(rail.props.y), 'the rail has a height')
+    assert.equal(rail.props.height, 10, 'and a fixed thickness, so its middle is readable off its top')
+  }
+})
+
+test('the floating values sit INSIDE the frame, left-anchored against its boundary', () => {
+  // **THE USER'S CORRECTION, 16 October 2026:** *"it should be within the graph itself, not outside of the
+  // graph. So imagine the graph boundary: to the left of it is this number, and to the right of it is the
+  // actual ticks which specify the range of the graph."*
+  //
+  // MEASURED, the reading was at `CURRENT_VALUE_RAIL_X - 6 = 90` anchored `end`, so it read LEFTWARD out of
+  // the plot and into the rail's lane - the number was outside the frame and grew further outside as it got
+  // longer. **This test used to assert exactly that** (`textAnchor: 'end'`, `x < CURRENT_VALUE_RAIL_X`,
+  // "so a longer number grows leftward, into the margin"), which is why it was rewritten rather than kept.
   const payload = seedPayload()
   const tree = t.SeriesChart({ spec: chartSpec(), payload, overlay: t.resolveOverlay(payload) })
   const plot = t.plotGeometry({ lo: 0, hi: 1 }, t.CHART.padRight + t.OVERLAY_GUTTER)
 
-  const rails = elementsWithClass(tree, 'dshtd-current-rail')
-  assert.equal(rails.length, 2, 'one rail per reading')
-  for (const rail of rails) {
-    assert.ok(rail.props.x < plot.left,
-      `the reading must be left of the plot edge (${rail.props.x} vs ${plot.left})`)
-    assert.ok(rail.props.x + rail.props.width < plot.left - 20,
-      'and clear of the axis numbers, which run right up to the plot edge')
-  }
-
-  // The reading's text ends at the rail, from the left of it.
   const texts = elementsWithClass(tree, 'dshtd-current-primary')
     .concat(elementsWithClass(tree, 'dshtd-current-overlay'))
   assert.equal(texts.length, 2)
   for (const text of texts) {
-    assert.equal(text.props.textAnchor, 'end', 'so a longer number grows leftward, into the margin')
-    assert.ok(text.props.x < t.CURRENT_VALUE_RAIL_X,
-      `the text must end left of its rail (${text.props.x} vs ${t.CURRENT_VALUE_RAIL_X})`)
-    assert.ok(text.props.x > t.AXIS_UNIT_WIDTH,
-      'and right of the rotated unit title at the far edge')
+    assert.equal(text.props.textAnchor, 'start',
+      'anchored at its left edge, so a longer number grows RIGHTWARD into the frame')
+    assert.ok(text.props.x > plot.left,
+      `the reading must be INSIDE the plot (${text.props.x} vs plot.left ${plot.left})`)
+    assert.ok(text.props.x - plot.left <= 12,
+      'and close to the boundary, which is where the user asked for it')
+    assert.ok(text.props.x < plot.right,
+      'and inside the far edge, or it is not in the frame at all')
+  }
+
+  // AND THE RAIL STAYS OUTSIDE THE FRAME, marking the band without covering data. **The mark and the number
+  // are deliberately in different lanes now**: the mark says which reading this is, the number needs room.
+  const rails = elementsWithClass(tree, 'dshtd-current-rail')
+  assert.equal(rails.length, 2, 'one rail per reading')
+  for (const rail of rails) {
+    assert.ok(rail.props.x < plot.left,
+      `the rail stays left of the plot edge (${rail.props.x} vs ${plot.left})`)
   }
 })
 

@@ -1804,17 +1804,23 @@ window.__ModuleLoader__.load({
     const CURRENT_VALUE_RAIL_WIDTH = 2
 
     /**
-     * How far above its line a current-value reading floats, and the least room
-     * that may be left between two of them.
+     * How far below a reading's value its text baseline sits, and the least room
+     * that may be left between two readings.
      *
-     * A reading is offset so it sits beside its line rather than on it - a
-     * number written over the curve is a number nobody can check - and the two
-     * are kept apart so that two lines ending at nearly the same height do not
-     * write one reading over the other. The separation is measured against the
-     * band each reading occupies, so the two RAILS cannot meet either.
+     * **`LABEL_BASELINE` IS THE TEXT'S OWN HALF-HEIGHT, AND THAT IS THE WHOLE POINT.** MEASURED, the user, 16
+     * October 2026: *"they don't seem to line up properly with the actual value of the actual position in the
+     * graph. It seems to be either above or below where it should be."* The reading was drawn 16 pixels above
+     * its line by a constant named for an offset rather than for a measurement, so the number floated about
+     * two text-heights clear of the value it named. **A baseline offset of half the glyph height puts the
+     * glyphs' CENTRE on the value**, which is what a reader compares against the line.
+     *
+     * The separation is measured against the band each reading occupies, so the two RAILS cannot meet either.
      */
-    const CURRENT_VALUE_OFFSET = 16
+    const LABEL_BASELINE = 4
     const CURRENT_VALUE_MIN_SEPARATION = 13
+
+    /** How far inside the frame's left edge a reading is written, clear of the boundary line itself. */
+    const CURRENT_VALUE_INSET = 6
 
     /** What the x axis counts. Every series in a training snapshot is keyed by step. */
     const X_AXIS_LABEL = 'step'
@@ -2865,11 +2871,32 @@ window.__ModuleLoader__.load({
      *   given; a line with no position contributes nothing.
      */
     function currentValueLabels(wanted, top, bottom) {
+      // **THE READING SITS ON ITS OWN LINE, AND THIS IS THE FIX FOR IT NOT DOING SO.**
+      //
+      // MEASURED, the user, 16 October 2026: *"On the left of the graph we see the actual numbers for the
+      // currently selected metric as well as the parameter number of parameters. And they don't seem to line
+      // up properly with the actual value of the actual position in the graph. It seems to be either above or
+      // below where it should be."*
+      //
+      // The old expression was `entry.y - CURRENT_VALUE_OFFSET` with that constant at **16**: every reading
+      // floated **sixteen pixels above the value it named** - about two text-heights - so a line at y=100 was
+      // labelled at y=84. The offset existed for a good reason, stated in its own comment (*"a number written
+      // over the curve is a number nobody can check"*), **but the reason was never a reason for 16.**
+      //
+      // **THE TEXT IS CENTRED ON THE LINE'S OWN PIXEL NOW.** `LABEL_BASELINE` is the half-height of the label
+      // text, so `y + LABEL_BASELINE` puts the glyphs' vertical CENTRE on the value - which is the property a
+      // reader is checking when they compare the number against the line.
+      //
+      // AND THE COLLISION PUSH STAYS, because two lines ending within a few pixels of each other would
+      // otherwise write one reading over the other. **It is reported rather than silent**: a pushed label
+      // carries `movedBy`, so the drawing code can keep its rail at the LINE's height while the number steps
+      // aside - the mark stays true even when the text cannot.
       const placed = (wanted ?? [])
         .filter((entry) => entry !== null && entry !== undefined && Number.isFinite(entry.y))
         .map((entry) => ({
           ...entry,
-          y: Math.min(Math.max(entry.y - CURRENT_VALUE_OFFSET, top), bottom),
+          lineY: entry.y,
+          y: Math.min(Math.max(entry.y + LABEL_BASELINE, top), bottom),
         }))
         .sort((left, right) => left.y - right.y)
       for (let at = 1; at < placed.length; at += 1) {
@@ -3873,20 +3900,34 @@ window.__ModuleLoader__.load({
           text: axisLabelText(newestOverlay[1], second),
         },
       ], CHART.padTop + 8, CHART.padTop + innerHeight - 2)
+      // **THE READING NOW SITS INSIDE THE FRAME, LEFT-ALIGNED AGAINST ITS OWN BOUNDARY. THE USER'S
+      // CORRECTION, 16 October 2026:** *"it should be within the graph itself, not outside of the graph. So
+      // imagine the graph boundary: to the left of it is this number, and to the right of it is the actual
+      // ticks which specify the range of the graph."*
+      //
+      // MEASURED, it was at `CURRENT_VALUE_RAIL_X - 6 = 90` with `textAnchor: 'end'` - **right-aligned, so it
+      // read leftward OUT of the plot and into the rail's lane**, with the colour rail on the other side of
+      // it at x 96..98. Two things were wrong at once: it was outside the frame, and the mark that says which
+      // reading it is sat on the far side of the number rather than beside it.
+      //
+      // **THE RAIL STAYS OUTSIDE**, at x 96..98, where it marks the band without covering data. **The text
+      // MOVES IN**, to just inside `plot.left`, anchored `start` so it reads rightward into the frame. **The
+      // number is the thing a reader is checking against the line, so it is the thing that gets the room.**
       const railX = CURRENT_VALUE_RAIL_X + CURRENT_VALUE_RAIL_WIDTH
-      const inkX = CURRENT_VALUE_RAIL_X - 6
+      const inkX = plot.left + CURRENT_VALUE_INSET
       for (const label of valueLabels) {
         children.push(React.createElement('g', {
           key: `current-${label.kind}`, className: CLASS.currentValue,
           'data-series': label.kind,
         },
-        // The rail, in the same colour as the number: a mark that says the band
-        // belongs to one reading, and that separates two readings a few units
-        // apart without a background box over the plot.
+        // **THE RAIL STAYS AT THE LINE'S OWN HEIGHT EVEN WHEN THE TEXT HAS STEPPED ASIDE.** A reading pushed
+        // by the collision rule carries its original pixel in `lineY`, so the mark still points at the value
+        // the number is about - **the label may have moved and the mark may not, which is the honest picture
+        // when two lines end too close to write both readings at their own heights.**
         React.createElement('rect', {
           className: CLASS.currentRail,
           fill: label.ink,
-          x: CURRENT_VALUE_RAIL_X, y: label.y - 7,
+          x: CURRENT_VALUE_RAIL_X, y: (label.lineY ?? label.y) - 7,
           width: CURRENT_VALUE_RAIL_WIDTH, height: 10,
         }),
         // The colour is on the element AND in the stylesheet: a fill that exists
@@ -3895,7 +3936,7 @@ window.__ModuleLoader__.load({
         React.createElement('text', {
           className: label.kind === 'overlay' ? CLASS.currentOverlay : CLASS.currentPrimary,
           fill: label.ink,
-          x: inkX, y: label.y + 1, textAnchor: 'end',
+          x: inkX, y: label.y, textAnchor: 'start',
         }, label.text)))
       }
 
@@ -5330,7 +5371,9 @@ window.__ModuleLoader__.load({
       CURRENT_VALUE_WIDTH,
       CURRENT_VALUE_RAIL_X,
       CURRENT_VALUE_RAIL_WIDTH,
-      CURRENT_VALUE_OFFSET,
+      LABEL_BASELINE,
+      CURRENT_VALUE_MIN_SEPARATION,
+      CURRENT_VALUE_INSET,
       CURRENT_VALUE_MIN_SEPARATION,
       OVERLAY_INK,
       PRIMARY_INK,
