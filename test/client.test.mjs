@@ -1070,6 +1070,43 @@ test('a run that was never rolled back still gets the history switch, because it
   'a metric with one line and no rollback has nothing to switch, so it must offer no switch')
 })
 
+test('a family chart keeps the params line on its OWN right axis', () => {
+  // **THE SECOND HALF OF THE USER'S DESIGN, VERIFIED RATHER THAN ASSUMED.** They asked for *"right axis:
+  // params + grayed out historical runs"* beside the family on the left. The overlay machinery already
+  // existed - `resolveOverlay` walks `OVERLAY_TAGS` independently of which chip is selected - so this test
+  // exists to prove the family work did not displace it, not to build it.
+  //
+  // IT IS THE COMBINATION THAT COULD BREAK: the family adds lines to the LEFT axis and widens its extent,
+  // and an overlay scaled to the wrong chain would draw params against the corpus lines' range instead of
+  // its own.
+  const points = [[1, 2.9], [2, 2.7], [3, 2.6]]
+  const payload = {
+    series: [
+      { tag: 'train/bpb', points },
+      { tag: 'train/heldout_bpb', points: [[1, 2.6], [2, 2.5], [3, 2.4]] },
+      { tag: 'phase/wiki_en/heldout_bpb', points: [[4, 2.3], [5, 2.2]] },
+      { tag: 'train/seed_model_params', points: [[1, 1.2e6], [2, 1.3e6], [3, 1.4e6]] },
+    ],
+  }
+  const tree = t.SeriesChart({
+    spec: { tag: 'train/bpb', label: 'train bpb', digits: 4, unit: 'bpb',
+      series: { tag: 'train/bpb', points } },
+    payload,
+    overlay: t.resolveOverlay(payload),
+  })
+
+  // the family is drawn
+  assert.ok(elementsWithClass(tree, 'dshtd-ghost-line').length >= 2,
+    'the family lines must still be drawn beside an overlay')
+  // AND THE OVERLAY AXIS IS THERE, named as the right axis
+  const overlayAxes = elementsWithClass(tree, 'dshtd-overlay-axis')
+  assert.ok(overlayAxes.length > 0,
+    'the params line must keep its own axis when the left axis is carrying a family')
+  const named = JSON.stringify(tree)
+  assert.match(named, /RIGHT axis/,
+    'the right axis must name itself, so a reader knows the params line is not on the bpb scale')
+})
+
 test('the chart never draws a brush the rail was given', () => {  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows
   // a horizontal indication in the graph. It should show it vertically or not at all."
   //
