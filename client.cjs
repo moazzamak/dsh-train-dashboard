@@ -4096,19 +4096,49 @@ window.__ModuleLoader__.load({
       // readable only if the frame says so, and the axis labels alone cannot:
       // they carry numbers, not names. So the legend names both series, both
       // units, and the side of the frame each one's scale sits on.
-      const legend = second === null ? null : React.createElement('div', {
-        className: CLASS.overlayLegend,
-      },
-      React.createElement('span', { className: CLASS.legendItem },
-        React.createElement('span', {
-          className: CLASS.legendSwatch, 'data-series': 'primary',
-        }),
-        `${spec.label} (${spec.unit || 'no unit'}) · LEFT axis`),
-      React.createElement('span', { className: CLASS.legendItem },
-        React.createElement('span', { className: CLASS.overlaySwatch }),
-        `${second.label} (${second.unit || 'no unit'}) · RIGHT axis`),
-      React.createElement('span', { className: CLASS.hint },
-        'the two lines carry different units and are drawn on different scales'))
+      //
+      // **AND IT NAMES EVERY LINE ON THE LEFT AXIS, NOT ONLY THE CHIP'S OWN. THE USER'S FIRST REPORT OF
+      // 16 OCTOBER 2026, AND THEY HAD TO MAKE IT TWICE.**
+      //
+      // *"The legend shows only bpb(bpb) for the left axis. it should show all series present for the left
+      // axis."* **The first fix went into the OTHER legend** - the one at the foot of the chart, which shows
+      // point counts - **and this one still read `${spec.label} (${spec.unit}) · LEFT axis`**, so the user
+      // saw `bpb (bpb) · LEFT axis` and reported it again. **THERE WERE TWO LEGENDS AND I FIXED ONE.**
+      //
+      // THIS IS NOW THE SINGLE LEGEND: one entry per left-axis line, each in its own line's colour, then the
+      // right-axis entry. The footer copy that repeated the left-axis names is gone, so the chart says each
+      // name once and in one place - which is also what makes `bpb (bpb)` impossible to reintroduce, because
+      // the entries come from `legendEntries` rather than from a template string written here.
+      const legendIndex = payload === null || payload === undefined ? new Map() : seriesIndex(payload)
+      const legendLeft = legendEntries(spec, family, legendIndex)
+      // **AND IT IS DRAWN ONLY WHEN THERE IS SOMETHING TO NAME.** MEASURED: this test file asserts that a
+      // snapshot with no seed size draws no overlay legend - *"an axis with no numbers on it is furniture,
+      // not information"* - and that reasoning holds here too. **A chart with one line and no overlay has
+      // nothing for a legend to distinguish**, so the block is skipped rather than drawn with one entry.
+      const hasRight = second !== null
+      const legend = (!hasRight && legendLeft.length < 2) ? null
+        : React.createElement('div', { className: CLASS.overlayLegend },
+          ...legendLeft.map((entry) => React.createElement('span', {
+            key: `legend-${entry.key}`, className: CLASS.legendItem, 'data-series': entry.key,
+          },
+          React.createElement('span', {
+            className: CLASS.legendSwatch,
+            style: entry.ink === null || entry.ink === undefined
+              ? undefined
+              : { borderTopColor: entry.ink },
+          }),
+          // the unit is omitted where it simply repeats the name - see the footer's note
+          (entry.unit && entry.unit !== entry.label ? `${entry.label} (${entry.unit})` : entry.label)
+          + ' · LEFT axis')),
+          hasRight
+            ? React.createElement('span', { className: CLASS.legendItem },
+              React.createElement('span', { className: CLASS.overlaySwatch }),
+              `${second.label} (${second.unit || 'no unit'}) · RIGHT axis`)
+            : null,
+          hasRight
+            ? React.createElement('span', { className: CLASS.hint },
+              'the two axes carry different units and are drawn on different scales')
+            : null)
 
       return React.createElement(React.Fragment, null,
         windowRow,
@@ -4632,41 +4662,15 @@ window.__ModuleLoader__.load({
             onToggleKind: toggleKind,
             onToggleOlder: toggleOlder,
           }),
-          // **AND THE LEGEND NAMES EVERY LINE ON THE LEFT AXIS, WHICH IS THE USER'S FIRST REPORT.**
-          //
-          // *"The legend shows only bpb(bpb) for the left axis. it should show all series present for the
-          // left axis."* This rendered `activeSpec` alone - one entry, and it showed the label TWICE, once
-          // as the name and once as the unit, which is the `bpb(bpb)` they saw. **A chart drawing four lines
-          // and naming one of them is a chart with three anonymous curves on it.**
-          //
-          // The entries come from `legendEntries`, which is a pure function of the spec, the family and the
-          // payload's index - **so what the legend names and what the chart draws cannot drift apart**, which
-          // is the failure mode this whole change exists to close.
+          // **AND THE FOOTER NO LONGER REPEATS THE CHART'S LEGEND.** It carried a second copy of the left-axis
+          // names, added when the chart's own legend was thought to be the only place they could live. **Two
+          // legends naming the same lines is how `bpb (bpb)` survived a fix: the user reported it once, the
+          // fix went into this copy, and the OTHER copy still said it.** What is left here is the one fact
+          // the chart's legend does not carry - where the numbers came from - and nothing else.
           React.createElement('div', { className: CLASS.legend },
-            ...(() => {
-              const index = seriesIndex(payload)
-              const members = familyMembers(activeSpec.tag, index)
-                .filter((member) => member.tag !== activeSpec.tag)
-              return legendEntries(activeSpec, members, index).map((entry) =>
-                React.createElement('span', {
-                  key: `legend-${entry.key}`, className: CLASS.legendItem,
-                  'data-series': entry.key,
-                },
-                React.createElement('span', {
-                  className: CLASS.legendSwatch,
-                  style: entry.ink === null || entry.ink === undefined
-                    ? undefined
-                    : { borderTopColor: entry.ink },
-                }),
-                // **THE UNIT IS OMITTED WHEN IT REPEATS THE NAME.** The user's own words for the old legend
-                // were *"bpb(bpb)"* - the label and the unit were the same string, so the entry said the
-                // metric's name twice and nothing else. `bpb (bpb)` is still that shape, so the unit is
-                // dropped where it adds nothing: **a legend should not spend its width restating itself.**
-                (entry.unit && entry.unit !== entry.label
-                  ? `${entry.label} (${entry.unit})`
-                  : entry.label)
-                + (entry.points === null ? '' : ` · ${entry.points} points`)))
-            })()))
+            React.createElement('span', { className: CLASS.legendItem },
+              `${activeSpec.series.points.length} points`
+              + (activeSpec.series.source ? ` · ${activeSpec.series.source}` : ''))))
 
       const notice = failure !== null
         ? React.createElement('div', { className: CLASS.notice },

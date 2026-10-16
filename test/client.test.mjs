@@ -1257,6 +1257,51 @@ test('a corpus keeps its colour when the payload reorders its series', () => {
     'and two corpora must not share one colour')
 })
 
+test('the chart names EVERY left-axis line in the one legend that says LEFT axis', () => {
+  // **THE USER HAD TO REPORT THIS TWICE, AND THE REASON IS THE POINT OF THIS TEST.**
+  //
+  // 16 October 2026, first: *"The legend shows only bpb(bpb) for the left axis. it should show all series
+  // present for the left axis."* The first fix went into the FOOTER legend - the one showing point counts -
+  // and the chart's own legend, the one that prints `· LEFT axis`, still read
+  // `${spec.label} (${spec.unit}) · LEFT axis`. **The user saw `bpb (bpb) · LEFT axis` and reported it again.
+  // THERE WERE TWO LEGENDS AND I FIXED ONE.**
+  //
+  // So this test asserts on the legend that carries the axis label, which is the one a reader reads, and it
+  // asserts the footer does NOT repeat the names - because a second copy is exactly how the bug survived its
+  // first fix.
+  const points = [[1, 1.90], [2, 1.80]]
+  const payload = {
+    series: [
+      { tag: 'train/bpb', points },
+      { tag: 'train/heldout_bpb', points: [[1, 2.60], [2, 2.40]] },
+      { tag: 'sealed/bpb', points: [[12, 2.44]] },
+      { tag: 'phase/wiki_en/heldout_bpb', points: [[1, 2.60], [2, 2.40]] },
+    ],
+  }
+  const tree = t.SeriesChart({
+    spec: { tag: 'train/bpb', label: 'bpb', digits: 3, unit: 'bpb',
+      series: { tag: 'train/bpb', points } },
+    payload,
+  })
+
+  const legendText = elementsWithClass(tree, 'dshtd-overlay-legend')
+    .flatMap((node) => textOf(node).split(' · ').length > 0 ? [textOf(node)] : [])
+  const leftAxis = legendText.filter((line) => line.includes('LEFT axis')).join(' | ')
+
+  assert.match(leftAxis, /bpb · LEFT axis/, `the metric must be named, got: ${leftAxis}`)
+  assert.match(leftAxis, /heldout.*LEFT axis/, `the held-out line must be named, got: ${leftAxis}`)
+  assert.match(leftAxis, /sealed.*LEFT axis/, `the sealed line must be named, got: ${leftAxis}`)
+  assert.match(leftAxis, /wiki_en.*LEFT axis/, `the corpus line must be named, got: ${leftAxis}`)
+  // AND NOT `bpb (bpb)`, which is the literal string the user objected to - the unit repeating the name.
+  assert.ok(!/bpb \(bpb\)/.test(leftAxis),
+    `the unit must not restate the name, got: ${leftAxis}`)
+
+  // AND THE FOOTER DOES NOT NAME THEM AGAIN. Two legends naming the same lines is how the first fix missed.
+  const footer = elementsWithClass(tree, 'dshtd-legend').map((node) => textOf(node)).join(' | ')
+  assert.ok(!/LEFT axis/.test(footer),
+    `the footer must not repeat the chart's legend, got: ${footer}`)
+})
+
 test('the chart never draws a brush the rail was given', () => {  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows
   // a horizontal indication in the graph. It should show it vertically or not at all."
   //
