@@ -962,6 +962,68 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * **THE LINES THAT BELONG TO ONE METRIC, WHICH IS WHAT MAKES A CHIP A FAMILY.**
+     *
+     * The user's design, 16 October 2026: *"each metric's graph will have the following lines at the same
+     * time - left axis: train and held out metric (color coded to metric) + grayed out historical runs +
+     * corpus/metric (e.g phase/wiki_en/bpb) in the timeslot where that value was present (color coded to
+     * corpus); right axis: params + grayed out historical runs."*
+     *
+     * **THE ONE-AXIS RULE IS NOT BROKEN BY THIS, AND THAT IS THE POINT OF THE FUNCTION'S SHAPE.** The
+     * client's own note (lines 17-21) says one series is drawn at a time because *"accuracy, counts - and
+     * drawing them on one axis would invite exactly the comparison the axis cannot support."* **Every member
+     * returned here is the SAME QUANTITY measured a different way or over a different slice** - the training
+     * batch, the held-out surface, and each corpus's own held-out surface for the legs that trained it. **A
+     * family can never mix `bpb` with `ppl`, because the members are found by suffix and the metric is the
+     * suffix.** That is the whole safety argument, and it is why this is a pure function of the tag and the
+     * index rather than a table somebody maintains.
+     *
+     * THE `role` SAYS WHICH LINE IT IS, so the chart can colour it and the reader can tell them apart:
+     *
+     *   `train`    - the metric's own training reading, and the chip's whole series when it is the only one
+     *   `heldout`  - the leg-end held-out reading (`train/heldout_bpb`)
+     *   `corpus`   - one corpus's own held-out reading (`phase/<corpus>/heldout_bpb`), which exists only for
+     *                the legs that trained that corpus - hence the user's *"in the timeslot where that value
+     *                was present"*
+     *
+     * **THE MEMBERS ARE ABSENT FOR A FAMILY THAT HAS ONLY ITSELF, and that is deliberate**: a chip with one
+     * line must draw exactly what it drew before, so this change cannot move a single-series chart.
+     */
+    function familyMembers(tag, index) {
+      const members = []
+      const stem = tag.startsWith('train/') ? tag.slice('train/'.length) : tag
+      // the chip's own series first, so the primary line is the one the reader selected
+      const own = index.get(tag)
+      if (own !== undefined && own.points.length > 0) {
+        members.push({ tag, role: 'train', series: own })
+      }
+      // the leg-end held-out reading, when the family has one
+      const held = `train/heldout_${stem}`
+      const heldItem = index.get(held)
+      if (heldItem !== undefined && heldItem.points.length > 0) {
+        members.push({ tag: held, role: 'heldout', series: heldItem })
+      }
+      // AND ONE LINE PER CORPUS, colour-coded by corpus. The tag shape is `phase/<corpus>/<name>`, and the
+      // name must END with the stem so `heldout_ppl_log` cannot join the `ppl` family as a second opinion on
+      // the same reading: it is the same points on a log axis, and the client's own history records that
+      // charting that family three times produced *"three near-identical, sentence-long chips."*
+      for (const [otherTag, item] of index) {
+        const match = /^phase\/([^/]+)\/(.+)$/.exec(otherTag)
+        if (match === null) continue
+        const [, corpus, name] = match
+        if (name !== `heldout_${stem}`) continue
+        if (item.points.length === 0) continue
+        members.push({ tag: otherTag, role: 'corpus', corpus, series: item })
+      }
+      return members
+    }
+
+    /** Whether a member set is more than the chip's own line - the test for "this is a family". */
+    function isFamily(members) {
+      return Array.isArray(members) && members.length > 1
+    }
+
+    /**
      * Whether the disclosure must be open regardless of what the reader clicked.
      *
      * A remembered choice can live among the hidden series, because the series a
@@ -4475,6 +4537,8 @@ window.__ModuleLoader__.load({
       seriesIndex,
       availableSeries,
       chipSeriesLabel,
+      familyMembers,
+      isFamily,
       isSparseReadings,
       SPARSE_COVERAGE,
       isTraceTag,

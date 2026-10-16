@@ -413,6 +413,91 @@ test('no chip names a tag the producer does not write', () => {
     'the eight families must be offered in the order the user gave')
 })
 
+// ---------------------------------------------------------------------------
+// The metric FAMILY: the lines one chip's graph carries at the same time.
+// ---------------------------------------------------------------------------
+
+test('a metric family gathers the train, held-out and per-corpus lines of ONE metric', () => {
+  // THE USER'S DESIGN, 16 October 2026: *"each metric's graph will have the following lines at the same
+  // time - left axis: train and held out metric + grayed out historical runs + corpus/metric (e.g
+  // phase/wiki_en/bpb) in the timeslot where that value was present."*
+  const index = t.seriesIndex({
+    series: [
+      { tag: 'train/bpb', points: [[1, 2.9], [2, 2.7]] },
+      { tag: 'train/heldout_bpb', points: [[1, 2.6], [2, 2.5]] },
+      { tag: 'phase/wiki_en/heldout_bpb', points: [[1, 2.6], [2, 2.5]] },
+      { tag: 'phase/arxiv/heldout_bpb', points: [[3, 2.2]] },
+    ],
+  })
+  const members = t.familyMembers('train/bpb', index)
+  assert.deepEqual(members.map((m) => m.tag),
+    ['train/bpb', 'train/heldout_bpb', 'phase/wiki_en/heldout_bpb', 'phase/arxiv/heldout_bpb'],
+    'the family is the training reading, the held-out reading, and one line per corpus')
+  assert.deepEqual(members.map((m) => m.role), ['train', 'heldout', 'corpus', 'corpus'],
+    'each line must say which line it is, so the chart can colour it and the reader can tell them apart')
+  assert.deepEqual(members.filter((m) => m.role === 'corpus').map((m) => m.corpus),
+    ['wiki_en', 'arxiv'], 'a corpus line carries its corpus, which is what the colour is keyed on')
+  assert.ok(t.isFamily(members), 'four lines is a family')
+})
+
+test('a family can never mix two metrics, because the metric IS the suffix', () => {
+  // **THE SAFETY ARGUMENT FOR PUTTING SEVERAL LINES ON ONE AXIS.** The client's own note (lines 17-21) says
+  // one series is drawn at a time because *"accuracy, counts - and drawing them on one axis would invite
+  // exactly the comparison the axis cannot support."* A family is admissible ONLY because every member is
+  // the same quantity measured a different way. This asserts the mechanism that guarantees it: membership
+  // is found by matching the stem, so `heldout_ppl` can never join the `bpb` family.
+  const index = t.seriesIndex({
+    series: [
+      { tag: 'train/bpb', points: [[1, 2.9]] },
+      { tag: 'train/heldout_bpb', points: [[1, 2.6]] },
+      { tag: 'train/heldout_ppl', points: [[1, 200]] },
+      { tag: 'train/ppl', points: [[1, 300]] },
+      { tag: 'phase/wiki_en/heldout_ppl', points: [[1, 250]] },
+      { tag: 'phase/wiki_en/heldout_bpb', points: [[1, 2.6]] },
+    ],
+  })
+  const bpb = t.familyMembers('train/bpb', index).map((m) => m.tag)
+  assert.ok(!bpb.includes('train/ppl'), `ppl must never join a bpb family: ${bpb}`)
+  assert.ok(!bpb.includes('train/heldout_ppl'), `held-out ppl must never join a bpb family: ${bpb}`)
+  assert.ok(!bpb.includes('phase/wiki_en/heldout_ppl'), `a corpus ppl must never join a bpb family: ${bpb}`)
+  assert.ok(bpb.includes('phase/wiki_en/heldout_bpb'), 'the corpus BPB line does belong')
+})
+
+test('a metric with only its own line is NOT a family, so a single-series chart cannot move', () => {
+  // THE REGRESSION GUARD FOR THE CHANGE ITSELF. Most families have one line - `gnorm`, `read_layers`,
+  // `vocab_size` have no held-out reading and no corpus reading. If this returned a one-member family the
+  // chart would take the family path for every chip and a single-series chart could shift under a reader who
+  // changed nothing.
+  const index = t.seriesIndex({
+    series: [
+      { tag: 'train/gnorm', points: [[1, 0.4]] },
+      { tag: 'phase/wiki_en/heldout_bpb', points: [[1, 2.6]] },
+    ],
+  })
+  const members = t.familyMembers('train/gnorm', index)
+  assert.deepEqual(members.map((m) => m.tag), ['train/gnorm'],
+    'gnorm has no held-out and no corpus line, so it is one line')
+  assert.ok(!t.isFamily(members), 'one line is not a family, and the chart must take the old path for it')
+})
+
+test('the family does not annex the log-axis copy of its own perplexity', () => {
+  // MEASURED, and it is in this file's history: the producer once charted the sealed ppl as three series -
+  // the bpb, a perplexity derived from it, and that perplexity's log copy - and the client's note records
+  // the result: *"three near-identical, sentence-long chips."* `phase/wiki_en/heldout_ppl_log` is THE SAME
+  // POINTS on a log axis, so it must not appear as a second line on the ppl chart.
+  const index = t.seriesIndex({
+    series: [
+      { tag: 'train/ppl', points: [[1, 300]] },
+      { tag: 'phase/wiki_en/heldout_ppl', points: [[1, 250]] },
+      { tag: 'phase/wiki_en/heldout_ppl_log', points: [[1, 2.39794]] },
+    ],
+  })
+  const members = t.familyMembers('train/ppl', index).map((m) => m.tag)
+  assert.ok(members.includes('phase/wiki_en/heldout_ppl'), 'the ppl line belongs')
+  assert.ok(!members.includes('phase/wiki_en/heldout_ppl_log'),
+    `the log copy is the same points on another axis and must not join the family: ${members}`)
+})
+
 test('the curve\'s bpb is not offered beside the leg-end reading of the same chart', () => {
   // Measured on the live snapshot: the curve carries 688 readings over legs
   // 1..689 and the leg reading 730 over 1..731, IDENTICAL on all 688 shared legs.
