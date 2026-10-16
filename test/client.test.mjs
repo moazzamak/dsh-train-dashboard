@@ -346,13 +346,18 @@ test('seriesIndex drops points that are not numbers', () => {
   assert.deepEqual(index.get('a').points, [[1, 1.0], [3, 3.0]])
 })
 
-test('the tab leads with the metric families the producer actually writes', () => {
-  // **THE VOCABULARY WAS RECONCILED ON 16 OCTOBER 2026, AND THIS TEST IS WHAT SAID SO.** It used to be
-  // written against `train/bpb_legval` and `train/bpb_sealed` - the producer's two SOURCES for the held-out
-  // curve - and the producer emits NEITHER; it writes `train/bpb`. **Five of the seven named chips in
-  // `INTERESTING` were unreachable, and every other series fell through to the raw tag**, which is why the
-  // header showed strings like `phase/wiki_en/heldout_ppl_log`. The fixture now carries what the live
-  // snapshot carries, so this test fails the moment the plugin and the producer drift apart again.
+test('the header offers the eight metrics and NOTHING else, whatever the producer writes', () => {
+  // **THE USER'S INSTRUCTION, TWICE STATED, AND THIS TEST IS ITS ENFORCEMENT.**
+  //
+  // 16 October 2026: *"I only want the following chips/tabs in the dashboard. everything else needs to be
+  // removed. bpb, ppl, wall_seconds, units/s, gnorm, read layers, VRAM peak, vocab_size."*
+  //
+  // **THE FIXTURE CARRIES SERIES THE HEADER MUST IGNORE, because that is the failure this guards.** The
+  // FIRST attempt at this fixed the `INTERESTING` list and left `availableSeries` walking every series the
+  // host serves, offering each one the list had not named, labelled by its raw tag - **so removing an entry
+  // from the list did not remove its chip; it moved the chip behind the disclosure and stripped its name.**
+  // `something/else`, a vram trace and a break-copy series are all in this fixture for that reason, and none
+  // of them may reach the header by ANY route.
   const offered = t.availableSeries({
     series: [
       { tag: 'train/bpb', points: [[1, 2.1]] },
@@ -361,23 +366,32 @@ test('the tab leads with the metric families the producer actually writes', () =
       { tag: 'vram_trace/step_0001_gib', points: [[1, 4.1]] },
       { tag: 'train/bpb_sealed_post_break', points: [[1, 2.1]] },
       { tag: 'something/else', points: [[1, 1]] },
+      { tag: 'eval/exam_accuracy', points: [[1, 0.5]] },
+      { tag: 'train/seed_read_rows', points: [[1, 100]] },
     ],
   })
   const { primary, more } = t.splitOffered(offered)
-  const leads = primary.map((item) => item.tag)
 
-  // THE ORDER IS THE USER'S, and `wall_seconds` is third in it - so it LEADS now where it used to be one
-  // click away. That is the intended change; the old expectation is recorded here rather than deleted.
-  assert.deepEqual(
-    leads,
+  assert.deepEqual(primary.map((item) => item.tag),
     ['train/bpb', 'train/wall_seconds', 'memory/vram_peak_gib'],
-    'the families the producer writes lead, in the order the user gave')
-  assert.ok(more.some((item) => item.tag === 'something/else'),
-    'an unknown tag must still be reachable, behind the disclosure rather than gone')
-  assert.ok(!offered.some((item) => item.tag === 'vram_trace/step_0001_gib'),
-    'per-step traces are one step each and would flood the chips')
-  assert.ok(!offered.some((item) => item.tag === 'train/bpb_sealed_post_break'),
-    'the pre/post split series are reachable through the break marker, not the chips')
+    'only the metrics the user named, in the order the user gave')
+  assert.equal(more.length, 0,
+    `there is no disclosure any more: everything not named is removed, got ${more.map((i) => i.tag)}`)
+  for (const gone of ['something/else', 'vram_trace/step_0001_gib', 'train/bpb_sealed_post_break',
+    'eval/exam_accuracy', 'train/seed_read_rows']) {
+    assert.ok(!offered.some((item) => item.tag === gone),
+      `${gone} is not one of the eight metrics and must not reach the header at all`)
+  }
+})
+
+test('every one of the eight is offered when the producer writes it, in the user\'s order', () => {
+  // The positive half: the full set, in order. Written against the live snapshot's own tag names.
+  const tags = ['train/bpb', 'train/ppl', 'train/wall_seconds', 'train/units_per_second',
+    'train/gnorm', 'train/read_layers', 'memory/vram_peak_gib', 'train/vocab_size']
+  const offered = t.availableSeries({ series: tags.map((tag) => ({ tag, points: [[1, 1.0]] })) })
+  assert.deepEqual(offered.map((item) => item.tag), tags,
+    'the eight families, in the order the user gave')
+  assert.ok(offered.every((item) => item.primary === true), 'and all eight lead, with no disclosure')
 })
 
 test('no chip names a tag the producer does not write', () => {
@@ -498,55 +512,46 @@ test('the family does not annex the log-axis copy of its own perplexity', () => 
     `the log copy is the same points on another axis and must not join the family: ${members}`)
 })
 
-test('the curve\'s bpb is not offered beside the leg-end reading of the same chart', () => {
-  // Measured on the live snapshot: the curve carries 688 readings over legs
-  // 1..689 and the leg reading 730 over 1..731, IDENTICAL on all 688 shared legs.
-  // It stops at the phase boundary and the leg reading keeps going, so offering
-  // both puts a truncated duplicate of one curve in the chips.
-  const both = t.availableSeries({
+test('the legacy bpb tags reach the chart through the FAMILY, never as chips', () => {
+  // This test used to assert that `train/bpb_legval` was OFFERED as a chip and `train/bpb_sealed` was
+  // suppressed behind it - the alias chain the producer needed while it moved names twice. **The user has
+  // since asked for the header to hold eight metrics and nothing else, so neither tag gets a chip now.**
+  //
+  // **WHAT MATTERS IS THAT THE SERIES IS STILL REACHABLE, AND THE FAMILY IS HOW.** A snapshot serving only
+  // the legacy names still draws a bpb chart - `familyMembers` matches on the stem, so `train/bpb_legval`
+  // resolves to the stem `bpb_legval` and finds its own held-out twin. The test is rewritten rather than
+  // deleted because the behaviour it protected - "a reader must not lose a curve because a producer moved a
+  // name" - is still a requirement; only the mechanism changed.
+  const legacyOnly = t.availableSeries({
     series: [
       { tag: 'train/bpb_sealed', points: [[1, 2.1], [689, 2.09]] },
       { tag: 'train/bpb_legval', points: [[1, 2.1], [731, 2.41]] },
     ],
   })
-  assert.deepEqual(both.map((item) => item.tag), ['train/bpb_legval'],
-    'the truncated copy must not be offered beside the reading that continues past it')
+  assert.deepEqual(legacyOnly.map((item) => item.tag), [],
+    'neither legacy name is one of the eight metrics, so neither may reach the header')
 
-  // A producer that writes only the curve still gets a bpb chip.
-  const alone = t.availableSeries({ series: [{ tag: 'train/bpb_sealed', points: [[1, 2.1]] }] })
-  assert.deepEqual(alone.map((item) => item.tag), ['train/bpb_sealed'],
-    'the curve is the only held-out reading some snapshots have, so it cannot be dropped outright')
-})
-
-test('the held-out reading comes from the best source present, and the label says which', () => {
-  const payload = {
-    series: [
-      { tag: 'train/bpb_sealed', points: [[689, 2.093]] },
-      { tag: 'train/bpb_legval', points: [[731, 2.409]] },
-    ],
-  }
-  const reading = t.headlineReading(payload)
-  assert.equal(reading.tag, 'train/bpb_legval')
+  // AND THE SERIES IS NOT LOST: it is the headline reading, so the tab still reports a bpb for a snapshot
+  // that serves only the old names.
+  const reading = t.headlineReading({
+    series: [{ tag: 'train/bpb_legval', points: [[731, 2.409]] }],
+  })
+  assert.equal(reading.tag, 'train/bpb_legval', 'the legacy held-out reading is still readable')
   assert.deepEqual(reading.point, [731, 2.409])
-  assert.equal(t.seriesLabel(reading.tag), 'leg-val bpb',
-    'the header must name the series it read, so it cannot be mistaken for the other one')
-
-  const curveOnly = t.headlineReading({ series: [{ tag: 'train/bpb_sealed', points: [[689, 2.093]] }] })
-  assert.equal(curveOnly.tag, 'train/bpb_sealed', 'the curve is the fallback source, not a second reading')
-  assert.equal(t.headlineReading({ series: [] }), null)
-  assert.equal(t.seriesLabel(null), 'held-out bpb', 'the header still needs a name when there is no reading')
 })
 
-test('the headline resolves the RENAMED bpb tags, which is what a current producer serves', () => {
-  // THE GAP THIS CLOSES, and it shipped: the two tests above use `train/bpb_sealed`
-  // and `train/bpb_legval`, which is what the producer emitted UNTIL 11 OCTOBER 2026.
-  // It renamed both that day - `bpb_sealed` was a misnomer, since the SEALED read is
-  // a different instrument with its own stores - and now writes `train/bpb` and
-  // `train/heldout_bpb`. Every test here still passed, because they exercised the
-  // legacy spelling, while on the live run `headlineReading` returned null and the
-  // KPI row's first two tiles - leg and held-out bpb - rendered an em dash beside
-  // four tiles that filled normally. Only a snapshot carrying the CURRENT names can
-  // catch that, so this is a snapshot carrying the current names.
+test('the headline reads the series its own chart draws, and resolves every spelling', () => {
+  // **THE TWO TESTS THIS REPLACES HAD ALREADY SHIPPED ONE DEFECT BETWEEN THEM.** They exercised only
+  // `train/bpb_sealed` and `train/bpb_legval` - the producer's names until 11 October 2026 - and passed
+  // while the live run's `headlineReading` returned null, because the producer had renamed both that day and
+  // now writes `train/bpb` and `train/heldout_bpb`. **The KPI row's first two tiles rendered an em dash
+  // beside four that filled normally.** Only a snapshot carrying the CURRENT names catches that, so this
+  // test carries them.
+  //
+  // AND IT NOW PINS THE ORDER OF THE TWO REGISTERS, which is the second correction: `INTERESTING` leads with
+  // `train/bpb`, so the headline must lead with it too. MEASURED before this: the headline read
+  // `train/heldout_bpb` while the default chart drew `train/bpb` - **two readings of one metric, one on the
+  // training batch and one held out, presented as the same fact.**
   const current = {
     series: [
       { tag: 'train/bpb', points: [[1, 2.645], [48, 2.09]] },
@@ -556,29 +561,28 @@ test('the headline resolves the RENAMED bpb tags, which is what a current produc
   }
   const reading = t.headlineReading(current)
   assert.ok(reading, 'a current snapshot must resolve a headline, or the KPI row cannot fill')
-  assert.equal(reading.tag, 'train/heldout_bpb',
-    'the leg-end reading is the headline, and it is the one that continues past the phase boundary')
+  assert.equal(reading.tag, 'train/bpb',
+    'the headline is the series the bpb chip draws, so the number and the chart cannot disagree')
   assert.deepEqual(reading.point, [48, 2.09])
 
-  // BOTH SPELLINGS IN ONE SNAPSHOT RESOLVE TO THE CURRENT ONE. A producer that kept
-  // an alias alive for a transition must not send the tab back to the old series.
-  const both = {
-    series: [
-      { tag: 'train/bpb_legval', points: [[1, 2.4]] },
-      { tag: 'train/heldout_bpb', points: [[48, 2.09]] },
-    ],
-  }
-  assert.equal(t.headlineReading(both).tag, 'train/heldout_bpb')
+  // THE HELD-OUT READING IS STILL READABLE WHEN IT IS ALL THERE IS, which is the half of the old behaviour
+  // that mattered: a snapshot that serves only the leg-end reading must still fill the header.
+  const heldOnly = { series: [{ tag: 'train/heldout_bpb', points: [[48, 2.09]] }] }
+  assert.equal(t.headlineReading(heldOnly).tag, 'train/heldout_bpb')
 
-  // AND AN OLD SNAPSHOT ON DISK STILL CHARTS. A reader must not lose a curve because
-  // a producer moved a name; the legacy pair stays in the list behind the new one.
+  // AND AN OLD SNAPSHOT ON DISK STILL RESOLVES. A reader must not lose a number because a producer moved a
+  // name; the legacy pair is still in `HEADLINE_TAGS` even though neither is a chip any more.
   const legacy = {
     series: [
       { tag: 'train/bpb_sealed', points: [[689, 2.093]] },
       { tag: 'train/bpb_legval', points: [[731, 2.409]] },
     ],
   }
-  assert.equal(t.headlineReading(legacy).tag, 'train/bpb_legval')
+  assert.equal(t.headlineReading(legacy).tag, 'train/bpb_legval',
+    'the legacy held-out reading is the best source a legacy snapshot has')
+  assert.deepEqual(t.headlineReading(legacy).point, [731, 2.409])
+  assert.equal(t.headlineReading({ series: [] }), null)
+  assert.equal(t.seriesLabel(null), 'held-out bpb', 'the header still needs a name when there is no reading')
 })
 
 test('the KPI tiles fill from the tags a current producer serves', () => {
@@ -609,16 +613,27 @@ test('the KPI tiles fill from the tags a current producer serves', () => {
   assert.equal(t.lastPoint(payload, 'memory/not_a_series'), null)
 })
 
-test('the disclosure opens itself when the charted series lives inside it', () => {
-  const more = t.splitOffered(t.availableSeries({
-    series: [{ tag: 'guard/factor_hold', points: [[1, 1]] }, { tag: 'train/bpb_legval', points: [[1, 2]] }],
-  })).more
+test('there is no disclosure left, so nothing can force one open', () => {
+  // The disclosure existed for the series the header did not lead with. **The user asked for the header to
+  // hold eight metrics and nothing else, so there is no second list and `more` is always empty** -
+  // `disclosureForced` is now false for every input, and its two guards (`only`, `more`) are gone from
+  // `availableSeries`. The helper is kept because it is still called and still answers correctly; this test
+  // is what says the state it describes can no longer arise.
+  const { primary, more } = t.splitOffered(t.availableSeries({
+    series: [
+      { tag: 'guard/factor_hold', points: [[1, 1]] },
+      { tag: 'train/bpb_legval', points: [[1, 2]] },
+      { tag: 'train/bpb', points: [[1, 2]] },
+    ],
+  }))
 
-  assert.equal(t.disclosureForced('guard/factor_hold', more), true,
-    'a chart drawing a series whose chip is off screen is a chart with no visible selection')
-  assert.equal(t.disclosureForced('train/bpb_legval', more), false,
-    'a lead does not force the disclosure open')
-  assert.equal(t.disclosureForced(null, more), false, 'the default is a lead or the missing chip')
+  assert.equal(more.length, 0, 'nothing is behind a disclosure any more')
+  assert.deepEqual(primary.map((item) => item.tag), ['train/bpb'],
+    'the one series of the eight that is present leads, and the two that are not named are gone')
+  assert.equal(t.disclosureForced('guard/factor_hold', more), false,
+    'a series with no chip at all cannot force a disclosure open')
+  assert.equal(t.disclosureForced('train/bpb', more), false, 'a lead does not force it open')
+  assert.equal(t.disclosureForced(null, more), false, 'the default is a lead')
 })
 
 test('isTraceTag filters traces by shape, not by a list of known names', () => {
@@ -1133,11 +1148,12 @@ test('the bpb chip carries the train, held-out AND sealed readings on ONE graph'
     'and each line says which register it is')
 })
 
-test('a held-out or sealed reading is NOT led as a chip of its own', () => {
-  // **THE OTHER HALF OF THE SAME CORRECTION.** Putting the series on the bpb chart is not enough if the
-  // header still leads with them as separate chips - the reader then sees the same quantity twice under two
-  // names, which is the shape of the defect this file was just fixed for. They stay REACHABLE, one click
-  // away, because a reader may still want one alone.
+test('a held-out or sealed reading is a LINE on the bpb chart and NOT a chip anywhere', () => {
+  // **THE USER'S INSTRUCTION, AND THE FIRST PASS GOT IT HALF RIGHT.** It put the series on the bpb chart but
+  // left them as chips BEHIND THE DISCLOSURE, on the reasoning that a reader might want one alone. **The
+  // user's answer was to name the eight metrics and say "everything else needs to be removed."** So there is
+  // no disclosure for them to hide behind, and this test asserts they are absent from the header entirely -
+  // while still being drawn, which is the whole point of combining them.
   const payload = {
     series: [
       { tag: 'train/bpb', points: [[1, 2.9]] },
@@ -1147,21 +1163,14 @@ test('a held-out or sealed reading is NOT led as a chip of its own', () => {
     ],
   }
   const { primary, more } = t.splitOffered(t.availableSeries(payload))
-  const leads = primary.map((item) => item.tag)
-  assert.ok(leads.includes('train/bpb'), 'the bpb graph leads')
-  assert.ok(leads.includes('train/gnorm'), 'a one-line metric leads')
-  assert.ok(!leads.includes('train/heldout_bpb'),
-    `the held-out reading is a LINE on the bpb chart, not a chip beside it: ${leads}`)
-  assert.ok(!leads.includes('sealed/bpb'),
-    `the sealed reading is a LINE on the bpb chart, not a chip beside it: ${leads}`)
-  // AND THEY ARE NOT DELETED. A reader who wants one of them alone can still reach it, and it carries a
-  // NAME rather than a raw tag - a raw tag in the header is the defect this was all fixed for.
-  const behind = more.map((item) => item.tag)
-  assert.ok(behind.includes('train/heldout_bpb'), 'the held-out reading stays reachable')
-  assert.ok(behind.includes('sealed/bpb'), 'the sealed reading stays reachable')
-  const sealed = more.find((item) => item.tag === 'sealed/bpb')
-  assert.ok(!/^sealed\//.test(sealed.label),
-    `a family-only series must still carry a readable label, got: ${sealed.label}`)
+  assert.deepEqual(primary.map((item) => item.tag), ['train/bpb', 'train/gnorm'],
+    'only the two metrics present from the user\'s eight')
+  assert.equal(more.length, 0, 'and nothing else, anywhere')
+
+  // AND THE SERIES ARE STILL DRAWN - on the bpb chart, which is what "combine" means.
+  const members = t.familyMembers('train/bpb', t.seriesIndex(payload))
+  assert.deepEqual(members.map((m) => m.tag), ['train/bpb', 'train/heldout_bpb', 'sealed/bpb'],
+    'the held-out and sealed readings are lines on the one bpb graph')
 })
 
 test('the chart never draws a brush the rail was given', () => {  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows
@@ -1991,7 +2000,12 @@ test('the seed size is drawn as a second line and never offered as a chip', () =
   assert.ok(!tags.includes('train/seed_model_params'),
     'a chip for a series already drawn under the curve is a second way to ask for one picture')
   assert.ok(!tags.includes('train/seed_read_rows'))
-  assert.ok(tags.includes('train/loss'), 'the other series are unaffected')
+  // **AND NOW NOTHING ELSE EITHER.** This line used to read `assert.ok(tags.includes('train/loss'))` - "the
+  // other series are unaffected" - which was true while the header offered every tag the host served. **The
+  // user has since asked for eight metrics and nothing else, and `train/loss` is not one of them**, so the
+  // assertion is inverted: a series that is neither one of the eight nor an overlay must not be offered.
+  assert.ok(!tags.includes('train/loss'),
+    'a series outside the eight metrics is not offered, however ordinary it looks')
 
   const overlay = t.resolveOverlay(seedPayload())
   assert.equal(overlay.tag, 'train/seed_model_params')

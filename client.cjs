@@ -711,45 +711,30 @@ window.__ModuleLoader__.load({
       { tag: 'train/read_layers', label: 'read layers', unit: '', digits: 0 },
       { tag: 'memory/vram_peak_gib', label: 'VRAM peak', unit: 'GiB', digits: 2 },
       { tag: 'train/vocab_size', label: 'vocab_size', unit: '', digits: 0 },
-      // ---- AND THE FAMILY-ONLY SERIES, WHICH MUST NAME THEMSELVES BUT MUST NOT LEAD --------------
+      // **THIS LIST IS THE WHOLE HEADER, AND THE USER SAID SO TWICE.**
       //
-      // **THE USER'S SECOND CORRECTION, 16 October 2026: *"I asked specifically to combine the train +
-      // sealed/heldout into a single graph for each metric."*** They had asked for it once, and the first
-      // pass left `held-out bpb` and `sealed bpb` as chips BESIDE `train bpb` - **so the one graph the
-      // request was about was still three graphs.** These tags are still series the host serves and they
-      // must still have a NAME (a raw tag as a label is the defect this file was just fixed for), but
-      // **`familyOnly: true` keeps them BEHIND THE DISCLOSURE**: they belong on the bpb chart, and they are
-      // one click away for a reader who wants one of them alone.
-      { tag: 'train/heldout_bpb', label: 'held-out bpb (on the bpb chart)', unit: 'bpb', digits: 4,
-        familyOnly: true },
-      { tag: 'sealed/bpb', label: 'sealed bpb (on the bpb chart)', unit: 'bpb', digits: 4,
-        familyOnly: true },
-      { tag: 'eval/exam_accuracy', label: 'exam accuracy', unit: '', digits: 4 },
-      // ---- AND THE LEGACY PAIR, WHICH IS AN ALIAS CHAIN AND NOT DEAD CODE ---------------------
+      // 16 October 2026, the second time, after the first correction had been read as a request to reorder
+      // rather than to delete: *"I only want the following chips/tabs in the dashboard. everything else
+      // needs to be removed. bpb, ppl, wall_seconds, units/s, gnorm, read layers, VRAM peak, vocab_size. And
+      // these will combine train/heldout + historical greyed out into one graph."*
       //
-      // **A READER MUST NOT LOSE A CURVE BECAUSE A PRODUCER MOVED A NAME**, and `test/client.test.mjs`
-      // pins the two behaviours that need these entries: an OLD snapshot on disk still charts
-      // (`headlineReading` answers `train/bpb_legval` when that is all there is), and a snapshot carrying
-      // BOTH the legacy pair and `train/heldout_bpb` resolves to the NEW one - *"an alias alive for a
-      // transition must not send the tab back to the old series."*
+      // **"EVERYTHING ELSE NEEDS TO BE REMOVED" IS THE INSTRUCTION, AND IT IS NOT A REORDERING.** Every
+      // entry that stood below this line has been deleted outright - the family-only held-out and sealed
+      // bpb chips, the exam accuracy chip, and the legacy `train/bpb_legval` / `train/bpb_sealed` pair.
+      // **They were all defensible individually and the aggregate was the complaint**: a header of thirteen
+      // chips where eight were asked for, and near-duplicates among them.
       //
-      // **THE SUPPRESSION IS UNCHANGED FROM WHAT IT WAS**: `train/bpb_sealed` is the truncated source and
-      // `train/bpb_legval` is the one that continues past the phase boundary, so the first defers to the
-      // second. MEASURED in this file's own history: *"the curve carries 688 readings over legs 1..689 and
-      // the leg reading 730 over 1..731, IDENTICAL on all 688 shared legs."*
-      {
-        tag: 'train/bpb_legval',
-        label: 'leg-val bpb',
-        unit: 'bpb',
-        digits: 4,
-      },
-      {
-        tag: 'train/bpb_sealed',
-        label: 'sealed bpb (stops at the transfer)',
-        unit: 'bpb',
-        digits: 4,
-        fallbackFor: 'train/bpb_legval',
-      },
+      // **WHAT REPLACES THEM IS THE FAMILY, NOT A CHIP.** `familyMembers` puts the held-out, sealed and
+      // per-corpus readings of a metric ON that metric's own chart, greyed where they are history - which is
+      // what *"combine train/heldout + historical greyed out into one graph"* asks for. **So the series are
+      // not lost, and they are not chips either.** The removal of `availableSeries`'s fall-through matters
+      // as much as this list: see there for why an unlisted tag no longer gets a chip of its own.
+      //
+      // **AND THE LEGACY PAIR WAS REMOVED WITH THEM.** An older snapshot's `train/bpb_legval` no longer
+      // resolves to a labelled chip - it falls to the disclosure under its raw tag, or to nothing. **That is
+      // a deliberate loss of a transition affordance in exchange for a header the user can read**, and it is
+      // recorded here rather than discovered later: the alias chain existed for a producer that has since
+      // moved twice, and no snapshot on this machine still serves those names.
     ]
 
     /**
@@ -782,10 +767,15 @@ window.__ModuleLoader__.load({
      * sits last so a snapshot carrying both resolves to the current spelling.
      */
     const HEADLINE_TAGS = [
-      'train/heldout_bpb',       // the leg-end reading, current name
+      // **`train/bpb` LEADS BECAUSE IT IS THE CHIP THAT LEADS.** MEASURED 16 October 2026: this list led with
+      // `train/heldout_bpb` while `INTERESTING` leads with `train/bpb`, so the tab's headline number came
+      // from one series and its default chart drew another - two readings of the same metric, one of them
+      // the training batch and one of them held out, presented as though they were the same fact. **The
+      // held-out reading is a LINE on that chart now, so the headline names the chart's own series.**
+      'train/bpb',               // the training reading, and the series the bpb chip draws
+      'train/heldout_bpb',       // the leg-end held-out reading
       'train/bpb_legval',        // the same series, name used before 11 October 2026
-      'train/bpb',               // the curve JSONL's own bpb, current name
-      'train/bpb_sealed',        // the same series, name used before 11 October 2026
+      'train/bpb_sealed',        // the curve JSONL's own copy, name used before 11 October 2026
     ]
 
     /**
@@ -935,7 +925,6 @@ window.__ModuleLoader__.load({
     function availableSeries(payload) {
       const index = seriesIndex(payload)
       const offered = []
-      const known = new Set()
       // A series another entry defers to its better source entirely: `bpb_sealed`
       // is a strict prefix of `bpb_legval`, so where both exist the truncated one
       // is not offered at all, not even behind the disclosure.
@@ -945,25 +934,27 @@ window.__ModuleLoader__.load({
       for (const spec of INTERESTING) {
         if (suppressed.has(spec.tag)) continue
         if (index.has(spec.tag)) {
-          // **`familyOnly` KEEPS A SERIES OFF THE LEADS WITHOUT MAKING IT UNREACHABLE.** A held-out or
-          // sealed reading is a LINE on its metric's chart now, so leading with it as well would put the
-          // same quantity on screen twice under two names - which is the shape of the defect the header was
-          // just fixed for. It stays one click away instead, because a reader may still want it alone.
-          offered.push({ ...spec, primary: spec.familyOnly !== true, series: index.get(spec.tag) })
-          known.add(spec.tag)
+          offered.push({ ...spec, primary: true, series: index.get(spec.tag) })
         }
       }
-      for (const [tag, item] of index) {
-        if (known.has(tag) || suppressed.has(tag)) continue
-        if (isTraceTag(tag)) continue
-        // The seed-size family is drawn as the chart's SECOND LINE, against the
-        // axis on the right. Offering it as a chip too would let the reader
-        // select it as the one series, and then the overlay would be drawing the
-        // same curve as itself on two axes - see OVERLAY_TAGS.
-        if (isOverlayTag(tag)) continue
-        if (tag.endsWith('_pre_break') || tag.endsWith('_post_break')) continue
-        offered.push({ tag, label: chipSeriesLabel(tag), unit: '', digits: 3, primary: false, series: item })
-      }
+      // **AND NOTHING ELSE. THE FALL-THROUGH IS DELETED, AND THAT DELETION IS THE FIX.**
+      //
+      // This loop used to walk EVERY series the host serves and offer each one that `INTERESTING` had not
+      // already named, labelled by `chipSeriesLabel` - which returns the tag itself. **That is where the
+      // header's thirteen chips came from, and it is why fixing the list alone was not enough**: removing an
+      // entry from `INTERESTING` did not remove its chip, it moved the chip to the disclosure and stripped
+      // its name to a raw tag. `held-out bpb`, `sealed bpb`, `eval/exam_accuracy`, the three
+      // `phase/wiki_en/*` series, `train/seed_read_rows` and `train/seed_trainable_rows` were all reaching
+      // the header through HERE, not through the list.
+      //
+      // **THE USER'S INSTRUCTION IS THE WHOLE HEADER, TWICE STATED**: *"I only want the following chips/tabs
+      // in the dashboard. everything else needs to be removed."* **A chip that exists because the producer
+      // happened to write a series is not a chip this tab chose to show**, and there is no way to honour
+      // "everything else needs to be removed" while a loop re-adds everything else.
+      //
+      // **WHAT IS NOT LOST**: every series still reaches a reader, because a metric's held-out, sealed and
+      // per-corpus readings are drawn as LINES on that metric's own chart by `familyMembers`. The fall-through
+      // was offering them as separate charts of a quantity already charted.
       return offered
     }
 
