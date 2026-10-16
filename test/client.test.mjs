@@ -1284,21 +1284,29 @@ test('the chart names EVERY left-axis line in the one legend that says LEFT axis
     payload,
   })
 
-  const legendText = elementsWithClass(tree, 'dshtd-overlay-legend')
-    .flatMap((node) => textOf(node).split(' · ').length > 0 ? [textOf(node)] : [])
-  const leftAxis = legendText.filter((line) => line.includes('LEFT axis')).join(' | ')
+  const all = elementsWithClass(tree, 'dshtd-overlay-legend')
+    .map((node) => textOf(node)).join(' | ')
 
-  assert.match(leftAxis, /bpb · LEFT axis/, `the metric must be named, got: ${leftAxis}`)
-  assert.match(leftAxis, /heldout.*LEFT axis/, `the held-out line must be named, got: ${leftAxis}`)
-  assert.match(leftAxis, /sealed.*LEFT axis/, `the sealed line must be named, got: ${leftAxis}`)
-  assert.match(leftAxis, /wiki_en.*LEFT axis/, `the corpus line must be named, got: ${leftAxis}`)
+  // **EVERY LINE IS NAMED, AND NOTHING IS NAMED TWICE. THE USER'S FOURTH REPORT, 16 OCTOBER 2026:
+  // *"there is some redundancy where the graph/chip name seems to also be present in the legend which is
+  // not useful."*** Two redundancies were dropped: the unit where it repeats the label (`bpb (bpb)`), and
+  // the `· LEFT axis` suffix that used to end every entry - the same three words on four consecutive lines.
+  // **The axis is now stated once, in the summary line.**
+  assert.match(all, /\bbpb\b/, `the metric must be named, got: ${all}`)
+  assert.match(all, /heldout/, `the held-out line must be named, got: ${all}`)
+  assert.match(all, /sealed/, `the sealed line must be named, got: ${all}`)
+  assert.match(all, /wiki_en/, `the corpus line must be named, got: ${all}`)
   // AND NOT `bpb (bpb)`, which is the literal string the user objected to - the unit repeating the name.
-  assert.ok(!/bpb \(bpb\)/.test(leftAxis),
-    `the unit must not restate the name, got: ${leftAxis}`)
+  assert.ok(!/bpb \(bpb\)/.test(all), `the unit must not restate the name, got: ${all}`)
+  // AND THE AXIS IS SAID ONCE RATHER THAN ON EVERY ENTRY.
+  const leftMentions = (all.match(/left axis/g) || []).length
+  assert.equal(leftMentions, 1,
+    `the left axis must be named exactly once, not per line, got ${leftMentions} in: ${all}`)
+  assert.ok(!/· LEFT axis/.test(all), `the per-entry suffix must be gone, got: ${all}`)
 
   // AND THE FOOTER DOES NOT NAME THEM AGAIN. Two legends naming the same lines is how the first fix missed.
   const footer = elementsWithClass(tree, 'dshtd-legend').map((node) => textOf(node)).join(' | ')
-  assert.ok(!/LEFT axis/.test(footer),
+  assert.ok(!/axis/.test(footer),
     `the footer must not repeat the chart's legend, got: ${footer}`)
 })
 
@@ -2347,11 +2355,12 @@ test('the seed line is drawn against the axis on the RIGHT, and the legend says 
   const legend = elementsWithClass(tree, 'dshtd-overlay-legend')[0]
   assert.ok(legend, 'two lines on two scales must be named, or the frame invites a false comparison')
   const words = textOf(legend)
-  assert.match(words, /LEFT axis/)
+  // the axes are named once - see the note in `the legend names both lines and both scales`
+  assert.match(words, /left axis/)
   assert.match(words, /RIGHT axis/)
   assert.match(words, /seed model size/)
   assert.match(words, /M params/)
-  assert.match(words, /different scales/)
+  assert.match(words, /different scale/)
 })
 
 test('the left axis names its own unit the same way, and the rows unit is not doubled', () => {
@@ -2544,10 +2553,17 @@ test('the legend names both lines and both scales, and nothing more', () => {
   assert.ok(legend, 'two lines on two scales must be named, or the frame invites a false comparison')
   const words = textOf(legend)
   assert.match(words, /loss/, 'the left-hand line is named')
-  assert.match(words, /LEFT axis/)
   assert.match(words, /seed model size/)
   assert.match(words, /M params/, 'with its unit')
   assert.match(words, /RIGHT axis/, 'and the side its scale sits on')
+  // **AND THE AXES ARE SAID ONCE RATHER THAN ON EVERY LINE.** MEASURED, the user, 16 October 2026: *"there
+  // is some redundancy where the graph/chip name seems to also be present in the legend which is not
+  // useful."* Every left entry used to end `· LEFT axis` - the same three words on four consecutive lines -
+  // so the left entries no longer carry it and the fact is stated once, in lower case, as a fact about the
+  // frame. **The RIGHT axis keeps its label because it appears on exactly one line, where it is doing work.**
+  assert.match(words, /left axis/, 'the left axis is named once, in the summary line')
+  assert.ok(!/LEFT axis/.test(words),
+    `the per-entry axis suffix must not come back: ${words}`)
 
   // A caption explaining what a log axis is was tried here and removed: the
   // marks carry it (17M, 19M, 21M on a narrow span do not read as a linear

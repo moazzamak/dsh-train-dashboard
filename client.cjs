@@ -1247,7 +1247,13 @@ window.__ModuleLoader__.load({
           // suggest that it should be a solid line."* **The dash is decided by the line's ROLE, the same
           // call the chart makes, so the two cannot disagree.**
           dash: dress.dash,
-          unit: spec.unit,
+          // **A FAN LINE CARRIES NO UNIT, WHICH IS THE LAST OF THE REDUNDANCIES THE USER NAMED.**
+          // MEASURED: the legend read `bpb`, then `c5 (bpb)`, `c3 (bpb)`, `c4 (bpb)`, `c7 (bpb)` - **the
+          // metric's own name repeated on every arc line, when the summary beneath already says the lines on
+          // the left axis share one scale.** The arc is the only thing that distinguishes these lines, so the
+          // arc is the whole label: `c5`, `c3`, `c4`, `c7`. **A unit belongs on the entry that establishes
+          // the scale, not on every line drawn against it.**
+          unit: member.role === 'history' ? null : spec.unit,
           points: member.series.points.length,
         })
       }
@@ -4285,6 +4291,12 @@ window.__ModuleLoader__.load({
       // not information"* - and that reasoning holds here too. **A chart with one line and no overlay has
       // nothing for a legend to distinguish**, so the block is skipped rather than drawn with one entry.
       const hasRight = second !== null
+      // **`legendLeft` ALREADY CONTAINS THE CHIP'S OWN LINE, SO IT IS THE COUNT OF LINES ON THE FRAME.**
+      // MEASURED, and this is why the condition below must not add one: `legendEntries(spec, ...)` always
+      // pushes the chip's own entry first and then the family - see its body - so `legendLeft.length` IS the
+      // number of left-axis lines. The first version of this line wrote `legendLeft.length + 1`, which
+      // counted the chip's line twice and therefore **drew a legend on a chart with a single line**, which
+      // the suite's "an axis with no numbers on it is furniture" test caught.
       const legend = (!hasRight && legendLeft.length < 2) ? null
         : React.createElement('div', { className: CLASS.overlayLegend },
           ...legendLeft.map((entry) => React.createElement('span', {
@@ -4311,18 +4323,33 @@ window.__ModuleLoader__.load({
                 ? {} : { opacity: String(entry.opacity) }),
             },
           }),
-          // the unit is omitted where it simply repeats the name - see the footer's note
-          (entry.unit && entry.unit !== entry.label ? `${entry.label} (${entry.unit})` : entry.label)
-          + ' · LEFT axis')),
+          // **THE LABEL, AND NOTHING THAT REPEATS IT. THE USER'S FOURTH REPORT, 16 October 2026:**
+          // *"there is some redundancy where the graph/chip name seems to also be present in the legend
+          // which is not useful."*
+          //
+          // TWO REDUNDANCIES, AND THIS DROPS BOTH. **The unit is already omitted when it is the same word as
+          // the label** - `bpb (bpb)` was the literal string the user objected to two rounds ago - and now
+          // **`· LEFT axis` is gone from every entry too**: it is the same three words repeated on four
+          // consecutive lines, and a reader learns which side the lines are on from the first entry and is
+          // then told three more times. **The axis is stated ONCE, below**, where it can be read as the axis'
+          // own fact rather than as part of each line's name.
+          (entry.unit && entry.unit !== entry.label ? `${entry.label} (${entry.unit})` : entry.label))),
           hasRight
             ? React.createElement('span', { className: CLASS.legendItem },
               React.createElement('span', { className: CLASS.overlaySwatch }),
               `${second.label} (${second.unit || 'no unit'}) · RIGHT axis`)
             : null,
-          hasRight
-            ? React.createElement('span', { className: CLASS.hint },
-              'the two axes carry different units and are drawn on different scales')
-            : null)
+          // AND THE AXES, SAID ONCE. This is the fact the per-entry suffix was trying to carry, and it is a
+          // fact about the FRAME rather than about any one line - see the note above.
+          //
+          // **IT IS SAID EVEN WITH NO RIGHT AXIS, because "these lines share one scale" is true either way
+          // and it is the sentence that names the left axis. MEASURED: gating it on `hasRight` left a chart
+          // with four left lines and no overlay naming none of their axes at all** - the per-entry suffix had
+          // been carrying that fact, and removing it without this would have removed it from every such
+          // chart.
+          React.createElement('span', { className: CLASS.hint },
+            `the ${legendLeft.length} line${legendLeft.length === 1 ? '' : 's'} on the left axis share one scale`
+            + (hasRight ? '; the right axis is separate and on a different scale' : '')))
 
       return React.createElement(React.Fragment, null,
         windowRow,
