@@ -1508,8 +1508,36 @@ function tokenIn(css, blockSelector, token) {
 const NAMED_INKS = [
   '--dshtd-ink-train', '--dshtd-ink-overlay', '--dshtd-ink-history',
   '--dshtd-ink-corpus-0', '--dshtd-ink-corpus-1', '--dshtd-ink-corpus-2',
-  '--dshtd-ink-corpus-3', '--dshtd-ink-corpus-4',
+  '--dshtd-ink-corpus-3', '--dshtd-ink-corpus-4', '--dshtd-ink-corpus-5',
 ]
+
+test('a SIXTH corpus gets a colour of its own rather than wrapping onto the first', () => {
+  // **MEASURED, 16 October 2026: this read `CORPUS_INK[at % CORPUS_INK.length]`, so a sixth corpus wrapped
+  // onto `corpus-0` and TWO LINES ON ONE CHART WORE THE SAME INK** - the one failure a categorical palette
+  // must never have, and it was invisible until a sixth corpus existed to expose it.
+  //
+  // Every corpus ink must be distinct from every other, because which corpora share the payload is not
+  // knowable here: two phases can both be present once the run transfers.
+  const css = t.CSS_SOURCE
+  for (const selector of ["[data-mode='dark'] {", "[data-mode='light'] {"]) {
+    const seen = new Map()
+    for (const token of NAMED_INKS.filter((k) => k.includes('corpus'))) {
+      const hex = tokenIn(css, selector, token)
+      assert.ok(hex, `${token} must be set in ${selector}`)
+      assert.ok(!seen.has(hex),
+        `${token} is ${hex}, the same as ${seen.get(hex)} - two corpus lines would be indistinguishable`)
+      seen.set(hex, token)
+    }
+    assert.equal(seen.size, 6, 'six corpus inks, six distinct values')
+  }
+  // AND THE SIXTH IS A REAL COLOUR, not the first one reached by a modulo: its hue sits in the violet-blue
+  // gap the first five leave open, which is what makes it distinguishable rather than merely different.
+  const fifth = tokenIn(css, "[data-mode='dark'] {", '--dshtd-ink-corpus-5')
+  const first = tokenIn(css, "[data-mode='dark'] {", '--dshtd-ink-corpus-0')
+  assert.notEqual(fifth, first, 'the sixth ink must not be the first ink')
+  const apart = deltaE(hexToRgb(fifth).map(srgb), hexToRgb(first).map(srgb))
+  assert.ok(apart >= 10, `the sixth and first corpus inks are only ${apart.toFixed(1)} dE apart`)
+})
 
 test('every ink clears the WCAG non-text contrast floor on its own surface', () => {
   // **A LINE IS A GRAPHICAL OBJECT, SO 3:1 IS THE FLOOR** - and MEASURED, 16 October 2026, the palette this

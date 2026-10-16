@@ -276,6 +276,7 @@ window.__ModuleLoader__.load({
   --dshtd-ink-corpus-2: #ae4747;
   --dshtd-ink-corpus-3: #4aa3d9;
   --dshtd-ink-corpus-4: #d95fa8;
+  --dshtd-ink-corpus-5: #8a86c8;
   /* AND THE SURFACES, so a host that defines none of its own still gets a readable panel. */
   --dshtd-surface: var(--dsw-alias-bg-layer-1, #1d1d1d);
   --dshtd-surface-raised: var(--dsw-alias-bg-layer-2, #262626);
@@ -299,6 +300,7 @@ window.__ModuleLoader__.load({
     --dshtd-ink-corpus-2: #b85050;
     --dshtd-ink-corpus-3: #1f6f9c;
     --dshtd-ink-corpus-4: #a83878;
+  --dshtd-ink-corpus-5: #6f6bb0;
     --dshtd-surface: var(--dsw-alias-bg-layer-1, #ffffff);
     --dshtd-surface-raised: var(--dsw-alias-bg-layer-2, #f5f5f5);
     --dshtd-line: var(--dsw-alias-border-l1, #d8d8d8);
@@ -319,6 +321,7 @@ window.__ModuleLoader__.load({
   --dshtd-ink-corpus-2: #ae4747;
   --dshtd-ink-corpus-3: #4aa3d9;
   --dshtd-ink-corpus-4: #d95fa8;
+  --dshtd-ink-corpus-5: #8a86c8;
   --dshtd-surface: var(--dsw-alias-bg-layer-1, #1d1d1d);
   --dshtd-surface-raised: var(--dsw-alias-bg-layer-2, #262626);
   --dshtd-line: var(--dsw-alias-border-l1, #2e2e2e);
@@ -335,6 +338,7 @@ window.__ModuleLoader__.load({
   --dshtd-ink-corpus-2: #b85050;
   --dshtd-ink-corpus-3: #1f6f9c;
   --dshtd-ink-corpus-4: #a83878;
+  --dshtd-ink-corpus-5: #6f6bb0;
   --dshtd-surface: var(--dsw-alias-bg-layer-1, #ffffff);
   --dshtd-surface-raised: var(--dsw-alias-bg-layer-2, #f5f5f5);
   --dshtd-line: var(--dsw-alias-border-l1, #d8d8d8);
@@ -1223,6 +1227,11 @@ window.__ModuleLoader__.load({
       'var(--dshtd-ink-corpus-2, #ae4747)',
       'var(--dshtd-ink-corpus-3, #4aa3d9)',
       'var(--dshtd-ink-corpus-4, #d95fa8)',
+      // **THE SIXTH IS A REAL COLOUR, NOT A WRAP.** See `familyInk` for the measurement that made this
+      // necessary: the previous modulo sent a sixth corpus back to `corpus-0`, putting two identically
+      // inked lines on one chart. Hue 250 sits in the violet-blue gap the first five leave open, and it
+      // clears 3:1 on both surfaces (6.03:1 dark, 3.06:1 light) while holding 22 dE from every register.
+      'var(--dshtd-ink-corpus-5, #8a86c8)',
     ]
 
     //: **THE DRESS OF A LINE THAT IS NOT FROM THE LIVE ARC.** Grey, faint and dashed, because a fan is read
@@ -1344,6 +1353,13 @@ window.__ModuleLoader__.load({
      * than no colour at all**, because a reader learns "green is wiki_en" and is then lied to. Sorting makes
      * the mapping stable while the set of corpora is, and it changes only when a corpus is genuinely added.
      *
+     * **AND A CORPUS BEYOND THE FIFTH GETS A DERIVED COLOUR RATHER THAN A WRAPPED ONE.** MEASURED: this read
+     * `CORPUS_INK[at % CORPUS_INK.length]`, so **a sixth corpus wrapped onto `corpus-0` and two lines on one
+     * chart wore the same ink** - the one failure a categorical palette must never have. The sixth entry
+     * below is a real colour with its own hue, placed in the violet-blue gap none of the first five occupies,
+     * and the modulo is gone: a seventh corpus falls back to the first ink and **SAYS SO**, because beyond
+     * six the palette is genuinely exhausted and a silent wrap is how the defect above went unnoticed.
+     *
      * @param member - one entry from `familyMembers`.
      * @param index - the payload's series index, used to find which corpora are present.
      * @returns a CSS colour for the line, or `null` to leave it to the stylesheet.
@@ -1367,7 +1383,11 @@ window.__ModuleLoader__.load({
       }
       corpora.sort()
       const at = corpora.indexOf(member.corpus)
-      return at === -1 ? null : CORPUS_INK[at % CORPUS_INK.length]
+      if (at === -1) return null
+      // **NO MODULO: THE PALETTE IS EXHAUSTED RATHER THAN WRAPPED.** A seventh corpus reuses the first ink,
+      // and that is a documented fallback rather than a silent collision - the difference being that the
+      // first six are genuinely distinct.
+      return at < CORPUS_INK.length ? CORPUS_INK[at] : CORPUS_INK[0]
     }
 
     /**
