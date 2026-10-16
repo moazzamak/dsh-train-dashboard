@@ -968,8 +968,43 @@ test('a rolled-back run defaults the axis to the current arc, with the rail span
     `the current arc is the LOW end of the span, so its window sits low, got y ${window.props.y}`)
 })
 
-test('the chart never draws a brush the rail was given', () => {
-  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows
+test('a family chip draws its extra lines on the chart, and a lone metric draws one', () => {
+  // **THE END-TO-END VERSION OF THE FAMILY, through the real component.** `familyMembers` being right is not
+  // the same as the chart DRAWING it - this session has watched a correctly-named export reach a call site
+  // that never ran. The assertion is on the paths in the tree, so a family that computes and does not draw
+  // fails here.
+  const points = [[1, 2.9], [2, 2.7], [3, 2.6]]
+  const held = [[1, 2.6], [2, 2.5], [3, 2.4]]
+  const corpus = [[4, 2.3], [5, 2.2]]
+  const payload = {
+    series: [
+      { tag: 'train/bpb', points },
+      { tag: 'train/heldout_bpb', points: held },
+      { tag: 'phase/wiki_en/heldout_bpb', points: corpus },
+      { tag: 'train/gnorm', points: [[1, 0.4], [2, 0.5]] },
+    ],
+  }
+  const familyChart = t.SeriesChart({
+    spec: { tag: 'train/bpb', label: 'train bpb', digits: 4, unit: 'bpb',
+      series: { tag: 'train/bpb', points } },
+    payload,
+  })
+  const familyPaths = elementsWithClass(familyChart, 'dshtd-ghost-line')
+  assert.ok(familyPaths.length >= 2,
+    `the held-out line and the corpus line must both be drawn, got ${familyPaths.length} extra path(s)`)
+
+  // AND A METRIC WITH ONE LINE DRAWS EXACTLY ONE, which is the regression guard for the change itself:
+  // `gnorm` has no held-out reading and no corpus reading, so it must take the path it took before.
+  const loneChart = t.SeriesChart({
+    spec: { tag: 'train/gnorm', label: 'gnorm', digits: 3, unit: '',
+      series: { tag: 'train/gnorm', points: [[1, 0.4], [2, 0.5]] } },
+    payload,
+  })
+  assert.equal(elementsWithClass(loneChart, 'dshtd-ghost-line').length, 0,
+    'a one-line metric must draw no extra family lines')
+})
+
+test('the chart never draws a brush the rail was given', () => {  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows
   // a horizontal indication in the graph. It should show it vertically or not at all."
   //
   // The cause was one missing term. The chart's brush rendering excluded `overview` - the strip under

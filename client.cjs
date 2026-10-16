@@ -991,6 +991,12 @@ window.__ModuleLoader__.load({
      */
     function familyMembers(tag, index) {
       const members = []
+      // **A MISSING TAG IS A SHAPE THIS CODE MUST TOLERATE, NOT ONE IT MAY ASSUME AWAY.** MEASURED: a test
+      // mounts the chart with `spec: { label, digits, unit, series: { tag, points } }` - the tag inside the
+      // series - while `availableSeries` builds chips whose tag sits on the spec. **Both shapes are in the
+      // suite's fixtures**, so a `tag.startsWith` here threw `Cannot read properties of undefined` and the
+      // chart died rather than drawing one line.
+      if (typeof tag !== 'string' || tag === '') return members
       const stem = tag.startsWith('train/') ? tag.slice('train/'.length) : tag
       // the chip's own series first, so the primary line is the one the reader selected
       const own = index.get(tag)
@@ -2922,8 +2928,38 @@ window.__ModuleLoader__.load({
         [byLeg, olderOrigin])
       const liveChain = React.useMemo(
         () => byLeg.live.map(([leg, value]) => [leg - liveOrigin, value]), [byLeg, liveOrigin])
-      const bounds = React.useMemo(() => fullRange([...olderChain, ...liveChain]),
-        [olderChain, liveChain])
+      // **AND THE FAMILY'S OTHER LINES JOIN THE EXTENT, so a corpus line the run left behind is still on the
+      // picture rather than off the top of it.** The user's design asks for *"corpus/metric in the timeslot
+      // where that value was present"* - by construction that is an EARLIER slot, when a previous phase was
+      // training, and those values sit at a different height from the live curve. An axis scaled to the live
+      // chain alone would draw them flat against an edge.
+      //
+      // THE MEMBERS ARE COMPUTED FROM THE PAYLOAD'S OWN INDEX, and `isFamily` keeps a one-line metric on
+      // exactly the path it was on before this existed - which is the regression guard for every metric that
+      // has no held-out and no corpus reading (`gnorm`, `read_layers`, `vocab_size`).
+      const family = React.useMemo(() => {
+        // **A MISSING PAYLOAD IS A NORMAL STATE AND NOT AN EXCEPTION.** The snapshot is written while this
+        // reads it, and the component's own contract is that a missing, stale or mid-write snapshot shows
+        // the last numbers it has rather than failing. MEASURED: without this guard two tests that mount the
+        // chart with no payload threw inside `seriesIndex`, which is a crash a reader would see as a blank
+        // pane rather than as a missing snapshot.
+        if (payload === null || payload === undefined) return []
+        // AND THE TAG MAY LIVE ON THE SERIES RATHER THAN ON THE SPEC - see `familyMembers`. MEASURED: a
+        // fixture in this suite passes it that way, and reading `spec.tag` alone left the family unavailable
+        // for a chart that had every line it needed.
+        const tag = typeof spec.tag === 'string' && spec.tag !== ''
+          ? spec.tag
+          : (spec.series && typeof spec.series.tag === 'string' ? spec.series.tag : '')
+        const index = seriesIndex(payload)
+        const members = familyMembers(tag, index)
+        // the chip's own line is already the main chain; the extras are what this adds
+        return members.filter((member) => member.tag !== tag)
+      }, [payload, spec.tag, spec.series])
+      const familyPoints = React.useMemo(
+        () => family.flatMap((member) => member.series.points), [family])
+      const bounds = React.useMemo(
+        () => fullRange([...olderChain, ...liveChain, ...familyPoints]),
+        [olderChain, liveChain, familyPoints])
       const range = view === null ? bounds : view
       // The seed line is split at the same joint and resampled in ABSOLUTE legs,
       // so a gap in it stays a gap, and re-based afterwards.
@@ -3540,6 +3576,31 @@ window.__ModuleLoader__.load({
           key: 'ghostline', className: CLASS.ghostLine, clipPath: `url(#${CLIP_ID})`,
           d: polylinePath(olderDrawn, projectX, projectY),
         }))
+      }
+      // **THE FAMILY S LINES: THE HELD-OUT READING AND ONE LINE PER CORPUS, ON THE SAME AXIS AS THE
+      // TRAINING CURVE.** This is what makes the chip a metric rather than a series - a reader sees the
+      // training reading, what the same model scores on data it has not seen, and what each corpus's own
+      // held-out surface said while that corpus was training, without choosing between them.
+      //
+      // THEY ARE DRAWN IN ABSOLUTE LEGS, NOT RE-BASED, because a corpus line's whole point is WHERE IN THE
+      // RUN it happened. `splitOlder`/`olderOrigin` exist for the compare view's re-basing, and applying
+      // them here would slide a phase's readings onto the live x and draw a corpus's history as though it
+      // had happened alongside the current training.
+      //
+      // AND THEY FOLLOW THE SAME `hideOlder` SWITCH THE GHOST LINE OBEYS, so the button that hides
+      // historical data hides this too - which is what the user asked for when they asked for the button.
+      if (family.length > 0) {
+        for (const member of family) {
+          const drawn = pointsToDraw(member.series.points, range)
+          if (drawn.length >= 2) {
+            children.push(React.createElement('path', {
+              key: `family-${member.tag}`,
+              className: CLASS.ghostLine,
+              clipPath: `url(#${CLIP_ID})`,
+              d: polylinePath(drawn, projectX, projectY),
+            }))
+          }
+        }
       }
       // WHETHER THIS SERIES IS A CADENCE RATHER THAN A LEG - see `SPARSE_COVERAGE`. It is decided from
       // the WHOLE series and not from what is in the window, so zooming in does not turn a per-leg
