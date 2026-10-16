@@ -1009,15 +1009,23 @@ window.__ModuleLoader__.load({
       if (heldItem !== undefined && heldItem.points.length > 0) {
         members.push({ tag: held, role: 'heldout', series: heldItem })
       }
-      // AND ONE LINE PER CORPUS, colour-coded by corpus. The tag shape is `phase/<corpus>/<name>`, and the
-      // name must END with the stem so `heldout_ppl_log` cannot join the `ppl` family as a second opinion on
-      // the same reading: it is the same points on a log axis, and the client's own history records that
-      // charting that family three times produced *"three near-identical, sentence-long chips."*
+      // AND ONE LINE PER CORPUS, colour-coded by corpus.
+      //
+      // **BOTH NAMES A CORPUS LINE CAN WEAR ARE ACCEPTED, because the producer's own naming is not
+      // uniform.** `phase/<corpus>/heldout_bpb` is what it writes today, and the user wrote
+      // `phase/wiki_en/bpb` when describing what they wanted on the chart. The second form is
+      // **unambiguous inside a family and only inside one**: the name must EQUAL the stem, so a `bpb`
+      // family can never annex `phase/wiki_en/ppl`, while the `heldout_` form is matched as a prefix so a
+      // corpus reading is still found if the producer renames the leg-end one.
+      //
+      // **AND THE LOG COPY IS EXCLUDED IN BOTH FORMS.** `phase/<corpus>/heldout_ppl_log` is the SAME POINTS
+      // as `heldout_ppl` on a log axis, and this file's own history records what charting that family
+      // three times produced: *"three near-identical, sentence-long chips."*
       for (const [otherTag, item] of index) {
         const match = /^phase\/([^/]+)\/(.+)$/.exec(otherTag)
         if (match === null) continue
         const [, corpus, name] = match
-        if (name !== `heldout_${stem}`) continue
+        if (name !== `heldout_${stem}` && name !== stem) continue
         if (item.points.length === 0) continue
         members.push({ tag: otherTag, role: 'corpus', corpus, series: item })
       }
@@ -3587,9 +3595,18 @@ window.__ModuleLoader__.load({
       // them here would slide a phase's readings onto the live x and draw a corpus's history as though it
       // had happened alongside the current training.
       //
-      // AND THEY FOLLOW THE SAME `hideOlder` SWITCH THE GHOST LINE OBEYS, so the button that hides
-      // historical data hides this too - which is what the user asked for when they asked for the button.
-      if (family.length > 0) {
+      // **AND THEY OBEY THE HISTORY SWITCH, WHICH IS WHAT THE USER ASKED THE BUTTON FOR.**
+      //
+      // MEASURED, and this was a real gap rather than a detail: the family lines were drawn unconditionally,
+      // so the one control that says "take the history off the picture" reached the ghost chain and NOT the
+      // corpus lines - a reader who pressed it still had the old data on the chart and no way to tell why.
+      //
+      // **THEY OBEY `hideOlder` ITSELF AND NOT `ghostIsShown`.** `ghostIsShown` is `ghostAt !== null &&
+      // hideOlder !== true`, and `ghostAt` is the ROLLBACK marker - so on a run that has never been rolled
+      // back it is false, and gating on it would hide every corpus line on exactly the runs where they are
+      // the only history there is. The switch is the reader's intent; the marker is an event.
+      const familyIsShown = hideOlder !== true
+      if (familyIsShown && family.length > 0) {
         for (const member of family) {
           const drawn = pointsToDraw(member.series.points, range)
           if (drawn.length >= 2) {
@@ -3981,6 +3998,12 @@ window.__ModuleLoader__.load({
             ? liveChain[liveChain.length - 1][0] : Math.round(bounds.hi),
         }, {
           hiddenKinds, hideOlder, onToggleKind, onToggleOlder,
+          // **WHETHER THERE IS HISTORY TO SWITCH OFF AT ALL.** The register cannot work this out for
+          // itself: `family` is computed in this component from the payload's index, and the register is
+          // handed only the breaks. MEASURED: referencing it there threw `family is not defined` and took
+          // twenty-one tests with it, because a throwing render is a blank pane rather than a missing
+          // button.
+          hasHistory: ghostAt !== null || family.length > 0,
         }))
     }
 
@@ -4133,10 +4156,20 @@ window.__ModuleLoader__.load({
     function breakRegister(breaks, chart, switches = {}) {
       const hiddenKinds = switches.hiddenKinds ?? []
       const hideOlder = switches.hideOlder === true
+      // **WHETHER THERE IS HISTORY TO SWITCH OFF AT ALL.** The register cannot work this out for itself:
+      // `family` is computed in `SeriesChart` from the payload's index, and the register is handed only the
+      // breaks. MEASURED: referencing `family` here threw `family is not defined` and took twenty-one tests
+      // with it, because a throwing render is a blank pane rather than a missing button.
+      const hasHistory = switches.hasHistory === true
       // Where the newest rollback stands: the key offers the older run's switch
       // only when a rollback put a chain there to switch.
       const ghostAt = rollbackPoint(breaks.markers)
-      if (breaks.markers.length === 0 && breaks.skipped === 0) return null
+      // **THE REGISTER IS EMPTY CHROME ONLY WHEN IT HAS NOTHING AT ALL TO OFFER.** It used to return null
+      // whenever the snapshot served no markers - which is right when the markers ARE the whole block, and
+      // wrong once the block also carries the history switch. MEASURED: a run with a family line and no
+      // rollback had NO WAY to hide it, because this guard returned before the switch was built. **A
+      // rollback is one KIND of history; the reader's switch covers every kind.**
+      if (breaks.markers.length === 0 && breaks.skipped === 0 && !hasHistory) return null
       const shown = shownMarkers(breaks.markers, hiddenKinds)
       const hidden = breaks.markers.length - shown.length
       const inWindow = markersInWindow(
@@ -4163,32 +4196,49 @@ window.__ModuleLoader__.load({
           `${hidden} marker(s) hidden by your switches; the curve is unchanged and they come back `
           + 'where they were.'))
       }
-      // The key is offered when there is anything to switch: a marker category, or
-      // a chain a rollback threw away. THE FRONTIER'S OWN SWITCH IS GONE with the
-      // prediction it hid.
-      if (breaks.markers.length > 0 || ghostAt !== null) {
+      // The key is offered when there is anything to switch: a marker category, OR THE HISTORY. THE
+      // FRONTIER'S OWN SWITCH IS GONE with the prediction it hid.
+      //
+      // **`hasHistory` BELONGS IN THIS CONDITION AND WAS THE SECOND GATE I MISSED.** MEASURED: widening the
+      // early return above was not enough, because this line still read `breaks.markers.length > 0 ||
+      // ghostAt !== null` - so on a run with a corpus line and NO break markers the whole key was skipped,
+      // including the history switch inside it. **A condition that admits a block has to be widened wherever
+      // the block is guarded, and there were two places.** The test that caught it mounts a chart with a
+      // family, no markers and no rollback, which is exactly the live `c1` arc's shape.
+      if (breaks.markers.length > 0 || ghostAt !== null || hasHistory) {
         parts.push(React.createElement('div', { key: 'key', className: CLASS.breaksKey },
           ...markerCategories(breaks.markers).map((entry) => categoryToggle(
             entry, kindIsShown(hiddenKinds, entry.kind), switches.onToggleKind ?? null))))
         // AND THE OLDER RUN'S OWN SELECTOR. It is the second switch of the same
         // kind and for the same reason: the reader must be able to take the
         // discarded chain off the picture - to read the live one alone - and put
-        // it back, without losing the axis the two are compared on. Offered only
-        // when a rollback put a chain there to switch.
-        if (ghostAt !== null) {
+        // it back, without losing the axis the two are compared on.
+        //
+        // **IT IS OFFERED WHENEVER THERE IS HISTORY TO SWITCH OFF, WHICH IS NOT ONLY AFTER A ROLLBACK.**
+        // MEASURED: it rendered only when `ghostAt !== null` - the ROLLBACK marker - so on a run that has
+        // never been rolled back there was NO WAY to hide the history, even though the family lines draw
+        // earlier corpora's readings and the reader may well want them gone. **The user asked for this
+        // control by name: *"at the bottom along with the growth markers I want a button to enable/disable
+        // showing historical data."*** The marker is an event that creates one KIND of history; the switch
+        // belongs to the reader and covers every kind.
+        if (hasHistory) {
           const shown = hideOlder !== true
           parts.push(React.createElement('button', {
             key: 'key-older', type: 'button',
             className: `${CLASS.toggle}${shown ? '' : ` ${CLASS.toggleOff}`}`,
             'data-kind': 'older-run',
-            'data-leg': String(ghostAt),
+            'data-leg': ghostAt === null ? '' : String(ghostAt),
             'data-on': shown ? 'true' : 'false',
             'aria-pressed': shown ? 'true' : 'false',
             title: shown
-              ? `The values before the controller rolled the run back at leg ${ghostAt}: the chain it `
-                + 'threw away, drawn dimmed. Press to take them off the chart.'
-              : `The chain rolled away at leg ${ghostAt} is hidden. Its values are still in the window `
-                + 'and the axis still covers them. Press to draw them again.',
+              ? (ghostAt === null
+                ? 'The history: the earlier corpora\u2019s own held-out readings, drawn dimmed beside the '
+                  + 'live curve. Press to take them off the chart.'
+                : `The values before the controller rolled the run back at leg ${ghostAt}: the chain it `
+                  + 'threw away, drawn dimmed, and the earlier corpora\u2019s own readings. Press to take '
+                  + 'them off the chart.')
+              : 'The history is hidden. Its values are still in the window and the axis still covers them. '
+                + 'Press to draw them again.',
             onClick: () => { if (switches.onToggleOlder != null) switches.onToggleOlder() },
           },
           React.createElement('svg', {

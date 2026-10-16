@@ -1004,6 +1004,72 @@ test('a family chip draws its extra lines on the chart, and a lone metric draws 
     'a one-line metric must draw no extra family lines')
 })
 
+test('the history switch governs the family lines, not only the ghost chain', () => {
+  // **THE GAP THE USER'S OWN REQUEST EXPOSED.** They asked for *"a button to enable/disable showing
+  // historical data"*, and the family lines were drawn UNCONDITIONALLY - so the one control that says "take
+  // the history off the picture" reached the ghost chain and NOT the corpus lines. A reader who pressed it
+  // still had the old data on screen with nothing to explain why.
+  //
+  // AND IT MUST OBEY `hideOlder` ITSELF RATHER THAN `ghostIsShown`, which is `ghostAt !== null && ...` and
+  // therefore FALSE on a run that has never been rolled back. Gating on that would hide every corpus line on
+  // exactly the runs where they are the only history there is.
+  const points = [[1, 2.9], [2, 2.7], [3, 2.6]]
+  const payload = {
+    series: [
+      { tag: 'train/bpb', points },
+      { tag: 'train/heldout_bpb', points: [[1, 2.6], [2, 2.5], [3, 2.4]] },
+      { tag: 'phase/wiki_en/heldout_bpb', points: [[4, 2.3], [5, 2.2]] },
+    ],
+  }
+  const spec = { tag: 'train/bpb', label: 'train bpb', digits: 4, unit: 'bpb',
+    series: { tag: 'train/bpb', points } }
+
+  const shown = t.SeriesChart({ spec, payload, hideOlder: false })
+  assert.ok(elementsWithClass(shown, 'dshtd-ghost-line').length >= 2,
+    'with history on, the held-out and corpus lines are drawn')
+
+  const hidden = t.SeriesChart({ spec, payload, hideOlder: true })
+  assert.equal(elementsWithClass(hidden, 'dshtd-ghost-line').length, 0,
+    'pressing the history switch must take the family lines off the chart')
+})
+
+test('a run that was never rolled back still gets the history switch, because it has history', () => {
+  // MEASURED: the switch rendered only when `ghostAt !== null` - the ROLLBACK marker - so a run with corpus
+  // lines and no rollback had NO WAY to hide them. The user asked for this control by name and did not scope
+  // it to rolled-back runs: *"at the bottom along with the growth markers I want a button to enable/disable
+  // showing historical data."*
+  const points = [[1, 2.9], [2, 2.7]]
+  const payload = {
+    series: [
+      { tag: 'train/bpb', points },
+      { tag: 'train/heldout_bpb', points: [[1, 2.6], [2, 2.5]] },
+      { tag: 'phase/wiki_en/heldout_bpb', points: [[3, 2.3], [4, 2.2]] },
+    ],
+    breaks: [],
+  }
+  const tree = t.SeriesChart({
+    spec: { tag: 'train/bpb', label: 'train bpb', digits: 4, unit: 'bpb',
+      series: { tag: 'train/bpb', points } },
+    payload,
+  })
+  const toggles = elementsWithClass(tree, 'dshtd-toggle')
+    .filter((node) => node.props && node.props['data-kind'] === 'older-run')
+  assert.equal(toggles.length, 1,
+    'a run with a corpus line and no rollback must still offer the history switch')
+  assert.equal(toggles[0].props['data-on'], 'true', 'and it starts on, because the lines start drawn')
+
+  // AND A RUN WITH NO HISTORY AT ALL STILL GETS NO SWITCH, which is the half of the old behaviour that was
+  // right: a control that switches nothing is chrome.
+  const bare = t.SeriesChart({
+    spec: { tag: 'train/gnorm', label: 'gnorm', digits: 3, unit: '',
+      series: { tag: 'train/gnorm', points: [[1, 0.4], [2, 0.5]] } },
+    payload: { series: [{ tag: 'train/gnorm', points: [[1, 0.4], [2, 0.5]] }], breaks: [] },
+  })
+  assert.equal(elementsWithClass(bare, 'dshtd-toggle')
+    .filter((node) => node.props && node.props['data-kind'] === 'older-run').length, 0,
+  'a metric with one line and no rollback has nothing to switch, so it must offer no switch')
+})
+
 test('the chart never draws a brush the rail was given', () => {  // THE USER'S SECOND CORRECTION, 11 October 2026: "dragging to set the vertical bar on the side shows
   // a horizontal indication in the graph. It should show it vertically or not at all."
   //
