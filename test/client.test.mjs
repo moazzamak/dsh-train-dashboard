@@ -4138,3 +4138,29 @@ test('the switches belong to the reader and outlive the component', () => {
 })
 
 
+
+test('the default zoom is the live arc’s own, so another arc’s outlier cannot flatten it', () => {
+  // THE USER'S INSTRUCTION, twice, and plainly on 20 October 2026: *"we should use only the
+  // live arc for determining the zoom/scale"*. `familyPoints` used to feed the default window
+  // whole, and the fan carries OTHER ARCS - so one reading of 61,666 from a stopped arc (c28
+  // leg 20, a real blow-up: `val step 1024: EN ppl 61666.8`) flattened every live reading into
+  // the bottom of the frame. BOTH HALVES ARE PINNED: the outlier is out of the window, and the
+  // rail still keeps it, so nothing is hidden from a reader who drags out.
+  const live = [[1, 2.30], [2, 2.25], [3, 2.20], [4, 2.15]]
+  const giant = [[1, 61666.8], [2, 7438.8], [3, 1420.4]]
+  const payload = {
+    series: [
+      { tag: 'train/bpb', points: live },
+      { tag: 'history/c28/bpb', points: giant },
+    ],
+    breaks: [],
+  }
+  const spec = { tag: 'train/bpb', label: 'bpb', digits: 3, unit: 'bpb',
+    series: { tag: 'train/bpb', points: live } }
+  const tree = t.SeriesChart({ spec, payload, hideOlder: false })
+  const drawn = JSON.stringify(tree)
+
+  assert.ok(drawn.includes('2.15'), 'the live readings are on the chart')
+  assert.ok(!drawn.includes('61666'), 'the older arc’s 61,666 must not set the frame')
+  assert.ok(!drawn.includes('7438'), 'nor its next-worst reading')
+})

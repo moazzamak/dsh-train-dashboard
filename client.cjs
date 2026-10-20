@@ -3635,7 +3635,21 @@ window.__ModuleLoader__.load({
       // **AND THEY GO INTO `currentArc` RATHER THAN INTO `railExtent`**, because `currentArc` IS the default
       // window: putting them only in the rail's extent would have widened the rail and left the frame
       // exactly as wrong as it was.
-      const currentArc = valueRange([...liveScalePoints, ...familyPoints])
+      // **THE DEFAULT WINDOW IS THE LIVE ARC'S OWN, BY THE USER'S INSTRUCTION.** Stated twice,
+      // plainly on 20 October 2026: *"we should use only the live arc for determining the
+      // zoom/scale"*. `familyPoints` used to go in whole, and the fan carries OTHER ARCS - one
+      // reading of 61,666 from a stopped arc (c28 leg 20, a real blow-up) flattened every live
+      // reading into the bottom of the frame. So the fan's history and discarded members are
+      // excluded here, while this run's own registers (held-out, sealed, corpus) stay: those are
+      // the live arc and the user asked for them together.
+      //
+      // The RAIL still keeps everything (`fullValues` below), so a reader can drag out to the
+      // other arcs' values; only the window the chart OPENS on is the live arc's.
+      const OLDER_ONLY_ROLES = new Set(['history', 'discarded'])
+      const liveFamilyPoints = React.useMemo(
+        () => family.filter((member) => !OLDER_ONLY_ROLES.has(member.role))
+          .flatMap((member) => member.series.points), [family])
+      const currentArc = valueRange([...liveScalePoints, ...liveFamilyPoints])
       // The rail keeps the ghost chain as well, so a reader can still drag out into what a rollback threw
       // away - which is why the two are separate values and not one.
       const fullValues = valueRange([...olderChain, ...liveChain, ...familyPoints])
@@ -4230,7 +4244,8 @@ window.__ModuleLoader__.load({
       // History and discarded are the OTHER arcs' values and belong to the switch; heldout, sealed
       // and corpus are THIS arc's own readings and must survive it, or the switch silently removes
       // a measurement the run is making.
-      const OLDER_ONLY_ROLES = new Set(['history', 'discarded'])
+      // THE SAME SET AS THE BOUNDS ABOVE (`OLDER_ONLY_ROLES`, defined with them): history and
+      // discarded are the other arcs' values, and they are what this switch takes off.
       const shownFamily = hideOlder === true
         ? family.filter((member) => !OLDER_ONLY_ROLES.has(member.role))
         : family
