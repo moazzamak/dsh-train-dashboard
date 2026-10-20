@@ -268,12 +268,14 @@ window.__ModuleLoader__.load({
    tokens alone and declares none of its own.
    ========================================================================== */
 .${CLASS.panel} {
-  --dshtd-ink-train: #7d92f0;
+  --dshtd-ink-train: #8AB4F8;
   --dshtd-ink-overlay: #d9a441;
-  --dshtd-ink-history: #8f8f8f;
-  --dshtd-ink-corpus-0: #3fb98a;
-  --dshtd-ink-corpus-1: #b57ae0;
-  --dshtd-ink-corpus-2: #ae4747;
+  --dshtd-ink-history: #8E9BAE;
+  --dshtd-ink-heldout: #F48FB1;
+  --dshtd-ink-sealed: #80DEEA;
+  --dshtd-ink-corpus-0: #81C995;
+  --dshtd-ink-corpus-1: #C58AF9;
+  --dshtd-ink-corpus-2: #FDD663;
   --dshtd-ink-corpus-3: #4aa3d9;
   --dshtd-ink-corpus-4: #d95fa8;
   --dshtd-ink-corpus-5: #8a86c8;
@@ -292,12 +294,14 @@ window.__ModuleLoader__.load({
    muddy, not invisible, on a light one, which is the worse failure because it looks deliberate. */
 @media (prefers-color-scheme: light) {
   .${CLASS.panel} {
-    --dshtd-ink-train: #3a53c8;
+    --dshtd-ink-train: #1A73E8;
     --dshtd-ink-overlay: #9a6f14;
-    --dshtd-ink-history: #7a7a7a;
-    --dshtd-ink-corpus-0: #1d7f5c;
-    --dshtd-ink-corpus-1: #8a44b8;
-    --dshtd-ink-corpus-2: #b85050;
+    --dshtd-ink-history: #5A6478;
+    --dshtd-ink-heldout: #AD1457;
+    --dshtd-ink-sealed: #00838F;
+    --dshtd-ink-corpus-0: #137333;
+    --dshtd-ink-corpus-1: #9334E6;
+    --dshtd-ink-corpus-2: #E37400;
     --dshtd-ink-corpus-3: #1f6f9c;
     --dshtd-ink-corpus-4: #a83878;
   --dshtd-ink-corpus-5: #6f6bb0;
@@ -313,12 +317,14 @@ window.__ModuleLoader__.load({
    light desktop must get dark, which is why these come AFTER the media query and carry the same specificity
    on a more specific selector. */
 .${CLASS.panel}[data-mode='dark'] {
-  --dshtd-ink-train: #7d92f0;
+  --dshtd-ink-train: #8AB4F8;
   --dshtd-ink-overlay: #d9a441;
-  --dshtd-ink-history: #8f8f8f;
-  --dshtd-ink-corpus-0: #3fb98a;
-  --dshtd-ink-corpus-1: #b57ae0;
-  --dshtd-ink-corpus-2: #ae4747;
+  --dshtd-ink-history: #8E9BAE;
+  --dshtd-ink-heldout: #F48FB1;
+  --dshtd-ink-sealed: #80DEEA;
+  --dshtd-ink-corpus-0: #81C995;
+  --dshtd-ink-corpus-1: #C58AF9;
+  --dshtd-ink-corpus-2: #FDD663;
   --dshtd-ink-corpus-3: #4aa3d9;
   --dshtd-ink-corpus-4: #d95fa8;
   --dshtd-ink-corpus-5: #8a86c8;
@@ -330,12 +336,14 @@ window.__ModuleLoader__.load({
   --dshtd-text-faint: var(--dsw-alias-label-tertiary, #8a8a8a);
 }
 .${CLASS.panel}[data-mode='light'] {
-  --dshtd-ink-train: #3a53c8;
+  --dshtd-ink-train: #1A73E8;
   --dshtd-ink-overlay: #9a6f14;
-  --dshtd-ink-history: #7a7a7a;
-  --dshtd-ink-corpus-0: #1d7f5c;
-  --dshtd-ink-corpus-1: #8a44b8;
-  --dshtd-ink-corpus-2: #b85050;
+  --dshtd-ink-history: #5A6478;
+    --dshtd-ink-heldout: #AD1457;
+    --dshtd-ink-sealed: #00838F;
+  --dshtd-ink-corpus-0: #137333;
+  --dshtd-ink-corpus-1: #9334E6;
+  --dshtd-ink-corpus-2: #E37400;
   --dshtd-ink-corpus-3: #1f6f9c;
   --dshtd-ink-corpus-4: #a83878;
   --dshtd-ink-corpus-5: #6f6bb0;
@@ -897,6 +905,11 @@ window.__ModuleLoader__.load({
       'train/heldout_bpb',       // the leg-end held-out reading
       'train/bpb_legval',        // the same series, name used before 11 October 2026
       'train/bpb_sealed',        // the curve JSONL's own copy, name used before 11 October 2026
+      // **AND THE SEALED READ, WHICH IS THE ONLY bpb A bpb-LESS CORPUS PRODUCES.** MEASURED 18
+      // October 2026: the `books` phase writes `sealed/bpb` (a real leg-17 reading, 2.2159) and no
+      // `train/bpb`; without this entry the KPI's held-out tile read `—` while a sealed bpb was on
+      // disk. It is last so a snapshot carrying both still headlines the per-leg training reading.
+      'sealed/bpb',
     ]
 
     /**
@@ -1054,9 +1067,37 @@ window.__ModuleLoader__.load({
         .map((spec) => spec.tag))
       for (const spec of INTERESTING) {
         if (suppressed.has(spec.tag)) continue
-        if (index.has(spec.tag)) {
-          offered.push({ ...spec, primary: true, series: index.get(spec.tag) })
+        const own = index.get(spec.tag)
+        if (own !== undefined) {
+          offered.push({ ...spec, primary: true, series: own })
+          continue
         }
+        // **A METRIC CAN OUTLIVE ITS TRAIN READING, AND THE FAMILY IS WHAT KEEPS IT REACHABLE.**
+        // MEASURED 18 October 2026: the `books` phase prints no per-leg bpb (its corpus spools no
+        // per-unit charges), so `train/bpb` did not exist - but `sealed/bpb` DID, a real sealed
+        // reading of leg 17, and the six history curves carried bpb too. **The bpb chip was not
+        // offered at all, so a reader could not see any of them and reported "still can't see the
+        // bpb values".** A chip whose primary is absent but whose family has members is offered with
+        // an EMPTY primary: the chart's own line is not drawn, and the family's sealed/corpus/history
+        // lines are. `primaryMissing` is what tells the chart and the legend not to name a train line
+        // that does not exist.
+        const family = familyMembers(spec.tag, index)
+        if (family.length === 0) continue
+        const familyPointCount = family.reduce(
+          (total, member) => total + member.series.points.length, 0)
+        offered.push({
+          ...spec,
+          primary: true,
+          primaryMissing: true,
+          familyPointCount,
+          series: {
+            tag: spec.tag,
+            points: [],
+            source: `no per-leg ${spec.label} in this snapshot; the chart draws `
+              + family.map((member) => member.tag).join(', ')
+              + ' instead, because this corpus does not produce the per-leg reading',
+          },
+        })
       }
       // **AND NOTHING ELSE. THE FALL-THROUGH IS DELETED, AND THAT DELETION IS THE FIX.**
       //
@@ -1183,8 +1224,10 @@ window.__ModuleLoader__.load({
       //
       // **THE PRODUCER SERVES THESE AS `history/<arc>/<stem>`, AND THE ARC IS IN THE TAG SO THE LEGEND CAN
       // NAME IT.** Which arcs are served is the producer's decision and not this file's - see its
-      // `HISTORY_ARCS`, where the rule is stated once, because **no property of a curve on disk says whether
-      // it is a predecessor of this run** and a glob would draw unrelated experiments as history.
+      // `discover_history_curves`, where a curve is admitted by the controller log or state a real run
+      // left beside it and a probe's curve is refused. **NO PROPERTY OF A CURVE ALONE SAYS WHETHER IT IS
+      // A PREDECESSOR OF THIS RUN**: the run directory has held `arc1` and `fixrun15`, so a bare glob
+      // would draw an experiment as history and a hard-coded list went stale the day a new arc ran.
       //
       // **THEY ARE ORDINARY MEMBERS WITH `role: 'history'`**, so `lineDress` dresses them grey and dashed,
       // the legend names each arc, and the history switch takes them off the chart with everything else -
@@ -1195,7 +1238,8 @@ window.__ModuleLoader__.load({
         const [, arc, name] = match
         if (name !== `heldout_${stem}` && name !== stem) continue
         if (item.points.length === 0) continue
-        members.push({ tag: otherTag, role: 'history', arc, series: item })
+        const role = arc.includes('-discarded-') ? 'discarded' : 'history'
+        members.push({ tag: otherTag, role, arc, series: item })
       }
       return members
     }
@@ -1239,6 +1283,8 @@ window.__ModuleLoader__.load({
     //: THROUGH**, unlike the live arc's own registers, which are lightened but still in their metric's
     //: colour - see `lineDress`, where the distinction is stated once.
     const HISTORY_INK = 'var(--dshtd-ink-history, #8f8f8f)'
+    const HELDOUT_INK = 'var(--dshtd-ink-heldout, #F48FB1)'
+    const SEALED_INK = 'var(--dshtd-ink-sealed, #80DEEA)'
 
     //: The panel's attribute the stylesheet keys its two palettes on.
     const THEME_ATTRIBUTE = 'data-mode'
@@ -1311,8 +1357,8 @@ window.__ModuleLoader__.load({
       // and sealed readings lighter - because they are the same quantity on different data and the thing a
       // reader looks for is how far the lighter line sits above the darker one. **Lighter is not muted**: a
       // muted line is grey and dashed, and none of these are.
-      if (role === 'heldout') return { ink: PRIMARY_INK, opacity: 0.55, dash: null }
-      if (role === 'sealed') return { ink: PRIMARY_INK, opacity: 0.55, dash: null }
+      if (role === 'heldout') return { ink: HELDOUT_INK, opacity: 0.55, dash: null }
+      if (role === 'sealed') return { ink: SEALED_INK, opacity: 0.55, dash: null }
       // **A CORPUS LINE IS DOTTED, AND THAT IS AN ACCESSIBILITY DECISION RATHER THAN A STYLE ONE.**
       //
       // MEASURED, 16 October 2026: with five corpus inks plus the three registers, every pair that shares a
@@ -1341,6 +1387,9 @@ window.__ModuleLoader__.load({
       if (role === 'corpus') return { ink: null, opacity: 0.80, dash: '1 3' }
       // AND A LINE FROM ANOTHER ARC: muted, dashed, and drawn behind everything.
       if (role === 'history') return { ink: HISTORY_INK, opacity: 0.35, dash: '4 4' }
+      if (role === 'discarded') {
+        return { ink: `color-mix(in srgb, ${PRIMARY_INK} 55%, ${HISTORY_INK})`, opacity: 0.6, dash: null }
+      }
       return { ink: PRIMARY_INK, opacity: 1, dash: null }
     }
 
@@ -1366,7 +1415,8 @@ window.__ModuleLoader__.load({
      */
     function familyInk(member, index) {
       if (member === null || member === undefined) return null
-      if (member.role === 'heldout' || member.role === 'sealed') return PRIMARY_INK
+      if (member.role === 'heldout') return HELDOUT_INK
+      if (member.role === 'sealed') return SEALED_INK
       // **A LINE FROM ANOTHER ARC IS GREY, AND THIS BRANCH WAS MISSING FOR AN HOUR.** MEASURED: the four
       // history paths rendered with NO STROKE AT ALL - `stroke: null` - because this function knew only the
       // corpus role and returned `null` for anything else, and an SVG path with no stroke colour is the
@@ -1375,6 +1425,7 @@ window.__ModuleLoader__.load({
       // a legend that named them. The two must agree, which is why `lineDress` is the source and this only
       // fills in the one role whose colour is keyed on something else.
       if (member.role === 'history') return HISTORY_INK
+      if (member.role === 'discarded') return `color-mix(in srgb, ${PRIMARY_INK} 55%, ${HISTORY_INK})`
       if (member.role !== 'corpus') return null
       const corpora = []
       for (const [tag] of index) {
@@ -1411,7 +1462,12 @@ window.__ModuleLoader__.load({
     function legendEntries(spec, members, index) {
       // the chip's own line is the TRAINING reading, and it wears the train dress - see `lineDress`
       const own = lineDress('train')
-      const entries = [{
+      // **A CHIP WITHOUT A PRIMARY LINE NAMES NO TRAIN LINE.** The family-only chip (`primaryMissing`)
+      // draws the sealed/corpus/history members and nothing on the train register; an entry saying
+      // "train, 0 points" would name a line the reader cannot see. The legend's count logic below
+      // already treats `legendEntries` as the number of lines on the frame, so leaving it out is the
+      // correct count as well as the correct name.
+      const entries = spec.primaryMissing === true ? [] : [{
         key: typeof spec.tag === 'string' ? spec.tag : 'primary',
         // **THE CHIP'S OWN LINE IS NAMED FOR ITS ROLE, LIKE EVERY OTHER LINE. THE USER'S FIFTH REPORT,
         // 16 October 2026: *"bpb / heldout (bpb) / sealed (bpb) - the bpb (chip name in legend) is still
@@ -1627,9 +1683,38 @@ window.__ModuleLoader__.load({
       return null
     }
 
+    /**
+     * The newest leg any LIVE series carries, or null.
+     *
+     * **THE LEG TILE IS NOT A PROPERTY OF THE HEADLINE METRIC.** MEASURED 18 October 2026: the
+     * `books` phase prints no bpb (its corpus spools no per-unit charges), so `headlineReading`
+     * returned null for the run that was training and the KPI row's `leg` tile rendered `—` beside
+     * nine legs of wall clock and perplexity. The chart was not empty; the tile was reading the
+     * wrong series for its own question.
+     *
+     * Only `train/*` is eligible: those are the live leg-axis families. `history/*` carries another
+     * run's legs (a 124-leg predecessor would outrank today's leg 10), and `vram_trace/*` is a STEP
+     * axis whose last point is step 1024, not a leg.
+     */
+    function latestLeg(payload) {
+      let newest = null
+      for (const [tag, item] of seriesIndex(payload)) {
+        if (!tag.startsWith('train/')) continue
+        if (item.points.length === 0) continue
+        const point = item.points[item.points.length - 1]
+        if (newest === null || point[0] > newest[0]) newest = point
+      }
+      return newest
+    }
+
     /** The chip label for one tag, falling back to the tag, or to the reading's own name. */
     function seriesLabel(tag) {
       if (tag === null || tag === undefined) return 'held-out bpb'
+      // **THE HEADLINE CAN NAME A SERIES NO CHIP NAMES.** `sealed/bpb` is a family member, not one of
+      // the eight chips, and `train/heldout_bpb` is the leg-end register of the bpb chip. Both can be
+      // the headline reading, so both get a human label rather than falling through to the raw tag.
+      if (tag === 'sealed/bpb') return 'sealed bpb'
+      if (tag === 'train/heldout_bpb') return 'held-out bpb'
       const spec = INTERESTING.find((item) => item.tag === tag)
       return spec === undefined ? tag : spec.label
     }
@@ -3329,7 +3414,11 @@ window.__ModuleLoader__.load({
     function SeriesChart({ spec, payload, overlay = null, hiddenKinds = [],
       hideOlder = false, onToggleKind = null,
       onToggleOlder = null }) {
-      const points = spec.series.points
+      // AN EMPTY PRIMARY IS A REAL STATE: a bpb-less corpus still has a sealed bpb reading and the
+      // history fan, and `availableSeries` offers the chip for those family lines. The chart's own
+      // line is then empty on purpose - drawing the first family member here would duplicate it,
+      // because `familyMembers` already draws it.
+      const points = spec.primaryMissing === true ? [] : spec.series.points
       const breaks = React.useMemo(() => breakView(payload), [payload])
       // `null` IS the whole run, so "never zoomed" and "reset" are one state and
       // the readout cannot disagree with the picture. A window the reader left
@@ -3612,7 +3701,14 @@ window.__ModuleLoader__.load({
       // line, and a note that stayed silent there would leave the reader looking
       // for a rendering fault that is a switch. The scale above is still computed
       // from every point, so the axis does not move when the ghost is taken away.
-      const windowIsEmpty = inside.length === 0 && drawablePoints < 2
+      //
+      // **AND THE FAMILY COUNTS, WHICH IS THE FAMILY-ONLY CHIP'S OWN CASE.** A chip whose primary
+      // has no points (`primaryMissing`) draws the sealed/corpus/history lines and NOTHING on the
+      // train chain, so a check that only looked at the primary said "no points in this window"
+      // over a frame with a dozen lines on it.
+      const familyInWindow = familyPoints.some(
+        (point) => point[0] >= range.lo && point[0] <= range.hi)
+      const windowIsEmpty = !familyInWindow && inside.length === 0 && drawablePoints < 2
       // The frame is widened by the overlay's gutter ONLY when there is a second
       // axis to write in, so a snapshot without one gets the frame this tab has
       // always drawn.
@@ -4126,14 +4222,30 @@ window.__ModuleLoader__.load({
       // reader learns the mapping once.
       //
       // AND THEY FOLLOW THE HISTORY SWITCH, which is what the user asked the button for.
-      const familyIsShown = hideOlder !== true
-      if (familyIsShown && family.length > 0) {
-        for (const member of family) {
+      //
+      // **THE SWITCH HIDES THE OTHER ARCS, NOT THIS ARC'S OWN REGISTERS.** `hideOlder` gated the
+      // whole family, and the family carries the live arc's held-out and sealed lines beside the
+      // history fan - so pressing the older-run chip also switched the held-out line off, which is
+      // exactly what the user reported on 20 October 2026: *"the chip still also disables heldout"*.
+      // History and discarded are the OTHER arcs' values and belong to the switch; heldout, sealed
+      // and corpus are THIS arc's own readings and must survive it, or the switch silently removes
+      // a measurement the run is making.
+      const OLDER_ONLY_ROLES = new Set(['history', 'discarded'])
+      const shownFamily = hideOlder === true
+        ? family.filter((member) => !OLDER_ONLY_ROLES.has(member.role))
+        : family
+      if (shownFamily.length > 0) {
+        // THE BACKGROUND LINES PAINT FIRST. An SVG later element covers an earlier one, so the
+        // fan and this run's discarded passes are drawn before the live registers, not over them.
+        // The member order itself stays the data order (the tests assert it) - this is a view.
+        const drawRank = { history: 0, discarded: 0, corpus: 1, heldout: 2, sealed: 2, train: 3 }
+        const paintOrder = [...shownFamily].sort(
+          (a, b) => (drawRank[a.role] ?? 2) - (drawRank[b.role] ?? 2))
+        for (const member of paintOrder) {
           const drawn = pointsToDraw(member.series.points, range)
           if (drawn.length >= 2) {
             children.push(React.createElement('path', {
-              key: `family-${member.tag}`,
-              // **THE CLASS NOW FOLLOWS THE SAME RULE AS THE INK AND THE DASH: LIVE ARC SOLID, HISTORY
+              key: `family-${member.tag}`,              // **THE CLASS NOW FOLLOWS THE SAME RULE AS THE INK AND THE DASH: LIVE ARC SOLID, HISTORY
               // DASHED.** It read `role === 'sealed' ? sparse : solid`, which was the old rule - dash for a
               // cadence - and the user has overruled it: *"all values in series from the live arc ... to be
               // solid lines instead of dashed ones."* **A sealed read of the live arc's checkpoint IS the
@@ -4163,6 +4275,21 @@ window.__ModuleLoader__.load({
               },
               clipPath: `url(#${CLIP_ID})`,
               d: polylinePath(drawn, projectX, projectY),
+            }))
+          } else if (drawn.length === 1) {
+            // **ONE READING IS A DOT, NOT A LINE, AND THE SEALED SURFACE IS OFTEN EXACTLY ONE.**
+            // MEASURED 18 October 2026: the books run's only live bpb was `sealed/bpb` at leg 17,
+            // one point - and this loop drew paths only for `drawn.length >= 2`, so the chart with
+            // a bpb chip would still have shown no bpb value on the frame. The primary chain already
+            // has this dot case; the family did not.
+            children.push(React.createElement('circle', {
+              key: `family-dot-${member.tag}`, className: CLASS.dot,
+              style: {
+                fill: familyInk(member, seriesIndex(payload)),
+                opacity: lineDress(member.role).opacity,
+              },
+              cx: projectX(drawn[0][0]), cy: projectY(drawn[0][1]),
+              r: READING_DOT_RADIUS,
             }))
           }
         }
@@ -5014,6 +5141,9 @@ window.__ModuleLoader__.load({
       const headline = headlineReading(payload)
       const latestReading = headline === null ? null : headline.point
       const headlineTag = headline === null ? null : headline.tag
+      // THE LEG TILE'S OWN SOURCE, not the headline's point: a run whose corpus has no bpb still
+      // trains legs, and the tile asking "which leg is this" must not answer "no held-out reading".
+      const latestLegPoint = latestLeg(payload)
       const latestWall = lastPoint(payload, 'train/wall_seconds')
       const latestVram = lastPoint(payload, 'memory/vram_peak_gib')
       const latestExam = lastPoint(payload, 'eval/exam_accuracy')
@@ -5043,14 +5173,22 @@ window.__ModuleLoader__.load({
       const kpis = React.createElement('div', { className: CLASS.kpis },
         React.createElement(Kpi, {
           label: 'leg',
-          value: latestReading === null ? '—' : String(Math.round(latestReading[0])),
+          value: latestLegPoint === null ? '—' : String(Math.round(latestLegPoint[0])),
+          title: latestLegPoint === null
+            ? 'no live leg series in this snapshot'
+            : `the newest leg any live train series carries`,
         }),
         React.createElement(Kpi, {
           label: seriesLabel(headlineTag),
           value: latestReading === null ? '—' : formatValue(latestReading[1], 4),
           title: headlineTag === null
             ? 'no held-out reading in this snapshot'
-            : `${headlineTag}, the held-out reading the run is steered by`,
+            : (headlineTag === 'sealed/bpb'
+              // The sealed read is the saved checkpoint scored over the held-out partition - a real
+              // held-out reading, but the controller can mark one HELD non-authoritative (the books
+              // run's leg-17 read is), so this does not claim it is steering the menu.
+              ? 'sealed/bpb, the sealed read of the saved checkpoint over the held-out partition'
+              : `${headlineTag}, the held-out reading the run is steered by`),
         }),
         React.createElement(Kpi, {
           label: 'leg wall',
@@ -5151,7 +5289,7 @@ window.__ModuleLoader__.load({
           // the chart's legend does not carry - where the numbers came from - and nothing else.
           React.createElement('div', { className: CLASS.legend },
             React.createElement('span', { className: CLASS.legendItem },
-              `${activeSpec.series.points.length} points`
+              `${activeSpec.familyPointCount ?? activeSpec.series.points.length} points`
               + (activeSpec.series.source ? ` · ${activeSpec.series.source}` : ''))))
 
       const notice = failure !== null
@@ -5349,6 +5487,7 @@ window.__ModuleLoader__.load({
       splitOffered,
       disclosureForced,
       headlineReading,
+      latestLeg,
       seriesLabel,
       HEADLINE_TAGS,
       INTERESTING,

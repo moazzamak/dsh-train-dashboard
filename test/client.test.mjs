@@ -427,6 +427,36 @@ test('no chip names a tag the producer does not write', () => {
     'the eight families must be offered in the order the user gave')
 })
 
+test('a metric whose train reading is absent is offered when its family has lines', () => {
+  // **MEASURED 18 OCTOBER 2026, THE USER'S SECOND REPORT: "still can't see the bpb values".** The
+  // `books` phase prints no per-leg bpb, so `train/bpb` was absent - but `sealed/bpb` carried a real
+  // leg-17 reading (2.2159) and six history curves carried bpb. `availableSeries` required the
+  // primary tag, so it offered no bpb chip and every one of those lines was unreachable. The chip is
+  // now offered with an EMPTY primary and the family's lines; `primaryMissing` is what stops the
+  // chart and legend from naming a train line that does not exist.
+  const payload = {
+    series: [
+      { tag: 'sealed/bpb', points: [[17, 2.215936]] },
+      { tag: 'history/c4_wiki_en/heldout_bpb', points: [[1, 2.321]] },
+      { tag: 'train/ppl', points: [[1, 30]] },
+    ],
+  }
+  const offered = t.availableSeries(payload)
+  const bpb = offered.find((item) => item.tag === 'train/bpb')
+  assert.ok(bpb, 'the bpb family must be reachable even without a train/bpb line')
+  assert.equal(bpb.primaryMissing, true)
+  assert.equal(bpb.series.points.length, 0, 'the chart must not draw a fabricated train line')
+  assert.equal(bpb.familyPointCount, 2, 'the sealed reading and the history line are both chartable')
+  assert.deepEqual(t.splitOffered(offered).primary.map((item) => item.tag),
+    ['train/bpb', 'train/ppl'])
+
+  // AND A METRIC WITH NO FAMILY IS STILL NOT OFFERED. The branch above must not become the deleted
+  // fall-through: `train/gnorm` here has neither a primary nor a member, so no gnorm chip.
+  const lonely = t.availableSeries({ series: [{ tag: 'memory/vram_peak_gib', points: [[1, 4.1]] }] })
+  assert.ok(!lonely.some((item) => item.tag === 'train/bpb'))
+  assert.ok(!lonely.some((item) => item.tag === 'train/gnorm'))
+})
+
 // ---------------------------------------------------------------------------
 // The metric FAMILY: the lines one chip's graph carries at the same time.
 // ---------------------------------------------------------------------------
@@ -583,6 +613,44 @@ test('the headline reads the series its own chart draws, and resolves every spel
   assert.deepEqual(t.headlineReading(legacy).point, [731, 2.409])
   assert.equal(t.headlineReading({ series: [] }), null)
   assert.equal(t.seriesLabel(null), 'held-out bpb', 'the header still needs a name when there is no reading')
+})
+
+test('the headline falls back to the sealed bpb when the corpus has no per-leg reading', () => {
+  // **THE KPI TILE'S HALF OF THE SAME 18 OCTOBER 2026 REPORT.** The books run had a sealed bpb of
+  // 2.2159 on disk and `train/bpb` was absent, so `headlineReading` returned null and the held-out
+  // tile read an em dash while a real number existed. The sealed read is a held-out reading, which
+  // is exactly what that tile names, and it is last in `HEADLINE_TAGS` so a per-leg reading still wins.
+  const sealed = { series: [{ tag: 'sealed/bpb', points: [[17, 2.215936]] }] }
+  const reading = t.headlineReading(sealed)
+  assert.equal(reading.tag, 'sealed/bpb')
+  assert.deepEqual(reading.point, [17, 2.215936])
+  assert.equal(t.seriesLabel('sealed/bpb'), 'sealed bpb')
+
+  const both = {
+    series: [
+      { tag: 'train/bpb', points: [[18, 2.0]] },
+      { tag: 'sealed/bpb', points: [[17, 2.215936]] },
+    ],
+  }
+  assert.equal(t.headlineReading(both).tag, 'train/bpb',
+    'a per-leg training reading outranks the sealed read when both exist')
+})
+
+test('the leg tile reads the newest live leg, not the headline metric', () => {
+  // **MEASURED 18 OCTOBER 2026: THE BOOKS PHASE PRINTS NO bpb, SO THE HEADLINE IS NULL AND THE
+  // `leg` TILE RENDERED AN EM DASH OVER A RUN THAT HAD TRAINED TEN LEGS.** The tile's question is
+  // "which leg is this", and a live `train/*` series answers it whether or not a bpb exists.
+  const payload = {
+    series: [
+      { tag: 'train/ppl', points: [[1, 40], [10, 7.2]] },
+      // ANOTHER RUN'S HISTORY MUST NOT WIN: 124 legs is a predecessor's axis, not today's.
+      { tag: 'history/c3/heldout_bpb', points: [[1, 2.6], [124, 2.3]] },
+      // AND A TRACE TAG'S LAST POINT IS A STEP: 1024 would read as leg 1024.
+      { tag: 'vram_trace/29035/l0001', points: [[1, 2], [1024, 3]] },
+    ],
+  }
+  assert.deepEqual(t.latestLeg(payload), [10, 7.2])
+  assert.equal(t.latestLeg({ series: [] }), null)
 })
 
 test('the KPI tiles fill from the tags a current producer serves', () => {
@@ -1019,33 +1087,70 @@ test('a family chip draws its extra lines on the chart, and a lone metric draws 
     'a one-line metric must draw no extra family lines')
 })
 
+test('a family-only chip draws its lines and does not say the window is empty', () => {
+  // **THE RENDER HALF OF THE 18 OCTOBER 2026 REPORT.** A bpb-less corpus has no primary line, so
+  // the chart's own chain is empty and every line on the frame is a family member. MEASURED before
+  // this: `windowIsEmpty` looked only at the primary, so the frame said "no points in this window"
+  // over a visible sealed reading and six history curves. The legend must also not name a train line
+  // that does not exist.
+  const payload = {
+    series: [
+      { tag: 'sealed/bpb', points: [[17, 2.215936]] },
+      { tag: 'history/c4_wiki_en/heldout_bpb', points: [[1, 2.321]] },
+    ],
+  }
+  const spec = t.availableSeries(payload).find((item) => item.tag === 'train/bpb')
+  assert.ok(spec, 'the family-only chip must be offered first')
+  const tree = t.SeriesChart({ spec, payload })
+  const lines = elementsWithClass(tree, 'dshtd-family-line')
+    .concat(elementsWithClass(tree, 'dshtd-family-line-sparse'))
+    .concat(elementsWithClass(tree, 'dshtd-dot'))
+  assert.ok(lines.length >= 2, `the sealed and history readings must be drawn, got ${lines.length}`)
+  const text = textOf(tree)
+  assert.ok(!text.includes('no points in this window'),
+    'a frame with family lines on it must not claim to be empty')
+  assert.ok(text.includes('sealed'), 'the sealed line must be named in the legend')
+  const legendKeys = elementsWithClass(tree, 'dshtd-legend-item')
+    .map((entry) => entry.props['data-series'])
+  assert.ok(!legendKeys.includes('train/bpb'),
+    `the legend must not name a train line that has no points: ${legendKeys}`)
+})
+
 test('the history switch governs the family lines, not only the ghost chain', () => {
-  // **THE GAP THE USER'S OWN REQUEST EXPOSED.** They asked for *"a button to enable/disable showing
-  // historical data"*, and the family lines were drawn UNCONDITIONALLY - so the one control that says "take
-  // the history off the picture" reached the ghost chain and NOT the corpus lines. A reader who pressed it
-  // still had the old data on screen with nothing to explain why.
+  // **THE CONTROL WAS RIGHT AND ITS SCOPE WAS NOT.** The user asked for *"a button to enable/disable
+  // showing historical data"*, and the family lines were drawn UNCONDITIONALLY, so pressing it still left
+  // the old data on screen. Gating the whole family fixed that and introduced a second defect the user
+  // found on 20 October 2026: *"the chip still also disables heldout"* - because the family is not only
+  // history, it also carries THIS arc's held-out, sealed and per-corpus registers. Hiding a measurement
+  // the live run is making is not hiding history.
   //
-  // AND IT MUST OBEY `hideOlder` ITSELF RATHER THAN `ghostIsShown`, which is `ghostAt !== null && ...` and
-  // therefore FALSE on a run that has never been rolled back. Gating on that would hide every corpus line on
-  // exactly the runs where they are the only history there is.
+  // So the switch now hides `history` and `discarded` (the other arcs' values, and this run's forfeited
+  // passes) and leaves `heldout`, `sealed` and `corpus` drawn. BOTH HALVES ARE ASSERTED: a test that only
+  // checked "history disappears" would pass on the version that also removed the held-out line, which is
+  // the version the user rejected.
   const points = [[1, 2.9], [2, 2.7], [3, 2.6]]
   const payload = {
     series: [
       { tag: 'train/bpb', points },
       { tag: 'train/heldout_bpb', points: [[1, 2.6], [2, 2.5], [3, 2.4]] },
+      { tag: 'history/c29/heldout_bpb', points: [[1, 2.2], [2, 2.1], [3, 2.0]] },
       { tag: 'phase/wiki_en/heldout_bpb', points: [[4, 2.3], [5, 2.2]] },
     ],
   }
   const spec = { tag: 'train/bpb', label: 'train bpb', digits: 4, unit: 'bpb',
     series: { tag: 'train/bpb', points } }
+  const familyLines = (tree) => elementsWithClass(tree, 'dshtd-family-line')
+    .concat(elementsWithClass(tree, 'dshtd-family-line-sparse'))
 
-  const shown = t.SeriesChart({ spec, payload, hideOlder: false })
-  assert.ok(elementsWithClass(shown, 'dshtd-family-line').concat(elementsWithClass(shown, 'dshtd-family-line-sparse')).length >= 2,
-    'with history on, the held-out and corpus lines are drawn')
+  const shown = familyLines(t.SeriesChart({ spec, payload, hideOlder: false }))
+  assert.ok(shown.length >= 2,
+    'with history on, the older arc and the live registers are both drawn')
 
-  const hidden = t.SeriesChart({ spec, payload, hideOlder: true })
-  assert.equal(elementsWithClass(hidden, 'dshtd-family-line').concat(elementsWithClass(hidden, 'dshtd-family-line-sparse')).length, 0,
-    'pressing the history switch must take the family lines off the chart')
+  const hidden = familyLines(t.SeriesChart({ spec, payload, hideOlder: true }))
+  assert.ok(hidden.length >= 1,
+    'the switch must NOT take this arc’s held-out (and per-corpus) registers off the chart')
+  assert.ok(hidden.length < shown.length,
+    'the switch must actually remove the older arc’s line')
 })
 
 test('a run that was never rolled back still gets the history switch, because it has history', () => {
