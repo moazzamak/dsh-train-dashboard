@@ -3,11 +3,13 @@ node_modules/
 .pnpm-store/
 
 # Scratch: a snapshot written into the checkout by a local run of the plugin,
-# and anything a test or a producer leaves behind
+# anything a test or a producer leaves behind, and dot-prefixed one-off scripts
+# of the sort that should never reach a published tree
 train-dashboard.snapshot.json
 *.snapshot.json
 .tmp/
 tmp/
+.tmp_*
 
 # Editor and OS noise
 .DS_Store
