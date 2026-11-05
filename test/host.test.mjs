@@ -27,6 +27,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  MAX_SNAPSHOT_BYTES,
   ROUTE,
   SNAPSHOT_VERSION,
   apply,
@@ -366,6 +367,87 @@ test('the break markers and the frontier reach the browser untouched', async () 
   const answer = await callRoute(ctx, `${ROUTE}/series`)
   assert.deepEqual(answer.body.breaks, body.breaks)
   assert.deepEqual(answer.body.frontier, body.frontier)
+})
+
+test('the size ceiling counts BYTES on disk, not JavaScript string length', async () => {
+  // **THE GUARD MEASURED THE WRONG THING** (audit finding C5, 5 November 2026): `text.length` counts UTF-16
+  // CODE UNITS and the constant it was compared with is named in BYTES. The two agree only for ASCII, and a
+  // snapshot is not ASCII - a break marker's reason, a corpus name and an arm name all can be non-ASCII - so
+  // on a real body the ceiling fired at a file size the constant does not name.
+  //
+  // THIS FIXTURE MAKES THE TWO COUNTS DIFFER ON PURPOSE: `é` is one UTF-16 unit and two UTF-8 bytes, so the
+  // body below is about 64 MB on disk and about 32 MB as a JavaScript string. Under the old comparison it
+  // was under the ceiling and went on to be parsed; the byte comparison refuses it.
+  const padding = 'é'.repeat(Math.ceil(MAX_SNAPSHOT_BYTES / 2))
+  const text = `{"snapshot_version":${SNAPSHOT_VERSION},"pad":"${padding}"}`
+  assert.ok(text.length < MAX_SNAPSHOT_BYTES,
+    'the fixture must be under the ceiling as a string, or it tests nothing about the comparison')
+  assert.ok(Buffer.byteLength(text, 'utf8') > MAX_SNAPSHOT_BYTES,
+    'and over it as a file, which is the case being refused')
+
+  const ctx = fakeContext({ text })
+  apply(ctx, { workspace: '/workspace', command: COMMAND })
+  ctx.__injected[0].callback(ctx)
+
+  const answer = await callRoute(ctx, `${ROUTE}/state`)
+  assert.equal(answer.body.haveSnapshot, false)
+  assert.equal(answer.body.reason, 'unusable')
+  assert.match(answer.body.error, /implausibly large/,
+    'a body over the byte ceiling must be refused as too large, not parsed and then misreported')
+})
+
+test('state echoes the snapshot\'s own faults list, and invents nothing', async () => {
+  // **A DEGRADED REFRESH MUST BE VISIBLE ON THE ROUTE THE TAB POLLS.** The producer (audit finding P12)
+  // publishes one `{name, error}` entry per optional family it could not read, and `/series` already carried
+  // the list only because it carries the whole body. On `/state` it becomes visible to a reader that has not
+  // refetched the series: the host echoes the producer's own list, entry for entry, and adds no entry of its
+  // own - a host that guessed at a fault would be a second statement of another project's record.
+  const faults = [
+    { name: 'break markers', error: 'RuntimeError: the break reader raised' },
+    { name: 'sealed reads', error: 'FileNotFoundError: no sealed.jsonl' },
+  ]
+  const ctx = fakeContext({ text: JSON.stringify(snapshotBody({ faults })) })
+  apply(ctx, { workspace: '/workspace' })
+  ctx.__injected[0].callback(ctx)
+
+  const answer = await callRoute(ctx, `${ROUTE}/state`)
+  assert.equal(answer.body.ok, true)
+  assert.deepEqual(answer.body.faults, faults,
+    'the producer\'s list must reach the polled route verbatim, or the tab reads a paraphrase')
+})
+
+test('a complete snapshot reports an EMPTY faults list, and a snapshot with no list reports null', async () => {
+  // `[]` IS A CLAIM AND `null` IS THE ABSENCE OF ONE. The producer that publishes `faults` says `[]` when
+  // nothing was lost; a producer older than the key says nothing at all, and a host with no snapshot has
+  // nothing to report. A client that collapsed those would either warn about a loss that did not happen or
+  // stay silent about one that did.
+  const clean = fakeContext({ text: JSON.stringify(snapshotBody({ faults: [] })) })
+  apply(clean, { workspace: '/workspace' })
+  clean.__injected[0].callback(clean)
+  assert.deepEqual((await callRoute(clean, `${ROUTE}/state`)).body.faults, [],
+    'an empty list is a complete snapshot, and it stays an empty list')
+
+  const older = fakeContext({ text: JSON.stringify(snapshotBody()) })
+  apply(older, { workspace: '/workspace' })
+  older.__injected[0].callback(older)
+  assert.equal((await callRoute(older, `${ROUTE}/state`)).body.faults, null,
+    'a snapshot that carries no list must not be reported as a complete one')
+
+  const missing = fakeContext({ readError: 'ENOENT' })
+  apply(missing, { workspace: '/workspace' })
+  missing.__injected[0].callback(missing)
+  assert.equal((await callRoute(missing, `${ROUTE}/state`)).body.faults, null,
+    'and no snapshot at all has nothing to report')
+})
+
+test('the series body hands `faults` back untouched, like every key it does not know', async () => {
+  const faults = [{ name: 'history fan', error: 'KeyError: history' }]
+  const ctx = fakeContext({ text: JSON.stringify(snapshotBody({ faults })) })
+  apply(ctx, { workspace: '/workspace' })
+  ctx.__injected[0].callback(ctx)
+
+  const answer = await callRoute(ctx, `${ROUTE}/series`)
+  assert.deepEqual(answer.body.faults, faults)
 })
 
 test('the contract number stays at 1, because the new keys are additive', async () => {

@@ -60,8 +60,19 @@ export const ROUTE = '/dsh-train-dashboard'
 /** The snapshot contract version this half understands. */
 export const SNAPSHOT_VERSION = 1
 
-/** Hard ceiling on a snapshot we will parse, so a runaway file cannot wedge us. */
-const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024
+/**
+ * Hard ceiling on a snapshot we will parse, so a runaway file cannot wedge us.
+ *
+ * IT IS BYTES OF UTF-8 ON DISK, NOT `text.length`, and the difference is a defect
+ * this guard shipped with: JavaScript string length counts UTF-16 CODE UNITS, and
+ * a snapshot is not ASCII. A break marker's own reason, a corpus name and an arm
+ * name can all be non-ASCII, so the old comparison fired at a different file size
+ * than the number in its name says, on exactly the bodies it exists to bound.
+ * `Buffer.byteLength(text, 'utf8')` is the file's own size, which is what a
+ * ceiling in bytes has to measure. Exported so a test measures the ceiling the
+ * code measures.
+ */
+export const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024
 
 /**
  * Defaults for the row's config.
@@ -259,24 +270,28 @@ async function readSnapshot(ctx, config) {
   if (typeof text !== 'string' || text.length === 0) {
     return { payload: null, bytes: 0, reason: 'missing', error: `snapshot at ${resolved} is empty` }
   }
-  if (text.length > MAX_SNAPSHOT_BYTES) {
-    return { payload: null, bytes: text.length, reason: 'unusable', error: 'snapshot is implausibly large' }
+  // BYTES, NOT CODE UNITS: see MAX_SNAPSHOT_BYTES. `bytes` in every return below is
+  // this same measurement, so nothing here reports a length in one unit and a
+  // ceiling in another.
+  const bytes = Buffer.byteLength(text, 'utf8')
+  if (bytes > MAX_SNAPSHOT_BYTES) {
+    return { payload: null, bytes, reason: 'unusable', error: 'snapshot is implausibly large' }
   }
   try {
     const payload = JSON.parse(text)
     if (payload === null || typeof payload !== 'object') {
-      return { payload: null, bytes: text.length, reason: 'unusable', error: 'snapshot is not an object' }
+      return { payload: null, bytes, reason: 'unusable', error: 'snapshot is not an object' }
     }
     if (payload.snapshot_version !== SNAPSHOT_VERSION) {
       return {
         payload: null,
-        bytes: text.length,
+        bytes,
         reason: 'unusable',
         error: `snapshot_version ${payload.snapshot_version} is not ${SNAPSHOT_VERSION}; `
           + 'update the plugin or the producer so both speak the same contract',
       }
     }
-    return { payload, bytes: text.length, reason: 'ok', error: null }
+    return { payload, bytes, reason: 'ok', error: null }
   } catch (error) {
     // A snapshot caught mid-replace, or one truncated by a full disk. A
     // producer that writes temp-file-plus-rename makes this rare; it is
@@ -284,7 +299,7 @@ async function readSnapshot(ctx, config) {
     // promoted to the only case anyone sees.
     return {
       payload: null,
-      bytes: text.length,
+      bytes,
       reason: 'unusable',
       error: 'snapshot is present but not valid JSON',
     }
@@ -376,10 +391,11 @@ async function regenerate(ctx, config, state) {
  * Register the two routes on the browser carrier.
  *
  * `/state` is deliberately small and is what the tab polls: it carries the
- * revision, the age, whether a regeneration is in flight and the command a
- * rebuild would run. `/series` is the whole snapshot and is fetched only when
- * the revision moves, so a tab sitting open costs one small read every few
- * seconds and no process at all.
+ * revision, the age, whether a regeneration is in flight, the command a rebuild
+ * would run and the last snapshot's `faults` list, so a degraded refresh is
+ * visible without refetching the body. `/series` is the whole snapshot and is
+ * fetched only when the revision moves, so a tab sitting open costs one small
+ * read every few seconds and no process at all.
  */
 function registerRoutes(ctx, config) {
   const state = createState()
@@ -467,6 +483,14 @@ function registerRoutes(ctx, config) {
           revision: payload?.revision ?? payload?.generated_at ?? null,
           generatedAt: payload?.generated_at ?? null,
           counts: payload?.counts ?? null,
+          // **THE SNAPSHOT'S OWN DEGRADATION LIST, ECHOED AND NOT INVENTED.** A producer that could not read
+          // one optional family (breaks, the history fan, the sealed reads, and so on) still publishes a
+          // snapshot and names the loss in a top-level `faults` array of `{name, error}` entries. This route
+          // is the one the tab polls, so carrying it here means a reader learns the last snapshot was
+          // incomplete without refetching the series body. `[]` is a complete snapshot. **`null` is a
+          // different statement: the snapshot carries no list at all** (an older producer, or no snapshot
+          // yet), and a client that treated null as complete would be guessing.
+          faults: Array.isArray(payload?.faults) ? payload.faults : null,
           error,
           snapshotSources: payload?.sources ?? null,
         })

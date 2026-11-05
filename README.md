@@ -60,7 +60,7 @@ served, and still drawn as far as it can be.
 | --- | --- |
 | header | the run's name, the snapshot's age with a fresh/stale badge, a Refresh button |
 | KPI row | latest step, the held-out reading, step wall time, throughput, memory peak, evaluation accuracy, the seed model's size |
-| chips | the four metrics this tab leads with, then a `N more series` disclosure holding everything else the snapshot carries |
+| chips | the eight metrics this tab leads with, and nothing else: `bpb`, `ppl`, `wall_seconds`, `units/s`, `gnorm`, `read layers`, `VRAM peak`, `vocab_size` |
 | chart | ONE series at a time on its own axis, with every break marker drawn on it, over a timeline you can select — plus the seed model's size as a second dashed line against the axis on the right, the chain a rollback threw away ghosted beside the live one on a shared origin, and a floating current value for each line |
 | register | under the chart: a switch per break category, then one status line per marker — its kind's shape and colour, its word, its leg and what changed — with the reason, the meaning and the evidence behind a per-row `why` disclosure |
 | footer | the snapshot path being read |
@@ -77,22 +77,26 @@ the same time as the reading it buys. See
 [The seed model's size](#the-seed-models-size) for what the number is and — more
 importantly — what it deliberately is not.
 
-**The chips are a short list on purpose.** A snapshot of this run carries sixty
-series, and a chip for every one of them is a wall of controls over a chart that
-draws one curve. The tab leads with the four it is steered by — the leg's own
-end-of-leg reading, throughput, VRAM peak and the exam — and the other
-thirty-six are one click away behind the disclosure. Nothing is dropped: a
-producer's own tag is still reachable, labelled by its own name.
+**The chips are the eight metrics the reader asked for, and nothing else.** A
+snapshot of this run carries sixty series, and an earlier version offered a chip
+for a good many of them: the header became a wall of controls, and the one at the
+front was a truncated duplicate of the one behind it. The header now offers the
+eight above, in that order. **A series outside those eight is not offered as a
+chip, and there is no disclosure holding one either**: the fall-through that used
+to re-add every series the list did not name was deleted, because removing an
+entry from the list while that loop lived only moved its chip, it did not remove
+it. What is not lost is that every one of those eight charts as a FAMILY - the
+metric's own training reading with its leg-end held-out reading, its sealed read
+and each corpus's own held-out reading drawn as lines on the same graph, and
+other arcs' curves muted behind it.
 
 **One curve, not two.** `train/bpb_sealed` and `train/bpb_legval` are the same
-chart. Measured on this run's snapshot: the curve carries 688 readings over legs
+chart. Measured on this run's snapshot: the curve carried 688 readings over legs
 1–689 and the leg-end reading 730 over 1–731, and on all 688 legs they share the
-values are identical. The curve stops at the phase boundary, which is where the
-corpus transfer happens, and the leg-end reading keeps going for another 42 legs.
-Both are written by the producer, so the tab resolves the pair: where the leg-end
-reading exists the truncated copy is not offered at all, and where a producer
-writes only the curve the curve is the held-out reading. The KPI header names
-which of the two it read.
+values are identical. The producer has since collapsed both spellings into
+`train/bpb`, so those two are no longer offered as chips at all; the old names
+survive only in the headline's resolution list, so an old snapshot on disk still
+puts a number in the KPI row. The KPI header names which source it read.
 
 **One series at a time is deliberate.** Series carry different units — bits per
 byte, seconds, GiB, accuracy, counts — and drawing them on one axis would invite
@@ -435,7 +439,7 @@ wrong.
 
 | route | purpose |
 | --- | --- |
-| `GET /dsh-train-dashboard/state` | small JSON: revision, age, staleness, whether a rebuild is in flight, whether this host can rebuild at all, and the exact command it would run |
+| `GET /dsh-train-dashboard/state` | small JSON: revision, age, staleness, whether a rebuild is in flight, whether this host can rebuild at all, the last snapshot's `faults` list (`[]` complete, `null` unreported), and the exact command it would run |
 | `GET /dsh-train-dashboard/series` | the whole snapshot body, plus `ok: true`; `503` while there is nothing yet |
 | either | `GET` only; anything else is `405` with `allow: GET` |
 
@@ -477,7 +481,8 @@ project and this plugin. This is a complete example:
     }
   ],
   "counts": { "points": 9 },
-  "sources": "metrics.jsonl + step logs"
+  "sources": "metrics.jsonl + step logs",
+  "faults": []
 }
 ```
 
@@ -492,9 +497,15 @@ project and this plugin. This is a complete example:
 | `series[].tag` | yes | The series name. A slash groups it: `train/loss`, `memory/vram_peak_gib`. |
 | `series[].points` | yes | Array of `[x, y]` pairs of finite numbers. `x` is the step axis. A pair that is not two finite numbers is dropped; a series left with nothing is not offered at all. |
 | `series[].source` | optional | Short string naming where the numbers came from; shown in the chip tooltip and the legend. |
-| `annotations` | optional | Free-form array, forwarded to the browser untouched. |
-| `counts` | optional | Free-form object, e.g. `{"points": 4123}`; echoed by `/state`. This project's producer puts its seed-size summary here: `{"seed": {"params_per_read_row": 770, "first_params": …, "last_params": …, "last_read_live_rows": …, "last_trainable_rows": …, "legs_counted": …}}`. |
-| `sources` | optional | String naming the producer's inputs; echoed by `/state` as `snapshotSources`. |
+| `annotations` | optional | Free-form array for your own records. The body is served to the browser untouched, but **this version of the tab does not read it**: it is a producer record field waiting for a reader, not something the panel draws. |
+| `counts` | optional | Free-form object for your own records, echoed by `/state`. **The tab does not read it**, so put nothing in it that the chart needs: the seed model's size is charted from the `series[]` tags listed below, not from here. |
+| `sources` | optional | String naming the producer's inputs; echoed by `/state` as `snapshotSources`. Informational for any other reader of the routes; the tab does not read it. |
+| `faults` | optional | An array of `{"name": "...", "error": "..."}` entries, one per **optional family the producer could not read**: break markers, the history fan, sealed reads, block timings, exams and so on. `[]` means the snapshot is complete. When it is non-empty the tab says so beside the chart - `Charting without: break markers (RuntimeError: ...)` - and `/state` echoes the list, so a reader learns a family is missing instead of taking an incomplete chart for a complete one. **Publish a snapshot even when a family fails**; name the loss here rather than exiting. |
+
+The host refuses a snapshot larger than **64 MB of UTF-8 bytes on disk** as
+*unusable* and says so, because it parses the whole file on every read. That is a
+guard against a runaway file and not a shape to design for: a real snapshot of
+this run is about 80 KB.
 
 ### `breaks[]`: the markers
 
@@ -531,23 +542,30 @@ read goes FLAT. A `frontier` key in a snapshot is now ignored, and what a reader
 still needs — that a corpus change raises the reading and is not a regression —
 is said at each change that happened, by the marker's own `reason` and `meaning`.
 
-**Tags the tab already has labels and units for** (a convenience, not a
-requirement — any other tag is still charted, labelled by its own tag):
+**Tags this tab offers, with their label and unit.** These eight ARE the chip
+list, in this order; the list is one constant in `client.cjs` and a test asserts
+it stays these eight. A producer is free to write other tags, and the tab does
+three different things with one: a tag that is the held-out, sealed or
+per-corpus reading of one of the eight (or another arc's history curve of it) is
+drawn as an extra LINE on that metric's chart, labelled by its own tag; a tag
+shaped like a per-step trace is kept out of the header; and everything else is
+served and not charted, so **nothing outside this table becomes a chip.**
 
 | tag | label | unit |
 | --- | --- | --- |
-| `train/bpb_sealed` | sealed bpb | bpb |
-| `train/bpb_legval` | leg-val bpb | bpb |
-| `train/wall_seconds` | leg wall time | s |
+| `train/bpb` | bpb | bpb |
+| `train/ppl` | ppl | ppl |
+| `train/wall_seconds` | wall_seconds | s |
 | `train/units_per_second` | units/s | u/s |
-| `train/gnorm` | grad norm | — |
-| `train/vocabulary_size` | vocab size | — |
+| `train/gnorm` | gnorm | — |
+| `train/read_layers` | read layers | — |
 | `memory/vram_peak_gib` | VRAM peak | GiB |
-| `memory/vram_headroom_gib` | VRAM headroom | GiB |
-| `eval/exam_accuracy` | exam accuracy | — |
-| `sealed/bpb` | sealed bpb | bpb |
-| `sealed/ppl` | sealed ppl | ppl |
-| `sealed/ppl_log` | sealed ppl (log10) | log10 ppl |
+| `train/vocab_size` | vocab_size | — |
+
+Two tags that are **not** chips still get a name in the KPI row, because either
+can be its held-out reading: `train/heldout_bpb` reads `held-out bpb` and
+`sealed/bpb` reads `sealed bpb`. Every other series the panel draws is labelled by
+its own tag or by the role it plays in a family.
 
 **A series taken on a cadence is drawn as its READINGS, not as a curve.** Some
 instruments do not run every step: a sealed evaluation of the saved checkpoint
@@ -564,10 +582,9 @@ only just begun writing.
 **A chip is a name, never a sentence.** The tab used to append an explanation to
 the label of three tag families — that the sealed read runs on a cadence rather
 than every leg, and that the leg-validation families run every leg — which put a
-paragraph inside a display name and baked in a cadence the producer's own
-`counts` can change. The cadence is data and belongs in `counts` (and in the
-chip's hover title, which shows the series' `source` verbatim); the sparseness
-is drawn. Every other chip is its tag or its label above, and nothing more.
+paragraph inside a display name and baked in a cadence the producer's own records
+can change. The chip's hover title shows the series' `source` verbatim, and the
+sparseness is drawn. Every chip is its tag or its label above, and nothing more.
 
 Two more tags are drawn **as the second line** rather than offered as chips, and
 one more sits beside them; see [The seed model's size](#the-seed-models-size):
@@ -752,6 +769,8 @@ the last numbers it has with their true age, and says what is being done:
 | snapshot present but unreadable (version mismatch, not JSON) | the host's own words, and that rebuilding will **not** fix it |
 | snapshot older than twice the interval | the chart still drawn, under a banner saying these are real numbers and not the newest |
 | snapshot with no readable `generated_at` | the numbers charted, the badge reading "age unknown", and the banner saying the age cannot be told |
+| snapshot missing a family (producer reported it) | the chart it could draw, **under a notice naming each family it is charting without**: `Charting without: break markers (RuntimeError: ...)` |
+| snapshot unreadably large (over 64 MB) | the host's own words and the last good numbers, like any other unreadable snapshot |
 | a read that fails after a good one | the last good numbers are kept, with their age — never a blank chart |
 | the host is unreachable | the transport error, in a notice, with the rest of the panel intact |
 
@@ -763,8 +782,8 @@ the last numbers it has with their true age, and says what is being done:
 | `cordis.patch.yml` | **one** insert row, with placeholder defaults to replace |
 | `index.mjs` | host half: the two routes, the snapshot read, the bounded single-flight spawn |
 | `client.cjs` | browser half: the right-pane tab, the header action row trigger, and the hand-drawn SVG chart |
-| `test/host.test.mjs` | 28 tests — the deferred registration, the read path, the spawn bounds, the pass-through |
-| `test/client.test.mjs` | 98 tests — the slot wiring, the pure helpers, the freshness rules, the break markers, the seed-size overlay, its log axis and the shared grid, and the category switches |
+| `test/host.test.mjs` | 35 tests — the deferred registration, the read path, the byte ceiling, the spawn bounds, the pass-through and the `/state` fault echo |
+| `test/client.test.mjs` | 165 tests — the slot wiring, the pure helpers, the freshness rules, the break markers, the seed-size overlay, its log axis and the shared grid, the category switches, and the degraded-snapshot notice in both directions |
 | `test/live-smoke.mjs` | opt-in end-to-end check against a real project and a real command |
 
 ```
@@ -922,19 +941,21 @@ Each of these is a mistake some plugin in this harness has already paid for once
   disclosure. The register arrived as four paragraphs per joint and was reported
   on 10 October 2026 as "too verbose, it's unreadable ... walls of text".
 - **A default list is a claim about what matters, and it goes stale.** The chips
-  offered nine metrics in a fixed order chosen when the tab was written, and the
-  snapshot had since grown to sixty series: the row became a wall of controls and
-  the one at the front was a truncated duplicate of the one behind it. The list is
-  now four, it is one constant with the reason for each entry beside it, and
-  everything else is behind a disclosure rather than gone. A default nobody
+  were a fixed list chosen when the tab was written, and the snapshot had since
+  grown to sixty series: the row became a wall of controls and the one at the
+  front was a truncated duplicate of the one behind it. The list is
+  now the eight the reader named, it is one constant with the reason for each
+  entry beside it, and the fall-through that re-added every unnamed series is
+  gone - so a metric that is not in the list is not a chip. A default nobody
   revisits is a default that decides for the reader.
-- **When two series are one chart, the tab resolves them.** `train/bpb_sealed` and
-  `train/bpb_legval` are identical on all 688 legs they share; the first stops at
-  the phase boundary and the second continues 42 legs past it. So one entry names
-  the other as its `fallbackFor`: where both exist the truncated one is not
-  offered at all, and where only the curve exists it is the reading. A reader
-  should never be handed two chips for one picture and left to work out which is
-  which.
+- **When two series are one chart, the tab draws them as one family.** The
+  held-out, sealed and per-corpus readings of a metric are the SAME quantity
+  measured a different way or over a different slice, so they are lines on that
+  metric's own chart, each with its role and its own colour, and never chips of
+  their own. The alternative was tried and rejected: two chips for one picture
+  leaves the reader to work out which one is which. The legacy spellings
+  `train/bpb_sealed` and `train/bpb_legval` are neither chips nor family members
+  any more; they survive only in the headline's resolution list.
 - **A size charted by the file's byte count would be flat over a growing model.**
   The read is a fixed allocation rectangle, so every leg writes the same 375 MB
   while the model inside it grows. The seed's size is counted in PARAMETERS from

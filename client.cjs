@@ -179,6 +179,9 @@ window.__ModuleLoader__.load({
       notice: 'dshtd-notice',
       noticeTitle: 'dshtd-notice-title',
       noticeBody: 'dshtd-notice-body',
+      // The degraded-snapshot notice: the same notice box, shrunk to one line, naming the families the
+      // producer could not read. See `faultNotice`.
+      faults: 'dshtd-faults',
       code: 'dshtd-code',
       legend: 'dshtd-legend',
       legendItem: 'dshtd-legend-item',
@@ -662,6 +665,15 @@ window.__ModuleLoader__.load({
 }
 .${CLASS.noticeTitle} { font-weight: 600; margin-bottom: 4px; }
 .${CLASS.noticeBody} { color: var(--dsw-alias-label-secondary, #b0b0b0); }
+/* THE DEGRADED-SNAPSHOT NOTICE: the panel's own notice box, shrunk to one line so it sits beside the head
+   rather than pushing the chart down. It introduces NO COLOURS of its own - the border, the background and
+   the text all come from the notice rules above, which are written against the theme tokens - so dark and
+   light stay decided where every other notice's palette is decided. */
+.${CLASS.faults} {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
+  padding: 6px 10px; font-size: 10.5px;
+}
+.${CLASS.faults} .${CLASS.noticeTitle} { margin-bottom: 0; }
 .${CLASS.code} {
   display: block; margin-top: 6px; padding: 6px 8px; border-radius: 6px; overflow-x: auto;
   background: var(--dsw-alias-bg-layer-3, #111); font-family: ui-monospace, Menlo, Consolas, monospace;
@@ -5051,6 +5063,82 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * How much of one fault's error text the notice repeats.
+     *
+     * A NOTICE IS ONE LINE. The producer's exception message is what says WHICH failure it was, so it is kept
+     * - but an exception can carry a whole traceback's last sentence, and a notice that grew a paragraph
+     * would be a wall where a sentence was asked for.
+     */
+    const FAULT_ERROR_CHARS = 160
+
+    /**
+     * The snapshot's `faults` list, read defensively into `{ name, error }` entries.
+     *
+     * The producer publishes one entry per optional series family it could not read:
+     * `{"name": "break markers", "error": "RuntimeError: ..."}`. THE CLIENT IS NOT WHERE THAT SHAPE IS
+     * TRUSTED: an older body has no key at all, a hand-written one can put a string where an object belongs,
+     * and a notice must never be the reason a panel fails to render. An entry survives when it names a
+     * family OR carries an error; an entry with an error but no name is labelled rather than dropped,
+     * because a silence about a loss is the exact defect this notice exists to remove.
+     *
+     * @returns an array of `{ name, error }`; `error` is `''` when the entry carries none.
+     */
+    function faultEntries(faults) {
+      if (!Array.isArray(faults)) return []
+      const entries = []
+      for (const fault of faults) {
+        if (typeof fault === 'string') {
+          const name = fault.trim()
+          if (name !== '') entries.push({ name, error: '' })
+          continue
+        }
+        if (fault === null || typeof fault !== 'object') continue
+        const name = typeof fault.name === 'string' ? fault.name.trim() : ''
+        // The error is flattened onto one line: a multi-line message would break the notice's line.
+        const error = typeof fault.error === 'string' ? fault.error.replace(/\s+/g, ' ').trim() : ''
+        if (name === '' && error === '') continue
+        entries.push({
+          name: name === '' ? 'unnamed family' : name,
+          error: error === '' ? '' : clipWords(error, FAULT_ERROR_CHARS),
+        })
+      }
+      return entries
+    }
+
+    /**
+     * The notice a degraded snapshot wears, or `null` when it lost nothing.
+     *
+     * **THE SMALLEST RENDER THAT NAMES THE LOSS** (audit finding P12, improvement I2). The producer already
+     * says which optional families it could not read; the tab's only job is to put those words on screen
+     * beside the chart, in the notice box the panel uses for its other states. Names, not counts: "charting
+     * without: sealed reads" is what tells a reader which part of the picture is missing, and a bare number
+     * of faults would leave them hunting.
+     *
+     * A COMPLETE SNAPSHOT RENDERS NOTHING HERE - no `faults` key, or an empty list - so its tree is exactly
+     * the tree it was before this notice existed. The panel does not push a `null` child either; that
+     * distinction is pinned in both directions by `test/client.test.mjs`.
+     */
+    function faultNotice(faults) {
+      const entries = faultEntries(faults)
+      if (entries.length === 0) return null
+      const sentence = entries
+        .map((entry) => (entry.error === '' ? entry.name : `${entry.name} (${entry.error})`))
+        .join('; ')
+      return React.createElement('div', {
+        // Two classes: the notice box (and its theme tokens) and this notice's own one-line layout. The
+        // element carries no colour of its own, so a palette change reaches it through the same rules as
+        // every other notice on the panel.
+        className: `${CLASS.notice} ${CLASS.faults}`,
+        'data-faults': String(entries.length),
+        title: entries
+          .map((entry) => (entry.error === '' ? entry.name : `${entry.name}: ${entry.error}`))
+          .join('\n'),
+      },
+      React.createElement('span', { className: CLASS.noticeTitle }, 'Charting without: '),
+      React.createElement('span', { className: CLASS.noticeBody }, sentence))
+    }
+
+    /**
      * The panel: polls the small state route, fetches the series only when the
      * revision moves, and keeps showing the last good payload throughout.
      */
@@ -5184,6 +5272,14 @@ window.__ModuleLoader__.load({
               ? 'Rebuild the snapshot now'
               : 'This profile has no subprocess provider, so the tab cannot run the tool',
           }, 'Refresh')))
+
+      // **A DEGRADED REFRESH SAYS SO IN THE TAB, BESIDE THE CHART IT DEGRADED.** The producer names every
+      // optional family it could not read in the body's `faults` list (the repaired producer, 5 November
+      // 2026), and until now the tab drew the chart it could and stayed silent - the audit's finding P12.
+      // It reads the BODY being drawn and not the host's `/state` echo, so the notice can only ever describe
+      // the snapshot on screen. A complete snapshot yields `null` here and the panel does not push it, which
+      // is what keeps a complete panel's tree identical to the tree it rendered before this notice existed.
+      const degraded = payload === null ? null : faultNotice(payload.faults)
 
       const kpis = React.createElement('div', { className: CLASS.kpis },
         React.createElement(Kpi, {
@@ -5342,13 +5438,19 @@ window.__ModuleLoader__.load({
       // **THE `theme` PROP WINS WHEN IT IS GIVEN**, because the host is what knows the mode it was configured
       // with and the state field is a convenience for it. A caller that passes neither - which is every
       // existing mount - gets `auto`, so nothing that was working changes behaviour.
+      //
+      // **AND THE DEGRADED NOTICE IS PUSHED ONLY WHEN IT EXISTS.** Passing it as an extra child would put a
+      // `null` in the middle of a complete panel's children where there was none before; the children array
+      // below is the pre-existing five, in the pre-existing order, unless a fault list names a loss.
+      const footnote = React.createElement('div', { className: CLASS.footnote },
+        state?.snapshotPath ? `reading ${state.snapshotPath}` : 'reading the configured snapshot')
+      const children = [head]
+      if (degraded !== null) children.push(degraded)
+      children.push(notice, stale, body, footnote)
       return React.createElement('div', {
         className: CLASS.panel,
         [THEME_ATTRIBUTE]: themeAttribute(theme ?? state?.theme),
-      },
-        head, notice, stale, body,
-        React.createElement('div', { className: CLASS.footnote },
-          state?.snapshotPath ? `reading ${state.snapshotPath}` : 'reading the configured snapshot'))
+      }, ...children)
     }
 
     /**
@@ -5473,6 +5575,12 @@ window.__ModuleLoader__.load({
       describeAge,
       ageSentence,
       emptyReason,
+      // The degraded-refresh notice: the list the producer publishes, read into names, and the element the
+      // panel wears when that list is not empty. Exported so a test can pin BOTH directions without a DOM -
+      // no notice on a complete snapshot, one notice naming every lost family otherwise.
+      faultEntries,
+      faultNotice,
+      FAULT_ERROR_CHARS,
       CHART,
       OVERVIEW,
       fullRange,

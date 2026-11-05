@@ -4164,3 +4164,131 @@ test('the default zoom is the live arc’s own, so another arc’s outlier canno
   assert.ok(!drawn.includes('61666'), 'the older arc’s 61,666 must not set the frame')
   assert.ok(!drawn.includes('7438'), 'nor its next-worst reading')
 })
+
+// ---------------------------------------------------------------------------
+// THE DEGRADED-SNAPSHOT NOTICE.
+//
+// The producer publishes one `{name, error}` entry per optional series family it could not read (the
+// repaired producer, 5 November 2026), and until this notice existed the tab drew the chart it could and
+// said nothing: a family missing from the picture looked exactly like a family that had never been served.
+// The two directions are pinned together, because only one of them is a feature: a degraded snapshot must
+// NAME the families it is charting without, and a COMPLETE snapshot must render exactly the panel it
+// rendered before this notice existed - no empty box, no null child in a slot that had none.
+// ---------------------------------------------------------------------------
+
+/**
+ * Render the PANEL with a snapshot body already in hand, the way a poll leaves it.
+ *
+ * `Panel` fetches its body in an effect, and effects never run here, so the body is placed in the state
+ * cell the poll writes to: render once to register the hooks in order, put the body in the payload cell,
+ * render again. A hook-ordered renderer is required (see `mountHooks`), because the panel keeps six
+ * `useState` cells and the payload is the second of them.
+ */
+function renderPanel(payload, props = {}) {
+  const view = mountHooks(t.Panel, { sessionId: 'session-faults', theme: 'auto', ...props })
+  withDispatchedHooks(view.dispatcher, () => view.render())
+  view.cells[1] = payload
+  return withDispatchedHooks(view.dispatcher, () => view.render())
+}
+
+test('the faults list is read into one name per family, and malformed entries are not a crash', () => {
+  // The producer's shape is `{"name", "error"}` and the client does not get to trust it: an older body has
+  // no key, a hand-written one can put anything where an object belongs, and the notice must never be the
+  // reason a panel fails to render. A loss is never dropped either - an entry that carries only an error is
+  // labelled rather than ignored, because silence about a loss is the defect the notice exists to remove.
+  assert.deepEqual(t.faultEntries(undefined), [], 'a body older than the key lost nothing it can name')
+  assert.deepEqual(t.faultEntries(null), [])
+  assert.deepEqual(t.faultEntries([]), [])
+  assert.deepEqual(t.faultEntries('break markers'), [], 'a non-list is not a list of faults')
+
+  assert.deepEqual(
+    t.faultEntries([{ name: 'sealed reads', error: 'FileNotFoundError: no sealed.jsonl' }]),
+    [{ name: 'sealed reads', error: 'FileNotFoundError: no sealed.jsonl' }],
+    'a well-formed entry is carried through as the producer wrote it')
+
+  // a bare string still names a family, and an entry with no name is labelled rather than dropped
+  assert.deepEqual(t.faultEntries(['history fan']), [{ name: 'history fan', error: '' }])
+  assert.deepEqual(t.faultEntries([{ error: 'RuntimeError: boom' }]),
+    [{ name: 'unnamed family', error: 'RuntimeError: boom' }])
+  assert.deepEqual(t.faultEntries([{ name: '   ' }, 42, null]), [],
+    'an entry that names nothing and says nothing is not a loss anyone can report')
+
+  // one line per notice: a multi-line message is flattened, and a very long one is cut visibly
+  const flattened = t.faultEntries([{ name: 'break markers', error: 'RuntimeError:\n the reader\nraised' }])
+  assert.equal(flattened[0].error, 'RuntimeError: the reader raised')
+  const long = t.faultEntries([{ name: 'break markers', error: 'x'.repeat(t.FAULT_ERROR_CHARS + 80) }])
+  assert.ok(long[0].error.endsWith('…'), 'a long error is cut with an ellipsis, never silently')
+  assert.ok(long[0].error.length <= t.FAULT_ERROR_CHARS + 1)
+})
+
+test('no fault list means no notice at all, so a complete snapshot adds no node', () => {
+  assert.equal(t.faultNotice(undefined), null)
+  assert.equal(t.faultNotice([]), null)
+  assert.equal(t.faultNotice(null), null)
+  assert.ok(t.faultNotice([{ name: 'sealed reads' }]) !== null,
+    'and one named family is enough to earn the notice')
+})
+
+test('a complete snapshot wears no degraded notice and keeps the panel every reader already had', () => {
+  // THE COMPLETE PATH IS THE ONE MOST READERS ARE ON. The panel passed exactly five children before this
+  // notice existed - the head, the host/failure notice, the stale banner, the body and the footer - so a
+  // complete snapshot must still pass exactly those five, in that order. TWO SPELLINGS of "complete" are
+  // pinned: the repaired producer's `faults: []`, and the older producer that has no key at all.
+  for (const body of [snapshotWith({ faults: [] }), snapshotWith()]) {
+    const panel = renderPanel(body)
+
+    assert.equal(panel.children.length, 5,
+      'a complete snapshot must add no child to the panel: not an empty box and not a null slot')
+    assert.equal(elementsWithClass(panel, 'dshtd-faults').length, 0, 'and it must draw no degraded notice')
+    assert.ok(!textOf(panel).includes('Charting without'), 'nor claim a family is missing')
+
+    assert.equal(panel.children[0].props.className, 'dshtd-head', 'the head is where it always was')
+    assert.equal(panel.children[1], null, 'the host/failure notice slot is untouched')
+    assert.equal(panel.children[2], null, 'and so is the stale banner slot')
+    assert.equal(panel.children[3].type, reactStub.Fragment, 'the body sits exactly where it sat before')
+    assert.equal(panel.children[4].props.className, 'dshtd-footnote', 'and the footer closes the panel')
+  }
+})
+
+test('a degraded snapshot names every family it is charting without', () => {
+  const faults = [
+    { name: 'break markers', error: 'RuntimeError: the break reader raised' },
+    { name: 'history fan', error: 'KeyError: history' },
+  ]
+  const panel = renderPanel(snapshotWith({ faults }))
+
+  assert.equal(panel.children.length, 6,
+    'the notice is ONE ADDED child: a complete panel plus the notice, never a reshaped one')
+  const notice = panel.children[1]
+  assert.equal(notice.props.className, 'dshtd-notice dshtd-faults')
+  assert.equal(notice.props['data-faults'], '2')
+  const words = textOf(notice)
+  assert.match(words, /Charting without/)
+  for (const fault of faults) {
+    assert.ok(words.includes(fault.name), `the notice must NAME ${fault.name}, not count it`)
+    assert.ok(words.includes(fault.error), `and say which failure it was: ${fault.error}`)
+  }
+
+  // AND THE REST OF THE PANEL IS THE COMPLETE ONE, child for child: the notice is added, not swapped in.
+  assert.equal(panel.children[0].props.className, 'dshtd-head')
+  assert.equal(panel.children[2], null)
+  assert.equal(panel.children[3], null)
+  assert.equal(panel.children[4].type, reactStub.Fragment)
+  assert.equal(panel.children[5].props.className, 'dshtd-footnote')
+})
+
+test('the degraded notice is the panel\'s own notice box, so the theme tokens reach it', () => {
+  // A NEW COLOUR HERE WOULD BE A SECOND PALETTE, and a colour written only in the sheet is a colour that
+  // goes black when the sheet is not applied. The notice therefore WEARS the existing notice class and adds
+  // only a one-line layout rule, which must carry no colour of its own: dark and light stay decided by the
+  // notice rules' theme tokens, in one place.
+  const notice = t.faultNotice([{ name: 'sealed reads' }])
+  const classes = notice.props.className.split(' ')
+  assert.ok(classes.includes('dshtd-notice'), 'without the notice class it is a box with no palette')
+  assert.ok(classes.includes('dshtd-faults'), 'and it needs its own class for the one-line layout')
+
+  const rule = /\.dshtd-faults\s*\{([^}]*)\}/.exec(String(t.CSS))
+  assert.ok(rule, 'the sheet must give the notice its layout, or it renders with the notice\'s full padding')
+  assert.ok(!/#[0-9a-fA-F]{3,6}\b/.test(rule[1]),
+    'the layout rule must introduce no colour: the notice\'s tokens own the palette in both modes')
+})
